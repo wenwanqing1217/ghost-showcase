@@ -1,0 +1,19 @@
+{
+  "skills": {
+    "greet@1.0.0": {
+      "name": "greet",
+      "version": "1.0.0",
+      "author_did": "did:aid:DB6uj7hRVyo9RDcUfkqmYg",
+      "author_public_key_hex": "bd94eeaa8c04c11ff83789773318e48ef04fd6f60336fd66d8931aabf964b3f1",
+      "description": "",
+      "content_type": "python",
+      "content_hash": "22dd41908cc1376730e52bfe3b65b23276a3332cf256b4e02249cbcb0c7e93d5",
+      "tags": [],
+      "dependencies": [],
+      "is_signed": true,
+      "registered_at": 1783332807.986141,
+      "path": "D:\\AID\\pytest_temp\\test_execute_skill_pass_execut0\\skills\\greet"
+    }
+  },
+  "revoked": {}
+}

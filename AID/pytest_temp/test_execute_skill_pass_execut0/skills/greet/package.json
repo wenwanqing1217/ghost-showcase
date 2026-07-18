@@ -1,0 +1,15 @@
+{
+  "name": "greet",
+  "version": "1.0.0",
+  "author_did": "did:aid:DB6uj7hRVyo9RDcUfkqmYg",
+  "description": "",
+  "author_public_key_hex": "bd94eeaa8c04c11ff83789773318e48ef04fd6f60336fd66d8931aabf964b3f1",
+  "content_hash": "22dd41908cc1376730e52bfe3b65b23276a3332cf256b4e02249cbcb0c7e93d5",
+  "content_type": "python",
+  "signature": "5788be4ea2afc4fb9a5d738501718626898b6eb3ba2c82b511e3b2a4ad80da1011112b26653f4e27a2cc098834eca47f590bd48f75e1db9353d4a302608a790c",
+  "signed_at": 1783332807.968399,
+  "tags": [],
+  "dependencies": [],
+  "meta_version": 1,
+  "__type__": "SkillPackage"
+}
