@@ -201,7 +201,7 @@ class TestCodeExecutor:
         assert (tmp_path / "hello.py").exists()
         assert (tmp_path / "world.py").exists()
 
-    def test_generate_diff_returns_placeholder_without_llm(self, tmp_path: Path) -> None:
+    async def test_generate_diff_returns_placeholder_without_llm(self, tmp_path: Path) -> None:
         from mindflow_map.autopilot.executor import CodeExecutor
         from mindflow_map.autopilot.prompt import AssembledPrompt
         from mindflow_map.autopilot.roles import Role
@@ -224,17 +224,17 @@ class TestCodeExecutor:
             allowed=True,
             violations=[],
         )
-        diff = executor._generate_diff(type("SubTask", (), {"description": "add feature"})(), assembled)
+        diff = await executor._generate_diff(type("SubTask", (), {"description": "add feature"})(), assembled)
         assert "FILE:" in diff
         assert "add feature" in diff
 
-    def test_execute_runs_full_flow(self, tmp_path: Path) -> None:
+    async def test_execute_runs_full_flow(self, tmp_path: Path) -> None:
         from mindflow_map.autopilot.executor import CodeExecutor
 
         (tmp_path / "pyproject.toml").write_text("[tool.pytest]", encoding="utf-8")
 
         executor = CodeExecutor(project_root=tmp_path)
-        result = executor.execute(
+        result = await executor.execute(
             type("SubTask", (), {"description": "create hello.py", "test_command": None})(),
             context=None,
         )

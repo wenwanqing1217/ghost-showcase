@@ -25,7 +25,7 @@ from .git_workflow import GitWorkflow
 from .self_loop import SelfLoop, CodebaseScanner, IssuePrioritizer
 from .collaboration import CollaborationEngine, MessageBus, AgentDescriptor, AgentMessage
 from .memory import MemoryStore, LearningEngine
-from .workflows import WorkflowEngine, WorkflowDefinitionLoader, WorkflowDefinition
+from .workflows import YamlWorkflowEngine, WorkflowDefinitionLoader, WorkflowDefinition
 from .approval import ApprovalFlow, ApprovalStore
 from .notifications import NotificationService, FeishuNotifier, WeChatNotifier
 from .scheduler import WorkflowScheduler, CronExpression, ScheduledJob
@@ -49,7 +49,7 @@ __all__ = [
     "AgentMessage",
     "MemoryStore",
     "LearningEngine",
-    "WorkflowEngine",
+    "YamlWorkflowEngine",
     "WorkflowDefinitionLoader",
     "WorkflowDefinition",
     "ApprovalFlow",

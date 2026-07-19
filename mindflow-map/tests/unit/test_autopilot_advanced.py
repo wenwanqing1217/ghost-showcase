@@ -11,7 +11,7 @@ from mindflow_map.autopilot.approval import ApprovalFlow, ApprovalStore, Approva
 from mindflow_map.autopilot.collaboration import AgentDescriptor, AgentMessage, CollaborationEngine, MessageBus
 from mindflow_map.autopilot.memory import LearningEngine, MemoryStore, MemoryEntry
 from mindflow_map.autopilot.scheduler import CronExpression, ScheduledJob, WorkflowScheduler
-from mindflow_map.autopilot.workflows import WorkflowDefinitionLoader, WorkflowEngine, WorkflowStep, WorkflowDefinition
+from mindflow_map.autopilot.workflows import WorkflowDefinitionLoader, YamlWorkflowEngine, WorkflowStep, WorkflowDefinition
 
 
 class TestMessageBus:
@@ -124,7 +124,7 @@ class TestApprovalFlow:
         assert store.get(req.id).status == ApprovalStatus.REJECTED
 
 
-class TestWorkflowEngine:
+class TestYamlWorkflowEngine:
     def test_load_workflow(self, tmp_path: Path) -> None:
         loader = WorkflowDefinitionLoader(tmp_path)
         definition = WorkflowStep(id="s1", type="task", name="Lint", prompt="run lint")
@@ -146,7 +146,7 @@ class TestWorkflowEngine:
             steps=[definition], triggers=[]
         )
         loader.save(wf)
-        engine = WorkflowEngine(workflows_dir=tmp_path)
+        engine = YamlWorkflowEngine(workflows_dir=tmp_path)
         run = engine.start("wf1", {"key": "value"})
         assert run is not None
         assert run.status == "running"
@@ -173,7 +173,7 @@ class TestCronExpression:
 
 class TestWorkflowScheduler:
     def test_schedule_persists_job(self, tmp_path: Path) -> None:
-        engine = WorkflowEngine(workflows_dir=tmp_path)
+        engine = YamlWorkflowEngine(workflows_dir=tmp_path)
         scheduler = WorkflowScheduler(workflow_engine=engine, storage_path=tmp_path / "jobs.json")
         scheduler.stop = lambda: None
         job = scheduler.schedule("wf1", "*/5 * * * *")
@@ -181,7 +181,7 @@ class TestWorkflowScheduler:
         assert scheduler.list_jobs() == [job]
 
     def test_list_jobs_filters_by_workflow(self, tmp_path: Path) -> None:
-        engine = WorkflowEngine(workflows_dir=tmp_path)
+        engine = YamlWorkflowEngine(workflows_dir=tmp_path)
         scheduler = WorkflowScheduler(workflow_engine=engine, storage_path=tmp_path / "jobs.json")
         scheduler.stop = lambda: None
         scheduler.schedule("wf1", "*/5 * * * *")
@@ -190,7 +190,7 @@ class TestWorkflowScheduler:
         assert len(scheduler.list_jobs(workflow_id="wf1")) == 1
 
     def test_cancel_removes_job(self, tmp_path: Path) -> None:
-        engine = WorkflowEngine(workflows_dir=tmp_path)
+        engine = YamlWorkflowEngine(workflows_dir=tmp_path)
         scheduler = WorkflowScheduler(workflow_engine=engine, storage_path=tmp_path / "jobs.json")
         scheduler.stop = lambda: None
         job = scheduler.schedule("wf1", "*/5 * * * *")

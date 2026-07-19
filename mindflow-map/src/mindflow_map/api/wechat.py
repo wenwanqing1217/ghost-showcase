@@ -59,8 +59,10 @@ class WechatMessage(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _parse_xml(body: bytes) -> WechatMessage:
-    """解析微信 XML"""
-    root = ET.fromstring(body)
+    """解析微信 XML（防御 XXE：移除 DOCTYPE 声明）"""
+    # 防御性移除 DOCTYPE，防止外部实体注入攻击
+    safe_body = re.sub(br'<!DOCTYPE[^>]*>', b'', body, count=1, flags=re.IGNORECASE)
+    root = ET.fromstring(safe_body)
     return WechatMessage(
         to_user=root.find("ToUserName").text or "",
         from_user=root.find("FromUserName").text or "",

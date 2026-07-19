@@ -14,7 +14,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from .workflows import WorkflowEngine, WorkflowRun
+from .workflows import YamlWorkflowEngine, WorkflowRun
 
 
 class CronExpression:
@@ -76,7 +76,7 @@ class ScheduledJob:
 class WorkflowScheduler:
     """Schedule and manage recurring workflow executions."""
 
-    def __init__(self, workflow_engine: WorkflowEngine, storage_path: str | os.PathLike[str] | None = None) -> None:
+    def __init__(self, workflow_engine: YamlWorkflowEngine, storage_path: str | os.PathLike[str] | None = None) -> None:
         self.workflow_engine = workflow_engine
         self.storage_path = Path(storage_path) if storage_path is not None else Path("scheduled_jobs.json")
         self._jobs: dict[str, ScheduledJob] = {}
@@ -157,11 +157,16 @@ class WorkflowScheduler:
         try:
             cron = CronExpression(job.cron_expression)
             now = datetime.now(timezone.utc)
-            for minutes in range(0, 60 * 24 * 366, 1):
-                candidate = now + __import__("datetime").timedelta(minutes=minutes)
+            # Start searching from the next minute
+            candidate = now.replace(second=0, microsecond=0) + __import__("datetime").timedelta(minutes=1)
+            # Bounded search: up to 2 years (covers all reasonable cron patterns)
+            end_year = candidate.year + 2
+            while candidate.year < end_year:
                 if cron.matches(candidate):
                     job.next_run_at = candidate
                     return
+                candidate += __import__("datetime").timedelta(minutes=1)
+            job.next_run_at = None
         except ValueError:
             job.next_run_at = None
 

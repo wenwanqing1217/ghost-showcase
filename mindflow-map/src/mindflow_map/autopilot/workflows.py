@@ -181,7 +181,7 @@ class WorkflowDefinitionLoader:
         }
 
 
-class WorkflowEngine:
+class YamlWorkflowEngine:
     """Execute workflow definitions."""
 
     def __init__(self, workflows_dir: str | os.PathLike[str] | None = None) -> None:

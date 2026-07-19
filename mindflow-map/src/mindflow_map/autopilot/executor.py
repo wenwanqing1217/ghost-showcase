@@ -9,6 +9,7 @@ from __future__ import annotations
 import ast
 import os
 import re
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -43,7 +44,7 @@ class CodeExecutor:
     def check_path(self, path: str | os.PathLike[str]) -> Path:
         """Validate that a path is within the project root."""
         resolved = (self.project_root / path).resolve()
-        if not str(resolved).startswith(str(self.project_root)):
+        if not resolved.is_relative_to(self.project_root):
             raise ValueError(
                 f"Scope escape blocked: {resolved} is outside project root {self.project_root}"
             )
@@ -65,7 +66,7 @@ class CodeExecutor:
             pass
         return None
 
-    def execute(self, subtask: Any, context: dict[str, Any] | None = None) -> ExecutionResult:
+    async def execute(self, subtask: Any, context: dict[str, Any] | None = None) -> ExecutionResult:
         started_at = datetime.now(timezone.utc)
         errors: list[str] = []
 
@@ -84,7 +85,7 @@ class CodeExecutor:
             )
 
         try:
-            diff = self._generate_diff(subtask, assembled)
+            diff = await self._generate_diff(subtask, assembled)
         except Exception as exc:  # noqa: BLE001
             return ExecutionResult(
                 subtask_description=subtask.description,
@@ -117,12 +118,10 @@ class CodeExecutor:
             finished_at=datetime.now(timezone.utc),
         )
 
-    def _generate_diff(self, subtask: Any, assembled: Any) -> str:
+    async def _generate_diff(self, subtask: Any, assembled: Any) -> str:
         llm_client = self._get_llm_client()
         if llm_client is None:
             return self._placeholder_diff(subtask)
-
-        import asyncio
 
         project_files = self._list_project_files()
         prompt = (
@@ -142,12 +141,10 @@ class CodeExecutor:
         )
 
         try:
-            response = asyncio.run(
-                llm_client.chat(
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.2,
-                    max_tokens=4096,
-                )
+            response = await llm_client.chat(
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+                max_tokens=4096,
             )
             text = response.strip()
             if not text or "FILE:" not in text:
@@ -212,13 +209,14 @@ class CodeExecutor:
 
     def _run_tests(self, command: str) -> tuple[bool, str]:
         try:
+            cmd_args = shlex.split(command)
             result = subprocess.run(
-                command,
+                cmd_args,
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
                 check=False,
-                shell=True,
+                shell=False,
             )
             output = result.stdout + "\n" + result.stderr
             return result.returncode == 0, output

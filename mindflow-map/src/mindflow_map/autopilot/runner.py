@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import os
+import shlex
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -126,7 +127,7 @@ class TaskRunner:
             ValueError: If the path escapes the project root.
         """
         resolved = (self.project_root / path).resolve()
-        if not str(resolved).startswith(str(self.project_root)):
+        if not resolved.is_relative_to(self.project_root):
             raise ValueError(
                 f"Scope escape blocked: {resolved} is outside project root {self.project_root}"
             )
@@ -141,6 +142,9 @@ class TaskRunner:
         cwd = self.project_root
         cmd = _detect_test_command(cwd)
 
+        if isinstance(cmd, str):
+            cmd = shlex.split(cmd)
+
         try:
             result = subprocess.run(
                 cmd,
@@ -148,7 +152,7 @@ class TaskRunner:
                 capture_output=True,
                 text=True,
                 check=False,
-                shell=isinstance(cmd, str),
+                shell=False,
             )
             output = result.stdout + "\n" + result.stderr
             return result.returncode == 0, output

@@ -59,5 +59,8 @@ class Settings(BaseSettings):
     shortdramas_api_key: str = ""
     shortdramas_webhook_secret: str = ""
 
+    # Autopilot 认证配置
+    autopilot_api_key: str = ""
+
 
 settings = Settings()
