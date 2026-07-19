@@ -12,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from mindflow_map.config import settings
 from mindflow_map.config_validator import check_all
-from mindflow_map.api import automation, health, map, shortdramas, wechat, workflow
+from mindflow_map.api import automation, autopilot, health, map, shortdramas, wechat, workflow
 from mindflow_map.workflows.engine import WorkflowEngine
 
 logger = logging.getLogger(__name__)
@@ -83,6 +83,7 @@ app.include_router(workflow.router, prefix="/api/v1/workflow", tags=["工作流"
 app.include_router(wechat.router, prefix="/api/v1/wechat", tags=["微信"])
 app.include_router(automation.router, prefix="/api/v1/automation", tags=["自动化"])
 app.include_router(shortdramas.router, prefix="/api/v1/shortdramas", tags=["短剧预审"])
+app.include_router(autopilot.router, prefix="/api/v1/autopilot", tags=["autopilot"])
 
 
 @app.get("/")

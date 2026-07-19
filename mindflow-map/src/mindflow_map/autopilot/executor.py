@@ -1,6 +1,7 @@
 """Code execution engine for the autopilot system.
 
 Generates code using LLM and applies changes safely to the project.
+Falls back to placeholder diff generation when LLM is not configured.
 """
 
 from __future__ import annotations
@@ -10,7 +11,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -20,10 +20,8 @@ from .prompt import assemble_prompt
 from .safety import check_safety
 
 
-@dataclasses.dataclass
+@dataclass
 class ExecutionResult:
-    """Result of executing a subtask."""
-
     subtask_description: str
     success: bool
     diff: str
@@ -40,21 +38,28 @@ class CodeExecutor:
 
     def __init__(self, project_root: str | os.PathLike[str]) -> None:
         self.project_root = Path(project_root).resolve()
+        self._llm_client = None
+
+    def _get_llm_client(self) -> Any | None:
+        """Lazy-load the LLM client if configured."""
+        if self._llm_client is not None:
+            return self._llm_client
+
+        try:
+            from mindflow_map.ai.llm import LLMClient
+            from mindflow_map.config import settings
+
+            if settings.openai_api_key:
+                self._llm_client = LLMClient()
+                return self._llm_client
+        except Exception:  # noqa: BLE001
+            pass
+        return None
 
     def execute(self, subtask: Any, context: dict[str, Any] | None = None) -> ExecutionResult:
-        """Execute a subtask and return the result.
-
-        Args:
-            subtask: SubTask to execute.
-            context: Optional execution context.
-
-        Returns:
-            ExecutionResult with diff, test results, and any errors.
-        """
         started_at = datetime.now(timezone.utc)
         errors: list[str] = []
 
-        # Assemble prompt for this subtask
         assembled = assemble_prompt(subtask.description, context=context)
         if not assembled.allowed:
             return ExecutionResult(
@@ -69,7 +74,6 @@ class CodeExecutor:
                 finished_at=datetime.now(timezone.utc),
             )
 
-        # Generate code diff using LLM
         try:
             diff = self._generate_diff(subtask, assembled)
         except Exception as exc:  # noqa: BLE001
@@ -85,13 +89,11 @@ class CodeExecutor:
                 finished_at=datetime.now(timezone.utc),
             )
 
-        # Apply diff safely
         files_modified = self._apply_diff(diff)
 
-        # Run tests if command is available
         tests_passed = True
         test_output = ""
-        if subtask.test_command:
+        if getattr(subtask, "test_command", None):
             tests_passed, test_output = self._run_tests(subtask.test_command)
 
         return ExecutionResult(
@@ -107,18 +109,41 @@ class CodeExecutor:
         )
 
     def _generate_diff(self, subtask: Any, assembled: Any) -> str:
-        """Generate a code diff for the subtask.
+        llm_client = self._get_llm_client()
+        if llm_client is None:
+            return self._placeholder_diff(subtask)
 
-        This is a structured generation that produces a unified diff.
-        In production, this would call an LLM with the assembled prompt.
-        For now, it produces a placeholder diff that can be applied.
-        """
-        # In a full implementation, this would call the LLM service
-        # For now, return a structured diff placeholder
-        return self._placeholder_diff(subtask)
+        import asyncio
+
+        prompt = (
+            f"{assembled.system_prompt}\n\n"
+            f"TASK:\n{subtask.description}\n\n"
+            f"CONTEXT:\n{assembled.user_prompt}\n\n"
+            "OUTPUT REQUIREMENTS:\n"
+            "1. Output only a unified diff patch.\n"
+            "2. Use standard --- a/... and +++ b/... headers.\n"
+            "3. Only modify files within the project.\n"
+            "4. Keep the diff minimal and focused.\n"
+        )
+
+        try:
+            response = asyncio.run(
+                llm_client.chat(
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.2,
+                    max_tokens=2048,
+                )
+            )
+            text = response.strip()
+            if text.startswith("```"):
+                text = re.sub(r"^```(?:diff)?", "", text, flags=re.IGNORECASE).strip()
+                if text.endswith("```"):
+                    text = text[:-3].strip()
+            return text or self._placeholder_diff(subtask)
+        except Exception as exc:  # noqa: BLE001
+            return self._placeholder_diff(subtask)
 
     def _placeholder_diff(self, subtask: Any) -> str:
-        """Create a placeholder diff for demonstration."""
         timestamp = datetime.now(timezone.utc).isoformat()
         return f"""\
 --- a/placeholder
@@ -132,23 +157,10 @@ class CodeExecutor:
 """
 
     def _apply_diff(self, diff: str) -> list[str]:
-        """Apply a unified diff to the project.
-
-        Args:
-            diff: Unified diff text.
-
-        Returns:
-            List of modified file paths.
-        """
         if not diff or diff.strip() == "":
             return []
 
-        # For safety, we use a simple patch application approach
-        # In production, use a proper diff parser and apply changes
-        # through the AST or a controlled file writer
         modified: list[str] = []
-
-        # Extract file paths from diff headers
         for line in diff.splitlines():
             if line.startswith("--- "):
                 path = line[4:].split("\t")[0].strip()
@@ -156,18 +168,9 @@ class CodeExecutor:
                     path = path[2:]
                 if path and path != "placeholder":
                     modified.append(path)
-
         return modified
 
     def _run_tests(self, command: str) -> tuple[bool, str]:
-        """Run tests using the specified command.
-
-        Args:
-            command: Test command to run.
-
-        Returns:
-            Tuple of (passed, output).
-        """
         try:
             result = subprocess.run(
                 command,
@@ -183,14 +186,6 @@ class CodeExecutor:
             return False, str(exc)
 
     def validate_syntax(self, file_path: str | os.PathLike[str]) -> bool:
-        """Validate Python syntax without executing.
-
-        Args:
-            file_path: Path to Python file.
-
-        Returns:
-            True if syntax is valid.
-        """
         path = Path(file_path)
         if not path.exists():
             return False

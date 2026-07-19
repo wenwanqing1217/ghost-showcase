@@ -105,7 +105,7 @@ class CodebaseScanner:
         issues: list[Issue] = []
         try:
             result = subprocess.run(
-                ["pytest", "--co", "-q"],
+                [sys.executable, "-m", "pytest", "--co", "-q"],
                 cwd=self.project_root,
                 capture_output=True,
                 text=True,
@@ -133,17 +133,47 @@ class CodebaseScanner:
                 continue
             try:
                 text = py_file.read_text(encoding="utf-8")
-                if "print(" in text and "tests/" not in str(py_file):
+                rel = str(py_file.relative_to(self.project_root))
+
+                if "print(" in text and "tests/" not in rel:
                     issues.append(
                         Issue(
                             id=f"print-{py_file.name}",
                             category="code_smell",
                             severity="P3",
                             description="Debug print statement found",
-                            file_path=str(py_file.relative_to(self.project_root)),
+                            file_path=rel,
                             line_number=None,
                             fix_description="Remove debug print statement",
                             auto_fixable=True,
+                        )
+                    )
+
+                if "import *" in text:
+                    issues.append(
+                        Issue(
+                            id=f"star-import-{py_file.name}",
+                            category="code_smell",
+                            severity="P3",
+                            description="Wildcard import found",
+                            file_path=rel,
+                            line_number=None,
+                            fix_description="Replace wildcard import with explicit imports",
+                            auto_fixable=False,
+                        )
+                    )
+
+                if "except:" in text or "except Exception:" in text:
+                    issues.append(
+                        Issue(
+                            id=f"bare-except-{py_file.name}",
+                            category="reliability",
+                            severity="P2",
+                            description="Bare except clause found",
+                            file_path=rel,
+                            line_number=None,
+                            fix_description="Use specific exception types",
+                            auto_fixable=False,
                         )
                     )
             except OSError:

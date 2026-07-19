@@ -11,7 +11,7 @@ import os
 import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -19,7 +19,7 @@ from typing import Any
 from .roles import Role, load_roles, match_role
 
 
-@dataclasses.dataclass
+@dataclass
 class SubTask:
     """A single decomposed subtask with assigned expert role."""
 
@@ -32,7 +32,7 @@ class SubTask:
     test_command: str | None
 
 
-@dataclasses.dataclass
+@dataclass
 class TaskPlan:
     """Complete decomposition of a user request into executable subtasks."""
 
