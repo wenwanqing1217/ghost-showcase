@@ -63,6 +63,23 @@ def _build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Optional JSON context string to include in the prompt",
     )
+    parser.add_argument(
+        "--self-loop",
+        action="store_true",
+        help="Run autonomous self-improvement loop (scan, fix, test, commit)",
+    )
+    parser.add_argument(
+        "--max-iterations",
+        type=int,
+        default=5,
+        help="Maximum iterations for self-loop (default: 5)",
+    )
+    parser.add_argument(
+        "--max-fixes",
+        type=int,
+        default=3,
+        help="Maximum fixes per iteration (default: 3)",
+    )
     return parser
 
 
@@ -154,6 +171,38 @@ def main(argv: list[str] | None = None) -> int:
     if not task_context.allowed:
         print("[autopilot] Blocked: task failed safety validation")
         return 2
+
+    if args.self_loop:
+        print("[autopilot] Starting self-loop mode")
+        print(f"  max iterations : {args.max_iterations}")
+        print(f"  max fixes/iter : {args.max_fixes}")
+        print()
+
+        from mindflow_map.autopilot.self_loop import SelfLoop
+
+        loop = SelfLoop(
+            project_root=project_root,
+            auto_commit=args.auto_commit,
+            max_fixes_per_iteration=args.max_fixes,
+        )
+        result = loop.run(max_iterations=args.max_iterations)
+
+        print()
+        print("[autopilot] Self-loop complete")
+        print(f"  iterations     : {len(result.iterations)}")
+        print(f"  issues found   : {result.total_issues_found}")
+        print(f"  issues fixed   : {result.total_issues_fixed}")
+        print(f"  issues skipped : {result.total_issues_skipped}")
+        print(f"  success        : {result.success}")
+
+        for it in result.iterations:
+            status = "passed" if it.tests_passed else "failed"
+            print(f"    iter {it.iteration}: {it.issues_fixed} fixed, tests {status}")
+            if it.errors:
+                for err in it.errors:
+                    print(f"      error: {err}")
+
+        return 0 if result.success else 1
 
     if args.dry_run:
         print("[autopilot] Dry run complete. No changes made.")
