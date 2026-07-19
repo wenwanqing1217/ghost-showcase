@@ -56,6 +56,12 @@ class AlphaIDClient:
 
         # 内存缓存：key -> _CacheEntry
         self._cache: dict[str, _CacheEntry] = {}
+        # 复用 httpx 连接池，避免每次请求新建 client
+        self._client = httpx.AsyncClient(timeout=self._timeout)
+
+    async def close(self) -> None:
+        """释放 httpx 连接池（在 lifespan 结束时调用）。"""
+        await self._client.aclose()
 
         if not self._base_url or not self._api_key:
             logger.warning(
@@ -140,10 +146,9 @@ class AlphaIDClient:
             reraise=True,
         ):
             with attempt:
-                async with httpx.AsyncClient(timeout=self._timeout) as client:
-                    response = await client.post(url, json=payload, headers=headers)
-                    response.raise_for_status()
-                    return response.json()
+                response = await self._client.post(url, json=payload, headers=headers)
+                response.raise_for_status()
+                return response.json()
         return {}
 
     # ------------------------------------------------------------------
@@ -163,10 +168,9 @@ class AlphaIDClient:
             reraise=True,
         ):
             with attempt:
-                async with httpx.AsyncClient(timeout=self._timeout) as client:
-                    response = await client.get(url, headers=headers, params=params)
-                    response.raise_for_status()
-                    return response.json()
+                response = await self._client.get(url, headers=headers, params=params)
+                response.raise_for_status()
+                return response.json()
         return {}
 
     # ------------------------------------------------------------------

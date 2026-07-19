@@ -90,6 +90,104 @@ class ShopifyOptimizeTool(Tool):
         }
 
 
+class ShortDramasPrecheckTool(Tool):
+    """短剧平台内容预审工具"""
+
+    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        try:
+            from mindflow_map.integration.shortdramas import ShortDramasClient, AIContentScanner
+            from mindflow_map.memory.store import MemoryStore
+            from mindflow_map.config import settings
+
+            title = params.get("title", "")
+            content = params.get("content", "")
+            user_id = params.get("user_id", "default")
+
+            if not title and not content:
+                return {
+                    "type": "shortdramas",
+                    "data": {
+                        "success": False,
+                        "error": "缺少标题或内容",
+                    },
+                }
+
+            # 1. 本地 AI 预扫描
+            scanner = AIContentScanner()
+            ai_result = await scanner.scan(title=title, content=content)
+
+            # 2. 如果本地扫描发现严重违规，直接拒绝
+            if ai_result.get("risk_level") == "blocked":
+                return {
+                    "type": "shortdramas",
+                    "data": {
+                        "success": False,
+                        "status": "rejected",
+                        "rejected_by": "ai_local",
+                        "ai_scan_result": ai_result,
+                        "message": f"内容被 AI 预检拦截：{'; '.join(ai_result.get('violations', []))}",
+                    },
+                }
+
+            # 3. 提交到短剧平台
+            client = ShortDramasClient()
+            callback_url = f"{settings.shortdramas_api_url.rstrip('/')}/api/v1/webhook/shortdramas/callback" if settings.shortdramas_api_url else None
+            
+            platform_result = await client.submit_precheck(
+                title=title,
+                content=content,
+                content_type="video",
+                callback_url=callback_url,
+            )
+
+            # 4. 持久化任务记录
+            job_id = platform_result.get("job_id", "")
+            if job_id:
+                try:
+                    db_url = settings.database_url or "sqlite+aiosqlite:///./mindflow_map.db"
+                    store = MemoryStore(database_url=db_url)
+                    await store.init()
+                    await store.create_precheck_job(
+                        job_id=job_id,
+                        user_id=user_id,
+                        title=title,
+                        content_type="video",
+                        callback_url=callback_url,
+                    )
+                    await store.update_precheck_job(
+                        job_id,
+                        ai_result=ai_result,
+                        platform_status=platform_result.get("platform_status"),
+                        platform_result=platform_result,
+                    )
+                except Exception as db_exc:
+                    logger.warning("Precheck job persistence failed: %s", db_exc)
+
+            return {
+                "type": "shortdramas",
+                "data": {
+                    "success": platform_result.get("success", False),
+                    "status": platform_result.get("status", "pending"),
+                    "job_id": job_id,
+                    "ai_scan_result": ai_result,
+                    "platform_status": platform_result.get("platform_status"),
+                    "platform_result": platform_result.get("platform_result"),
+                    "message": platform_result.get("message", ""),
+                    "demo": platform_result.get("demo", False),
+                },
+            }
+
+        except Exception as e:
+            logger.error("ShortDramas precheck failed: %s", e)
+            return {
+                "type": "shortdramas",
+                "data": {
+                    "success": False,
+                    "error": str(e),
+                },
+            }
+
+
 class WorkflowEngine:
     """MindFlow 工作流引擎"""
 
@@ -98,11 +196,14 @@ class WorkflowEngine:
             "map": MapNavigationTool(),
             "douyin": DouyinPublishTool(),
             "shopify": ShopifyOptimizeTool(),
+            "shortdramas": ShortDramasPrecheckTool(),
         }
         self.alpha_id_client = AlphaIDClient()
         self.intent_parser = IntentParser()
         self._max_workers = 8
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers, thread_name_prefix="mindflow-worker")
+        # 主线程 event loop，由 lifespan 注入；用于将后台任务安全地调度回主线程
+        self._main_loop: Optional[asyncio.AbstractEventLoop] = None
 
     async def shutdown(self) -> None:
         """关闭线程池，释放资源。"""
@@ -196,7 +297,7 @@ class WorkflowEngine:
     def _select_tool(self, intent: Dict[str, Any]) -> Optional[str]:
         """根据意图选择工具"""
         intent_type = intent.get("type", "")
-        return self.tools.get(intent_type)
+        return intent_type if intent_type in self.tools else None
 
     def _build_params(self, intent: Dict[str, Any], text: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """构建工具参数"""
@@ -293,22 +394,53 @@ class WorkflowEngine:
             data = result.get("data", {})
             return data.get("message", "Shopify 集成即将上线")
 
+        elif result_type == "shortdramas":
+            data = result.get("data", {})
+            success = data.get("success", False)
+            demo = data.get("demo", False)
+            status = data.get("status", "")
+            job_id = data.get("job_id", "")
+            message = data.get("message", "")
+            
+            if not success and data.get("rejected_by") == "ai_local":
+                violations = "、".join(data.get("ai_scan_result", {}).get("violations", []))
+                return f"内容未通过 AI 预检，已拦截：{violations}。请修改后重新提交。"
+            
+            if demo:
+                return f"短剧预审服务未配置，演示模式：{message or '请先配置 SHORTDRAMAS_API_URL 和 SHORTDRAMAS_API_KEY'}"
+            
+            if not success:
+                # 真实 API 调用失败（非演示、非 AI 拦截），明确标为错误
+                return f"预审失败：{message or '平台返回错误，请稍后重试'}"
+            
+            if status == "rejected":
+                return f"预审被拒绝：{message}"
+            elif status == "approved":
+                return f"预审通过！任务ID：{job_id}。可以继续发布流程。"
+            elif status in ("pending", "scanning", "manual_review"):
+                base = f"已提交预审，任务ID：{job_id}，当前状态：{status}"
+                if message:
+                    base += f"（{message}）"
+                return base + "。请稍后查询结果。"
+            else:
+                return f"预审结果：{message or '处理中'}"
+
         return "我已收到你的消息，正在处理中。"
 
     def _save_memory_sync(self, user_id: str, text: str, result: Dict[str, Any]):
-        """同步保存记忆（在线程池中运行，使用独立 event loop，不干扰主线程）。"""
+        """在后台线程中保存记忆，通过主线程 event loop 安全调度。"""
         try:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(
-                    self.alpha_id_client.save_memory(
-                        user_id=user_id,
-                        content=text,
-                        metadata={"result": result},
-                    )
-                )
-            finally:
-                loop.close()
+            loop = self._main_loop
+            if loop is None or loop.is_closed():
+                logger.debug("Memory save skipped for %s: main loop not available", user_id)
+                return
+            coro = self.alpha_id_client.save_memory(
+                user_id=user_id,
+                content=text,
+                metadata={"result": result},
+            )
+            fut = asyncio.run_coroutine_threadsafe(coro, loop)
+            fut.result(timeout=5)
         except Exception as exc:
             logger.debug("Memory save skipped for %s: %s", user_id, exc)
 
@@ -353,6 +485,20 @@ class WorkflowEngine:
                 "destination": destination,
                 "description": f"导航到{destination}" if destination else "地图查询",
                 "confidence": 0.9,
+            }
+
+        # 短剧内容预审意图（先于发布判断，避免"预审短剧"被发布抢走）
+        precheck_keywords = ["预审", "审核", "查重", "合规", "能不能发", "能不能过", "内容检查"]
+        if any(kw in text for kw in precheck_keywords):
+            title_match = re.search(r"《(.+?)》", text)
+            title = title_match.group(1) if title_match else ""
+            
+            return {
+                "type": "shortdramas",
+                "action": "precheck",
+                "title": title,
+                "description": f"预审短剧《{title}》" if title else "内容预审",
+                "confidence": 0.85,
             }
 
         # 短剧发布意图

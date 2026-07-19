@@ -1,5 +1,6 @@
 """FastAPI 主入口 - MindFlow Map 后端服务"""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -11,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 
 from mindflow_map.config import settings
 from mindflow_map.config_validator import check_all
-from mindflow_map.api import automation, health, map, wechat, workflow
+from mindflow_map.api import automation, health, map, shortdramas, wechat, workflow
 from mindflow_map.workflows.engine import WorkflowEngine
 
 logger = logging.getLogger(__name__)
@@ -34,15 +35,19 @@ async def lifespan(app: FastAPI):
     # 初始化共享工作流引擎
     engine = WorkflowEngine()
     app.state.workflow_engine = engine
+    app.state._main_loop = asyncio.get_running_loop()
     wechat.workflow_engine = engine
     workflow.workflow_engine = engine
-    if hasattr(automation, "workflow_engine"):
-        automation.workflow_engine = engine
+    # automation 模块不持有 workflow_engine，删除多余的 hasattr 分支
 
     yield
 
     # 关闭时释放资源
     await engine.shutdown()
+    try:
+        await engine.alpha_id_client.close()
+    except Exception:
+        pass
 
 
 app = FastAPI(
@@ -77,6 +82,7 @@ app.include_router(map.router, prefix="/api/v1/map", tags=["地图"])
 app.include_router(workflow.router, prefix="/api/v1/workflow", tags=["工作流"])
 app.include_router(wechat.router, prefix="/api/v1/wechat", tags=["微信"])
 app.include_router(automation.router, prefix="/api/v1/automation", tags=["自动化"])
+app.include_router(shortdramas.router, prefix="/api/v1/shortdramas", tags=["短剧预审"])
 
 
 @app.get("/")

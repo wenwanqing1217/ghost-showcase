@@ -2,7 +2,9 @@
 
 import hashlib
 import logging
+import re
 import time
+from contextlib import contextmanager
 from typing import Optional
 from xml.etree import ElementTree as ET
 
@@ -12,18 +14,30 @@ from pydantic import BaseModel
 from starlette.responses import Response
 
 from mindflow_map.config import settings
-from mindflow_map.workflows.engine import WorkflowEngine
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-workflow_engine = WorkflowEngine()
+# workflow_engine 由 main.py lifespan 注入，此处不预先实例化
 
 # ---------------------------------------------------------------------------
 # WeChat Access Token 缓存
 # ---------------------------------------------------------------------------
 
 _ACCESS_TOKEN_CACHE: dict[str, str | float] = {"token": "", "expire_at": 0.0}
+
+
+@contextmanager
+def fresh_token_cache():
+    """测试专用：临时清空 token 缓存，避免用例之间互相污染。"""
+    old = _ACCESS_TOKEN_CACHE.copy()
+    _ACCESS_TOKEN_CACHE.clear()
+    _ACCESS_TOKEN_CACHE.update({"token": "", "expire_at": 0.0})
+    try:
+        yield
+    finally:
+        _ACCESS_TOKEN_CACHE.clear()
+        _ACCESS_TOKEN_CACHE.update(old)
 
 
 # ---------------------------------------------------------------------------
@@ -57,15 +71,21 @@ def _parse_xml(body: bytes) -> WechatMessage:
     )
 
 
+def _escape_cdata(text: str) -> str:
+    """防止 CDATA 提前闭合：`]]>` → `]]]]><![CDATA[>`"""
+    return text.replace("]]>", "]]]]><![CDATA[>")
+
+
 def _build_xml(from_user: str, to_user: str, content: str) -> str:
-    """构造微信回复 XML"""
+    """构造微信回复 XML（CDATA 安全转义）"""
+    safe = _escape_cdata(content)
     return (
         "<xml>"
         f"<ToUserName><![CDATA[{to_user}]]></ToUserName>"
         f"<FromUserName><![CDATA[{from_user}]]></FromUserName>"
         f"<CreateTime>{int(time.time())}</CreateTime>"
         f"<MsgType><![CDATA[text]]></MsgType>"
-        f"<Content><![CDATA[{content}]]></Content>"
+        f"<Content><![CDATA[{safe}]]></Content>"
         "</xml>"
     )
 
@@ -81,6 +101,10 @@ def _check_signature(signature: str, timestamp: str, nonce: str) -> bool:
         # 未配置 token 时拒绝请求，而不是静默跳过验证
         logger.error("WECHAT_TOKEN 未配置，拒绝所有微信请求")
         raise HTTPException(status_code=500, detail="微信服务未配置：WECHAT_TOKEN 缺失")
+
+    if not re.fullmatch(r'^[A-Za-z0-9]{16,64}$', token):
+        logger.error("WECHAT_TOKEN 格式异常")
+        raise HTTPException(status_code=500, detail="微信服务未配置：WECHAT_TOKEN 格式异常")
 
     params = [token, timestamp, nonce]
     params.sort()

@@ -20,6 +20,7 @@ class DouyinAutomation:
         self.page: Optional[Page] = None
         self.state = "IDLE"
         self._state_lock = asyncio.Lock()
+        self._cookie_json: str = ""
 
     async def _ensure_browser(self) -> Page:
         if not self.browser:
@@ -53,6 +54,12 @@ class DouyinAutomation:
             # 尝试注入 cookie
             cookie_json = getattr(self, "_cookie_json", "")
             if cookie_json:
+                if not isinstance(cookie_json, str) or not cookie_json.strip():
+                    await self._set_state("IDLE")
+                    return {
+                        "ok": False,
+                        "error": "cookie_json 不能为空",
+                    }
                 try:
                     cookies = json.loads(cookie_json)
                 except json.JSONDecodeError as exc:
@@ -60,6 +67,12 @@ class DouyinAutomation:
                     return {
                         "ok": False,
                         "error": f"Cookie JSON 格式错误: {exc}",
+                    }
+                if not isinstance(cookies, list):
+                    await self._set_state("IDLE")
+                    return {
+                        "ok": False,
+                        "error": "Cookie JSON 必须是数组格式",
                     }
                 await self.context.add_cookies(cookies)
                 await self._set_state("LOGGED_IN")
@@ -284,6 +297,11 @@ class DouyinAutomation:
 
     async def set_cookies(self, cookie_json: str) -> Dict[str, Any]:
         """注入 cookie JSON（用于无头环境保持登录态）"""
+        if not isinstance(cookie_json, str) or not cookie_json.strip():
+            return {
+                "ok": False,
+                "error": "cookie_json 不能为空",
+            }
         try:
             cookies = json.loads(cookie_json)
         except json.JSONDecodeError as exc:
@@ -291,6 +309,13 @@ class DouyinAutomation:
                 "ok": False,
                 "error": f"Cookie JSON 格式错误: {exc}",
             }
+
+        if not isinstance(cookies, list):
+            return {
+                "ok": False,
+                "error": "Cookie JSON 必须是数组格式",
+            }
+
         self._cookie_json = cookie_json
         if self.context:
             await self.context.add_cookies(cookies)

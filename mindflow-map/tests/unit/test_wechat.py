@@ -22,11 +22,11 @@ class TestCheckSignature:
     """签名校验逻辑测试"""
 
     def test_valid_signature(self, monkeypatch):
-        monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", "my_token")
+        monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", "a1b2c3d4e5f67890")
         assert _check_signature("signature", "123456", "nonce") is False  # 大概率不匹配
 
     def test_signature_matches(self, monkeypatch):
-        token = "my_token"
+        token = "a1b2c3d4e5f67890"
         timestamp = "123456"
         nonce = "nonce"
         params = [token, timestamp, nonce]
@@ -42,7 +42,7 @@ class TestCheckSignature:
         assert exc_info.value.status_code == 500
 
     def test_signature_mismatch(self, monkeypatch):
-        monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", "my_token")
+        monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", "a1b2c3d4e5f67890")
         assert _check_signature("bad_signature", "123456", "nonce") is False
 
 
@@ -58,7 +58,8 @@ class TestBuildXml:
 
     def test_build_xml_escapes_cdata(self):
         xml = _build_xml("a", "b", "hello ]]> world")
-        assert "hello ]]> world" in xml
+        # CDATA 中的 ]]> 会被转义为 ]]]]><![CDATA[>，避免提前闭合 CDATA section
+        assert "hello ]]]]><![CDATA[> world" in xml
 
 
 class TestParseXml:
@@ -105,7 +106,7 @@ class TestWechatVerify:
     """微信服务器验证路由测试"""
 
     def test_verify_success(self, monkeypatch):
-        token = "test_token"
+        token = "testtoken12345678"
         timestamp = "123456"
         nonce = "nonce"
         params = [token, timestamp, nonce]
@@ -121,7 +122,7 @@ class TestWechatVerify:
         assert resp.text == "hello"
 
     def test_verify_invalid_signature(self, monkeypatch):
-        monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", "test_token")
+        monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", "testtoken12345678")
         resp = client.get(
             "/api/v1/wechat",
             params={"signature": "bad", "timestamp": "123", "nonce": "456", "echostr": "hello"},
@@ -133,7 +134,7 @@ class TestWechatMessage:
     """微信消息接收路由测试"""
 
     def test_text_message_returns_reply(self, monkeypatch):
-        token = "test_token"
+        token = "testtoken12345678"
         timestamp = "1"
         nonce = "2"
         params = [token, timestamp, nonce]
@@ -159,7 +160,7 @@ class TestWechatMessage:
         assert b"<Content>" in resp.content
 
     def test_non_text_message_returns_fallback(self, monkeypatch):
-        token = "test_token"
+        token = "testtoken12345678"
         timestamp = "1"
         nonce = "2"
         params = [token, timestamp, nonce]
@@ -192,18 +193,21 @@ class TestWechatAccessToken:
     """Access Token 缓存测试"""
 
     def test_invalidate_clears_cache(self):
-        from mindflow_map.api.wechat import _ACCESS_TOKEN_CACHE
-        _ACCESS_TOKEN_CACHE["token"] = "cached_token"
-        _ACCESS_TOKEN_CACHE["expire_at"] = 9999999999
-        invalidate_wechat_access_token()
-        assert _ACCESS_TOKEN_CACHE["token"] == ""
-        assert _ACCESS_TOKEN_CACHE["expire_at"] == 0.0
+        from mindflow_map.api.wechat import _ACCESS_TOKEN_CACHE, fresh_token_cache
+        with fresh_token_cache():
+            _ACCESS_TOKEN_CACHE["token"] = "cached_token"
+            _ACCESS_TOKEN_CACHE["expire_at"] = 9999999999
+            invalidate_wechat_access_token()
+            assert _ACCESS_TOKEN_CACHE["token"] == ""
+            assert _ACCESS_TOKEN_CACHE["expire_at"] == 0.0
 
     @patch("mindflow_map.api.wechat.httpx.AsyncClient")
     def test_get_access_token_success(self, mock_client_cls, monkeypatch):
+        from mindflow_map.api.wechat import fresh_token_cache
         monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_app_id", "appid")
         monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_app_secret", "secret")
-        invalidate_wechat_access_token()
+        with fresh_token_cache():
+            invalidate_wechat_access_token()
 
         # AsyncMock 模拟 httpx.AsyncClient：get() 返回 Mock Response
         mock_response = Mock()

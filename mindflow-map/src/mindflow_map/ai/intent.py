@@ -14,6 +14,7 @@ _INTENT_SYSTEM_PROMPT = """\
 - map/navigate：路线导航，如"怎么去天安门"
 - douyin/publish：发布短剧，如"帮我发一个短剧《xxx》"
 - shopify/optimize：店铺优化，如"优化我的 Shopify 店铺"
+- shortdramas/precheck：内容预审，如"预审一下《xxx》能不能发"
 - chat：普通对话，以上都不是
 
 严格返回 JSON，不要额外文字：
@@ -25,7 +26,7 @@ _INTENT_SYSTEM_PROMPT = """\
   "entities": {
     "query": "地点搜索词（仅 map/search 需要）",
     "destination": "目的地（仅 map/navigate 需要）",
-    "title": "短剧标题（仅 douyin/publish 需要）"
+    "title": "短剧标题（仅 douyin/publish 或 shortdramas/precheck 需要）"
   }
 }
 """
@@ -40,9 +41,8 @@ class IntentParser:
 
     def _get_fallback(self):
         if self._fallback_parser is None:
-            from mindflow_map.workflows.engine import WorkflowEngine
-
-            self._fallback_parser = WorkflowEngine()
+            from mindflow_map.ai.fallback_rules import parse_by_rules
+            self._fallback_parser = parse_by_rules
         return self._fallback_parser
 
     async def parse(self, text: str) -> Dict[str, Any]:
@@ -74,6 +74,6 @@ class IntentParser:
             return self._fallback_rule(text)
 
     def _fallback_rule(self, text: str) -> Dict[str, Any]:
-        """回退到规则引擎"""
-        engine = self._get_fallback()
-        return engine._parse_intent(text)
+        """回退到规则引擎（纯函数，零外部依赖）"""
+        parser = self._get_fallback()
+        return parser(text)

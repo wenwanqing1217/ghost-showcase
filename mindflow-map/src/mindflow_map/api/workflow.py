@@ -6,7 +6,7 @@ from pydantic import BaseModel
 from mindflow_map.workflows.engine import WorkflowEngine
 
 router = APIRouter()
-workflow_engine = WorkflowEngine()
+# workflow_engine 由 main.py lifespan 注入，此处不预先实例化
 
 
 class WorkflowExecuteRequest(BaseModel):
