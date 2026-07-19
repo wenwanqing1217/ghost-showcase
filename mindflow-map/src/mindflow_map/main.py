@@ -38,7 +38,12 @@ async def lifespan(app: FastAPI):
     app.state._main_loop = asyncio.get_running_loop()
     wechat.workflow_engine = engine
     workflow.workflow_engine = engine
-    # automation 模块不持有 workflow_engine，删除多余的 hasattr 分支
+    # 注入共享引擎到飞书长连接客户端，避免重复创建
+    try:
+        from mindflow_map.api import feishu as feishu_module
+        feishu_module.feishu_client.set_workflow_engine(engine)
+    except Exception:
+        logger.debug("Feishu client not available or failed to inject workflow engine", exc_info=True)
 
     yield
 

@@ -2,8 +2,9 @@
 
 import asyncio
 import json
+import logging
 from threading import Lock
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from lark_oapi.ws.client import Client
 from lark_oapi.event.dispatcher_handler import EventDispatcherHandlerBuilder
@@ -13,19 +14,25 @@ from lark_oapi.api.im.v1 import P2ImMessageReceiveV1
 from mindflow_map.config import settings
 from mindflow_map.workflows.engine import WorkflowEngine
 
+logger = logging.getLogger(__name__)
+
 
 class FeishuLongPollingClient:
     """飞书长连接客户端"""
 
-    def __init__(self):
+    def __init__(self, workflow_engine: Optional[WorkflowEngine] = None) -> None:
         self.app_id = settings.feishu_app_id
         self.app_secret = settings.feishu_app_secret
         self.verification_token = getattr(settings, "feishu_verification_token", None)
         self.encrypt_key = getattr(settings, "feishu_encrypt_key", None)
-        self.workflow_engine = WorkflowEngine()
+        self.workflow_engine = workflow_engine
         self._ws_client = None
         self._loop = asyncio.new_event_loop()
         self._loop_lock = Lock()
+
+    def set_workflow_engine(self, engine: WorkflowEngine) -> None:
+        """注入共享 WorkflowEngine 实例，避免重复创建"""
+        self.workflow_engine = engine
 
     def _run_async(self, coro):
         """线程安全地运行异步任务"""
@@ -59,7 +66,11 @@ class FeishuLongPollingClient:
                     content_text = str(message.content)
 
                 user_id = data.event.sender.sender_id.user_id
-                print(f"[Feishu] 收到消息 from {user_id}: {content_text}")
+                logger.info("收到飞书消息 from %s: %s", user_id, content_text)
+
+                if self.workflow_engine is None:
+                    logger.error("Feishu workflow_engine 未注入，忽略消息")
+                    return
 
                 result = self._run_async(
                     self.workflow_engine.execute(content_text, user_id=user_id)
@@ -68,7 +79,7 @@ class FeishuLongPollingClient:
                 response_text = result.get("response", str(result)) if isinstance(result, dict) else str(result)
                 self._run_async(self._reply_message(message.message_id, response_text))
             except Exception as e:
-                print(f"[Feishu] 处理消息失败: {e}")
+                logger.error("处理飞书消息失败: %s", e, exc_info=True)
 
         handler_builder.register_p2_customized_event("im.message.receive_v1", handle_message)
 
@@ -77,10 +88,10 @@ class FeishuLongPollingClient:
     def start(self) -> None:
         """启动长连接"""
         if not self.app_id or not self.app_secret:
-            print("[Feishu] 未配置 App ID 或 App Secret，跳过飞书长连接")
+            logger.warning("未配置 Feishu App ID 或 App Secret，跳过飞书长连接")
             return
 
-        print("[Feishu] 正在启动长连接...")
+        logger.info("正在启动飞书长连接...")
         try:
             event_handler = self._build_event_handler()
             self._ws_client = Client(
@@ -90,9 +101,9 @@ class FeishuLongPollingClient:
                 event_handler=event_handler,
             )
             self._ws_client.start()
-            print("[Feishu] 长连接已启动")
+            logger.info("飞书长连接已启动")
         except Exception as e:
-            print(f"[Feishu] 启动长连接失败: {e}")
+            logger.error("启动飞书长连接失败: %s", e, exc_info=True)
 
     async def _reply_message(self, message_id: str, content: str) -> None:
         """回复消息"""
@@ -120,14 +131,14 @@ class FeishuLongPollingClient:
             )
             response = api_client.im.v1.message.reply(request)
             if not response.success():
-                print(f"[Feishu] 回复消息失败: {response.msg}")
+                logger.error("回复飞书消息失败: %s", response.msg)
             else:
-                print(f"[Feishu] 回复消息成功")
+                logger.info("回复飞书消息成功")
         except Exception as e:
-            print(f"[Feishu] 回复消息异常: {e}")
+            logger.error("回复飞书消息异常: %s", e, exc_info=True)
 
 
-# 全局客户端实例
+# 全局客户端实例（延迟初始化，避免导入时报错）
 feishu_client = FeishuLongPollingClient()
 
 
