@@ -34,11 +34,16 @@ function switchTab(tabId) {
         'map': '地图助理',
         'drama': '短剧管理',
         'shopify': '电商运营',
-        'bookmarks': '书签收藏'
+        'bookmarks': '书签收藏',
+        'workflows': '工作流'
     };
     document.getElementById('page-title').textContent = titles[tabId] || 'MindFlow';
 
     currentTab = tabId;
+
+    if (tabId === 'workflows') {
+        loadWorkflows();
+    }
 }
 
 // 打开外部链接
@@ -388,6 +393,141 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = String(text);
     return div.innerHTML;
+}
+
+// 工作流管理
+async function loadWorkflows() {
+    const listEl = document.getElementById('workflow-list');
+    const emptyEl = document.getElementById('workflow-empty');
+    if (!listEl || !emptyEl) return;
+
+    listEl.innerHTML = '<p class="text-sm text-gray-500">正在加载工作流...</p>';
+    emptyEl.classList.add('hidden');
+
+    try {
+        const result = await apiRequest('/api/v1/autopilot/workflows');
+        const workflows = result.data?.workflows || [];
+
+        if (!workflows.length) {
+            listEl.innerHTML = '';
+            emptyEl.classList.remove('hidden');
+            return;
+        }
+
+        emptyEl.classList.add('hidden');
+        listEl.innerHTML = workflows.map(wf => `
+            <div class="bg-white rounded-xl border border-gray-200 p-5 shadow-sm flex flex-col gap-3">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-semibold text-gray-900">${escapeHtml(wf.name)}</h4>
+                        <p class="text-xs text-gray-500 mt-1">${escapeHtml(wf.description || '')}</p>
+                    </div>
+                    <span class="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-full">v${escapeHtml(wf.version)}</span>
+                </div>
+                <div class="flex items-center gap-2 text-xs text-gray-500">
+                    <span class="px-2 py-1 bg-indigo-50 text-indigo-700 rounded-full">${wf.steps} 个步骤</span>
+                    ${(wf.triggers || []).length ? `<span class="px-2 py-1 bg-green-50 text-green-700 rounded-full">${wf.triggers.length} 个触发器</span>` : ''}
+                </div>
+                <div class="flex gap-2">
+                    <button onclick="startWorkflow('${escapeHtml(wf.id)}')" class="flex-1 px-3 py-2 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors">执行</button>
+                    <button onclick="viewWorkflowRuns('${escapeHtml(wf.id)}')" class="px-3 py-2 border border-gray-300 text-gray-700 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors">运行记录</button>
+                </div>
+            </div>
+        `).join('');
+    } catch (error) {
+        listEl.innerHTML = `<p class="text-sm text-red-600">加载失败：${escapeHtml(error.message)}</p>`;
+        emptyEl.classList.remove('hidden');
+    }
+}
+
+async function createWorkflow() {
+    const name = prompt('工作流名称：');
+    if (!name) return;
+
+    const description = prompt('工作流描述：') || '';
+    const stepsCount = prompt('步骤数量：', '2');
+    const count = parseInt(stepsCount || '2', 10);
+    if (Number.isNaN(count) || count <= 0) {
+        alert('步骤数量必须是正整数');
+        return;
+    }
+
+    const steps = [];
+    for (let i = 0; i < count; i++) {
+        const stepName = prompt(`步骤 ${i + 1} 名称：`, `Step ${i + 1}`) || `Step ${i + 1}`;
+        const stepPrompt = prompt(`步骤 ${i + 1} 指令：`) || stepName;
+        steps.push({
+            id: `step-${i + 1}`,
+            type: 'task',
+            name: stepName,
+            description: stepPrompt,
+            prompt: stepPrompt,
+        });
+    }
+
+    const id = name.toLowerCase().replace(/[^a-z0-9-]+/g, '-').slice(0, 64) || 'workflow';
+
+    try {
+        const result = await apiRequest('/api/v1/autopilot/workflows', {
+            method: 'POST',
+            body: JSON.stringify({
+                id,
+                name,
+                description,
+                version: '1.0.0',
+                steps,
+                triggers: [],
+            }),
+        });
+
+        if (result.success) {
+            alert('工作流已创建');
+            loadWorkflows();
+        } else {
+            alert('创建失败：' + escapeHtml(result.error || '未知错误'));
+        }
+    } catch (error) {
+        alert('创建失败：' + escapeHtml(error.message));
+    }
+}
+
+async function startWorkflow(workflowId) {
+    try {
+        const result = await apiRequest(`/api/v1/autopilot/workflows/${encodeURIComponent(workflowId)}/start`, {
+            method: 'POST',
+            body: JSON.stringify({ input_data: {} }),
+        });
+
+        if (result.success) {
+            const runId = result.data?.run_id;
+            alert('工作流已启动' + (runId ? `\nRun ID: ${runId}` : ''));
+        } else {
+            alert('启动失败：' + escapeHtml(result.error || '未知错误'));
+        }
+    } catch (error) {
+        alert('启动失败：' + escapeHtml(error.message));
+    }
+}
+
+async function viewWorkflowRuns(workflowId) {
+    try {
+        const result = await apiRequest(`/api/v1/autopilot/workflows/${encodeURIComponent(workflowId)}/runs`);
+        const runs = result.data?.runs || [];
+        if (!runs.length) {
+            alert('暂无运行记录');
+            return;
+        }
+
+        const lines = runs.slice(0, 10).map((run, idx) => {
+            const finished = run.finished_at ? `\n完成：${run.finished_at}` : '';
+            const error = run.error ? `\n错误：${run.error}` : '';
+            return `${idx + 1}. ${run.id}\n状态：${run.status}\n开始：${run.started_at}${finished}${error}`;
+        }).join('\n\n');
+
+        alert('最近运行记录：\n\n' + lines);
+    } catch (error) {
+        alert('获取运行记录失败：' + escapeHtml(error.message));
+    }
 }
 
 // 页面加载完成后初始化

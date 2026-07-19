@@ -7,7 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from mindflow_map.autopilot.prompt import assemble_prompt
+from mindflow_map.autopilot.prompt import AssembledPrompt, assemble_prompt
+from mindflow_map.autopilot.roles import Role
 from mindflow_map.autopilot.roles import Role, load_roles, match_role
 from mindflow_map.autopilot.safety import (
     GuardrailRule,
@@ -160,3 +161,91 @@ class TestTaskRunner:
         runner = TaskRunner(project_root=tmp_path)
         with pytest.raises(ValueError):
             runner.check_path("../../etc/passwd")
+
+
+class TestCodeExecutor:
+    def test_list_project_files_returns_python_files(self, tmp_path: Path) -> None:
+        from mindflow_map.autopilot.executor import CodeExecutor
+
+        (tmp_path / "pkg").mkdir()
+        (tmp_path / "pkg" / "a.py").write_text("x=1", encoding="utf-8")
+        (tmp_path / "pkg" / "b.py").write_text("y=2", encoding="utf-8")
+
+        executor = CodeExecutor(project_root=tmp_path)
+        files = executor._list_project_files(max_files=10)
+        normalized = [Path(f).as_posix() for f in files.splitlines()]
+        assert "pkg/a.py" in normalized
+        assert "pkg/b.py" in normalized
+
+    def test_write_file_creates_file(self, tmp_path: Path) -> None:
+        from mindflow_map.autopilot.executor import CodeExecutor
+
+        executor = CodeExecutor(project_root=tmp_path)
+        executor._write_file("new_pkg/hello.py", "print('hi')\n")
+        target = tmp_path / "new_pkg" / "hello.py"
+        assert target.exists()
+        assert target.read_text(encoding="utf-8") == "print('hi')\n"
+
+    def test_apply_diff_writes_files(self, tmp_path: Path) -> None:
+        from mindflow_map.autopilot.executor import CodeExecutor
+
+        executor = CodeExecutor(project_root=tmp_path)
+        diff = (
+            "FILE: hello.py\n"
+            "print('hello')\n"
+            "FILE: world.py\n"
+            "print('world')\n"
+        )
+        modified = executor._apply_diff(diff)
+        assert set(modified) == {"hello.py", "world.py"}
+        assert (tmp_path / "hello.py").exists()
+        assert (tmp_path / "world.py").exists()
+
+    def test_generate_diff_returns_placeholder_without_llm(self, tmp_path: Path) -> None:
+        from mindflow_map.autopilot.executor import CodeExecutor
+        from mindflow_map.autopilot.prompt import AssembledPrompt
+        from mindflow_map.autopilot.roles import Role
+
+        executor = CodeExecutor(project_root=tmp_path)
+        role = Role(
+            name="backend-architect",
+            display_name="Backend Architect",
+            department="engineering",
+            system_prompt="You are an expert.",
+            strengths=["backend"],
+            tools=["code"],
+            dispatch_triggers=[],
+        )
+        assembled = AssembledPrompt(
+            role=role,
+            system_prompt="sys",
+            user_prompt="user",
+            safety_notes=[],
+            allowed=True,
+            violations=[],
+        )
+        diff = executor._generate_diff(type("SubTask", (), {"description": "add feature"})(), assembled)
+        assert "FILE:" in diff
+        assert "add feature" in diff
+
+    def test_execute_runs_full_flow(self, tmp_path: Path) -> None:
+        from mindflow_map.autopilot.executor import CodeExecutor
+
+        (tmp_path / "pyproject.toml").write_text("[tool.pytest]", encoding="utf-8")
+
+        executor = CodeExecutor(project_root=tmp_path)
+        result = executor.execute(
+            type("SubTask", (), {"description": "create hello.py", "test_command": None})(),
+            context=None,
+        )
+        assert result.success is True
+        assert "hello.py" in result.files_modified
+
+    def test_validate_syntax_detects_invalid_python(self, tmp_path: Path) -> None:
+        from mindflow_map.autopilot.executor import CodeExecutor
+
+        bad = tmp_path / "bad.py"
+        bad.write_text("def foo(\n  pass\n", encoding="utf-8")
+
+        executor = CodeExecutor(project_root=tmp_path)
+        assert executor.validate_syntax(bad) is False

@@ -11,6 +11,7 @@ Supports declarative workflow definitions with:
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -186,6 +187,48 @@ class WorkflowEngine:
     def __init__(self, workflows_dir: str | os.PathLike[str] | None = None) -> None:
         self.loader = WorkflowDefinitionLoader(workflows_dir)
         self._runs: dict[str, WorkflowRun] = {}
+        self._runs_file = Path(workflows_dir) / "workflow_runs.json" if workflows_dir else None
+        self._load_runs()
+
+    def _load_runs(self) -> None:
+        """Persist and reload runs from disk so API instances share state."""
+        if not self._runs_file or not self._runs_file.exists():
+            return
+        try:
+            raw = json.loads(self._runs_file.read_text(encoding="utf-8"))
+            for item in raw.values():
+                self._runs[item["id"]] = WorkflowRun(
+                    id=item["id"],
+                    workflow_id=item["workflow_id"],
+                    current_step=item.get("current_step"),
+                    state=item.get("state", {}),
+                    status=item.get("status", "running"),
+                    started_at=datetime.fromisoformat(item["started_at"]),
+                    finished_at=datetime.fromisoformat(item["finished_at"]) if item.get("finished_at") else None,
+                    error=item.get("error"),
+                )
+        except (json.JSONDecodeError, OSError, KeyError):
+            pass
+
+    def _persist_runs(self) -> None:
+        if not self._runs_file:
+            return
+        try:
+            data = {}
+            for run in self._runs.values():
+                data[run.id] = {
+                    "id": run.id,
+                    "workflow_id": run.workflow_id,
+                    "current_step": run.current_step,
+                    "state": run.state,
+                    "status": run.status,
+                    "started_at": run.started_at.isoformat(),
+                    "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+                    "error": run.error,
+                }
+            self._runs_file.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        except OSError:
+            pass
 
     def start(self, workflow_id: str, input_data: dict[str, Any] | None = None) -> WorkflowRun | None:
         """Start a workflow execution."""
@@ -202,6 +245,7 @@ class WorkflowEngine:
             started_at=datetime.now(timezone.utc),
         )
         self._runs[run.id] = run
+        self._persist_runs()
         return run
 
     def get_run(self, run_id: str) -> WorkflowRun | None:

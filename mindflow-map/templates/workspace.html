@@ -48,6 +48,11 @@
                     电商运营
                 </button>
 
+                <button onclick="switchTab('workflows')" id="nav-workflows" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"></path></svg>
+                    工作流
+                </button>
+
                 <button onclick="switchTab('bookmarks')" id="nav-bookmarks" class="nav-item w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-lg text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
                     书签收藏
@@ -318,6 +323,25 @@
                                 <div class="text-6xl mb-4">⭐</div>
                                 <h3 class="text-lg font-medium text-gray-900 mb-2">暂无书签</h3>
                                 <p class="text-sm text-gray-500">把你常用的网站添加到工作台，不用再翻浏览器收藏夹</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 工作流 -->
+                <div id="tab-workflows" class="tab-content hidden">
+                    <div class="bg-white rounded-xl border border-gray-200 shadow-sm">
+                        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                            <h3 class="text-sm font-semibold text-gray-900">工作流</h3>
+                            <button onclick="createWorkflow()" class="px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">新建工作流</button>
+                        </div>
+                        <div class="p-6">
+                            <div id="workflow-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+                            <div id="workflow-empty" class="text-center py-12">
+                                <div class="text-6xl mb-4">⚡</div>
+                                <h3 class="text-lg font-medium text-gray-900 mb-2">暂无工作流</h3>
+                                <p class="text-sm text-gray-500 mb-6">创建自动化工作流，让 MindFlow 帮你自动执行重复任务</p>
+                                <button onclick="createWorkflow()" class="px-6 py-2.5 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors">创建工作流</button>
                             </div>
                         </div>
                     </div>

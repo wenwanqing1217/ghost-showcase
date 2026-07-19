@@ -40,6 +40,15 @@ class CodeExecutor:
         self.project_root = Path(project_root).resolve()
         self._llm_client = None
 
+    def check_path(self, path: str | os.PathLike[str]) -> Path:
+        """Validate that a path is within the project root."""
+        resolved = (self.project_root / path).resolve()
+        if not str(resolved).startswith(str(self.project_root)):
+            raise ValueError(
+                f"Scope escape blocked: {resolved} is outside project root {self.project_root}"
+            )
+        return resolved
+
     def _get_llm_client(self) -> Any | None:
         """Lazy-load the LLM client if configured."""
         if self._llm_client is not None:
@@ -115,15 +124,21 @@ class CodeExecutor:
 
         import asyncio
 
+        project_files = self._list_project_files()
         prompt = (
             f"{assembled.system_prompt}\n\n"
             f"TASK:\n{subtask.description}\n\n"
             f"CONTEXT:\n{assembled.user_prompt}\n\n"
+            "PROJECT FILES:\n"
+            f"{project_files}\n\n"
             "OUTPUT REQUIREMENTS:\n"
-            "1. Output only a unified diff patch.\n"
-            "2. Use standard --- a/... and +++ b/... headers.\n"
-            "3. Only modify files within the project.\n"
-            "4. Keep the diff minimal and focused.\n"
+            "1. Output ONLY the complete new content for each file you want to modify.\n"
+            "2. Use this exact format for each file:\n"
+            "   FILE: <relative-path>\n"
+            "   <complete file content here>\n"
+            "3. Only include files that actually need changes.\n"
+            "4. Keep changes minimal and focused on the task.\n"
+            "5. Do NOT include any explanations, markdown code blocks, or diff syntax.\n"
         )
 
         try:
@@ -131,44 +146,69 @@ class CodeExecutor:
                 llm_client.chat(
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.2,
-                    max_tokens=2048,
+                    max_tokens=4096,
                 )
             )
             text = response.strip()
-            if text.startswith("```"):
-                text = re.sub(r"^```(?:diff)?", "", text, flags=re.IGNORECASE).strip()
-                if text.endswith("```"):
-                    text = text[:-3].strip()
-            return text or self._placeholder_diff(subtask)
+            if not text or "FILE:" not in text:
+                return self._placeholder_diff(subtask)
+            return text
         except Exception as exc:  # noqa: BLE001
             return self._placeholder_diff(subtask)
 
     def _placeholder_diff(self, subtask: Any) -> str:
         timestamp = datetime.now(timezone.utc).isoformat()
-        return f"""\
---- a/placeholder
-+++ b/placeholder
-@@ -1,3 +1,4 @@
- # Autopilot generated change
- # Task: {subtask.description}
--# TODO: implement
-+# Implemented by autopilot at {timestamp}
-+pass
-"""
+        filename = self._extract_filename(subtask.description)
+        return f"FILE: {filename}\n# Autopilot generated change\n# Task: {subtask.description}\n# Implemented by autopilot at {timestamp}\npass\n"
+
+    @staticmethod
+    def _extract_filename(description: str) -> str:
+        cleaned = description.lower()
+        for token in ["create", "add", "implement", "write", "build", "new"]:
+            cleaned = cleaned.replace(token, "")
+        cleaned = cleaned.strip().replace(" ", "_") or "autopilot_output"
+        if not cleaned.endswith(".py"):
+            cleaned = f"{cleaned}.py"
+        return cleaned
+
+    def _list_project_files(self, max_files: int = 40) -> str:
+        files: list[str] = []
+        for path in self.project_root.rglob("*.py"):
+            if any(part in {"__pycache__", ".git", "node_modules", ".venv", "venv"} for part in path.parts):
+                continue
+            files.append(str(path.relative_to(self.project_root)))
+            if len(files) >= max_files:
+                break
+        return "\n".join(files)
 
     def _apply_diff(self, diff: str) -> list[str]:
         if not diff or diff.strip() == "":
             return []
 
         modified: list[str] = []
+        current_file = None
+        current_content = []
+
         for line in diff.splitlines():
-            if line.startswith("--- "):
-                path = line[4:].split("\t")[0].strip()
-                if path.startswith("a/"):
-                    path = path[2:]
-                if path and path != "placeholder":
-                    modified.append(path)
+            if line.startswith("FILE:"):
+                if current_file and current_content:
+                    self._write_file(current_file, "\n".join(current_content))
+                    modified.append(current_file)
+                current_file = line[5:].strip()
+                current_content = []
+            elif current_file is not None:
+                current_content.append(line)
+
+        if current_file and current_content:
+            self._write_file(current_file, "\n".join(current_content))
+            modified.append(current_file)
+
         return modified
+
+    def _write_file(self, relative_path: str, content: str) -> None:
+        target = self.check_path(relative_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
 
     def _run_tests(self, command: str) -> tuple[bool, str]:
         try:

@@ -11,6 +11,7 @@ This package provides autonomous task execution with:
 - Approval flows with human-in-the-loop
 - Persistent memory and learning
 - Notifications via Feishu/WeChat
+- Workflow scheduling with cron triggers
 - Git automation
 """
 
@@ -27,6 +28,7 @@ from .memory import MemoryStore, LearningEngine
 from .workflows import WorkflowEngine, WorkflowDefinitionLoader, WorkflowDefinition
 from .approval import ApprovalFlow, ApprovalStore
 from .notifications import NotificationService, FeishuNotifier, WeChatNotifier
+from .scheduler import WorkflowScheduler, CronExpression, ScheduledJob
 
 __all__ = [
     "load_roles",
@@ -55,4 +57,7 @@ __all__ = [
     "NotificationService",
     "FeishuNotifier",
     "WeChatNotifier",
+    "WorkflowScheduler",
+    "CronExpression",
+    "ScheduledJob",
 ]

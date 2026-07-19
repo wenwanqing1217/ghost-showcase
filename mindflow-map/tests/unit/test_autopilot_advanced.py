@@ -10,6 +10,7 @@ import pytest
 from mindflow_map.autopilot.approval import ApprovalFlow, ApprovalStore, ApprovalStatus
 from mindflow_map.autopilot.collaboration import AgentDescriptor, AgentMessage, CollaborationEngine, MessageBus
 from mindflow_map.autopilot.memory import LearningEngine, MemoryStore, MemoryEntry
+from mindflow_map.autopilot.scheduler import CronExpression, ScheduledJob, WorkflowScheduler
 from mindflow_map.autopilot.workflows import WorkflowDefinitionLoader, WorkflowEngine, WorkflowStep, WorkflowDefinition
 
 
@@ -150,3 +151,48 @@ class TestWorkflowEngine:
         assert run is not None
         assert run.status == "running"
         assert run.state["key"] == "value"
+
+
+class TestCronExpression:
+    def test_matches_exact_minute(self) -> None:
+        import datetime
+        cron = CronExpression("5 * * * *")
+        assert cron.matches(datetime.datetime(2024, 1, 1, 12, 5)) is True
+        assert cron.matches(datetime.datetime(2024, 1, 1, 12, 6)) is False
+
+    def test_matches_every_minute(self) -> None:
+        import datetime
+        cron = CronExpression("* * * * *")
+        assert cron.matches(datetime.datetime(2024, 1, 1, 12, 5)) is True
+        assert cron.matches(datetime.datetime(2024, 1, 1, 12, 6)) is True
+
+    def test_rejects_invalid_expression(self) -> None:
+        with pytest.raises(ValueError):
+            CronExpression("* * *")
+
+
+class TestWorkflowScheduler:
+    def test_schedule_persists_job(self, tmp_path: Path) -> None:
+        engine = WorkflowEngine(workflows_dir=tmp_path)
+        scheduler = WorkflowScheduler(workflow_engine=engine, storage_path=tmp_path / "jobs.json")
+        scheduler.stop = lambda: None
+        job = scheduler.schedule("wf1", "*/5 * * * *")
+        assert job.workflow_id == "wf1"
+        assert scheduler.list_jobs() == [job]
+
+    def test_list_jobs_filters_by_workflow(self, tmp_path: Path) -> None:
+        engine = WorkflowEngine(workflows_dir=tmp_path)
+        scheduler = WorkflowScheduler(workflow_engine=engine, storage_path=tmp_path / "jobs.json")
+        scheduler.stop = lambda: None
+        scheduler.schedule("wf1", "*/5 * * * *")
+        scheduler.schedule("wf2", "*/10 * * * *")
+        assert len(scheduler.list_jobs()) == 2
+        assert len(scheduler.list_jobs(workflow_id="wf1")) == 1
+
+    def test_cancel_removes_job(self, tmp_path: Path) -> None:
+        engine = WorkflowEngine(workflows_dir=tmp_path)
+        scheduler = WorkflowScheduler(workflow_engine=engine, storage_path=tmp_path / "jobs.json")
+        scheduler.stop = lambda: None
+        job = scheduler.schedule("wf1", "*/5 * * * *")
+        assert scheduler.cancel(job.id) is True
+        assert scheduler.list_jobs() == []
