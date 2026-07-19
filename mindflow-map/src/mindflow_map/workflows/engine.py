@@ -8,9 +8,14 @@ from abc import ABC, abstractmethod
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict, List, Optional
 
+from typing import Any, Dict, List, Optional, TYPE_CHECKING
+
 from mindflow_map.tools.baidu_map import BaiduMapTool
 from mindflow_map.identity.aid_client import AlphaIDClient
 from mindflow_map.ai.intent import IntentParser
+
+if TYPE_CHECKING:
+    from mindflow_map.plugins.registry import PluginRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -191,19 +196,51 @@ class ShortDramasPrecheckTool(Tool):
 class WorkflowEngine:
     """MindFlow 工作流引擎"""
 
-    def __init__(self):
+    def __init__(self, plugin_registry: Optional["PluginRegistry"] = None) -> None:
         self.tools: Dict[str, Tool] = {
             "map": MapNavigationTool(),
             "douyin": DouyinPublishTool(),
             "shopify": ShopifyOptimizeTool(),
             "shortdramas": ShortDramasPrecheckTool(),
         }
+        self._plugin_registry = plugin_registry
+        self._load_plugins()
         self.alpha_id_client = AlphaIDClient()
         self.intent_parser = IntentParser()
         self._max_workers = 8
         self._executor = ThreadPoolExecutor(max_workers=self._max_workers, thread_name_prefix="mindflow-worker")
         # 主线程 event loop，由 lifespan 注入；用于将后台任务安全地调度回主线程
         self._main_loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def _load_plugins(self) -> None:
+        """从插件注册表加载工具到引擎。"""
+        registries = [self._plugin_registry]
+        if self._plugin_registry is None:
+            from mindflow_map.plugins.registry import get_global_registry
+            registries = [get_global_registry()]
+        for registry in registries:
+            if registry is None:
+                continue
+            for definition in registry.list_tools():
+                if definition.name in self.tools:
+                    logger.warning("Plugin tool '%s' conflicts with built-in tool, skipping", definition.name)
+                    continue
+                tool_instance = registry.create_tool(definition.name)
+                if tool_instance is not None:
+                    self.tools[definition.name] = tool_instance
+                    logger.info("Loaded plugin tool: %s v%s", definition.name, definition.version)
+
+    def register_plugin_tool(self, tool_cls: type, name: str, description: str = "") -> None:
+        """动态注册一个工具类到引擎。"""
+        registry = getattr(tool_cls, "_registry", None)
+        if registry is None:
+            from mindflow_map.plugins.registry import get_global_registry
+            registry = get_global_registry()
+        definition = registry.register(tool_cls=tool_cls, name=name, description=description)
+        if definition.name not in self.tools:
+            tool_instance = definition.tool_cls()
+            self.tools[definition.name] = tool_instance
+            logger.info("Registered tool via plugin SDK: %s", definition.name)
 
     async def shutdown(self) -> None:
         """关闭线程池，释放资源。"""
