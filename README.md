@@ -9,7 +9,7 @@
 | [MindFlow](#mindflow) | AI Workflow Platform | `cd mindflow/apps/web && npm run dev` | 3000 |
 | [DS](#ds) | AI Autonomous Shopify Shop | `cd DS && npm run dev` | 3002 |
 | [ai综艺](#ai综艺) | AI Variety Show | `cd ai综艺 && npm run dev` | 5173 |
-| [ZCode Brain](#zcode-brain) | Agent Orchestration | `cd zcode-brain && npm test` | - |
+| [mindflow-brain](#mindflow-brain) | Agent Orchestration | `cd zcode-brain && npm test` | - |
 
 ## 快速启动
 
@@ -83,7 +83,7 @@ cd "ai综艺" && npm run dev    # http://localhost:5173
 - 交互式投票流程
 - 生产级构建优化
 
-## ZCode Brain
+## mindflow-brain
 
 智能代理编排层，实现专家角色匹配和安全护栏。
 
@@ -124,7 +124,7 @@ cd zcode-brain && npm test    # 运行测试
    - 展示动画效果
    - 演示交互
 
-4. **ZCode Brain** (1 min)
+4. **mindflow-brain** (1 min)
    - 运行 `npm test`
    - 展示 10 个 PASS 结果
    - 解释角色匹配机制

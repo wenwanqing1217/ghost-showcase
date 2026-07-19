@@ -14,10 +14,10 @@ cd mindflow/apps/web && npm run dev    # http://localhost:3000
 cd mindflow/apps/api && npm run dev    # http://localhost:3001
 
 # mindflow-ds - AI Autonomous Shopify Shop
-cd mindflow-ds && npm run dev                    # http://localhost:3002
+cd DS && npm run dev                    # http://localhost:3002
 
 # mindflow-variety - AI Variety Show
-cd "mindflow-variety" && npm run dev            # http://localhost:5173
+cd "ai综艺" && npm run dev            # http://localhost:5173
 
 # mindflow-brain - Orchestration Layer
 cd zcode-brain && npm test             # 运行测试
