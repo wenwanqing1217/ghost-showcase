@@ -89,7 +89,7 @@ class AlphaIDClient:
                 self._fetch("/profile", user_id),
                 self._fetch("/memory", user_id),
             )
-        except Exception as exc:
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPStatusError) as exc:
             logger.error("Alpha-ID concurrent fetch failed for %s: %s", user_id, exc)
             return {}
 
@@ -108,7 +108,7 @@ class AlphaIDClient:
         try:
             await self._fetch("/health", "_health")
             return True
-        except Exception as exc:
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPStatusError) as exc:
             logger.warning("Alpha-ID health check failed: %s", exc)
             return False
 
@@ -128,7 +128,7 @@ class AlphaIDClient:
         }
         try:
             await self._post("/memory", payload)
-        except Exception as exc:
+        except (httpx.TimeoutException, httpx.NetworkError, httpx.HTTPStatusError) as exc:
             logger.error("Alpha-ID save_memory failed for %s: %s", user_id, exc)
 
     async def _post(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:

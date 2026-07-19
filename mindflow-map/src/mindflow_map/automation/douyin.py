@@ -3,7 +3,7 @@
 import asyncio
 import json
 from typing import Dict, Any, Optional
-from playwright.async_api import async_playwright, Page, BrowserContext
+from playwright.async_api import async_playwright, Page, BrowserContext, Error, TimeoutError
 
 
 class DouyinAutomation:
@@ -100,14 +100,14 @@ class DouyinAutomation:
                 )
                 await self._set_state("LOGGED_IN")
                 return {"ok": True, "message": "登录成功", "method": "manual"}
-            except Exception:
+            except Error:
                 return {
                     "ok": False,
                     "error": "登录超时，请在浏览器中手动登录后重试",
                     "url": page.url,
                 }
 
-        except Exception as e:
+        except Error as e:
             await self._set_state("IDLE")
             return {"ok": False, "error": str(e)}
 
@@ -161,7 +161,7 @@ class DouyinAutomation:
                     title_input = await page.wait_for_selector(selector, timeout=3000)
                     if title_input:
                         break
-                except Exception:
+                except Error:
                     continue
 
             if title_input:
@@ -182,7 +182,7 @@ class DouyinAutomation:
                     content_input = await page.wait_for_selector(selector, timeout=3000)
                     if content_input:
                         break
-                except Exception:
+                except Error:
                     continue
 
             if content_input:
@@ -202,7 +202,7 @@ class DouyinAutomation:
                     if upload_btn:
                         await upload_btn.set_input_files(cover_image)
                         await page.wait_for_timeout(2000)
-                except Exception:
+                except Error:
                     pass  # 封面上传失败不影响主流程
 
             # 点击发布按钮
@@ -220,7 +220,7 @@ class DouyinAutomation:
                         await btn.click()
                         clicked = True
                         break
-                except Exception:
+                except Error:
                     continue
 
             if not clicked:
@@ -239,7 +239,7 @@ class DouyinAutomation:
                     "platform": "抖音短剧",
                     "url": page.url,
                 }
-            except Exception:
+            except Error:
                 # 即使没看到成功提示，也返回当前状态
                 await self._set_state("LOGGED_IN")
                 return {
@@ -250,7 +250,7 @@ class DouyinAutomation:
                     "note": "已提交发布，请手动确认结果",
                 }
 
-        except Exception as e:
+        except Error as e:
             await self._set_state("LOGGED_IN")
             return {"success": False, "error": str(e)}
 
@@ -292,7 +292,7 @@ class DouyinAutomation:
                 "platform": "抖音短剧",
                 "data": stats,
             }
-        except Exception as e:
+        except Error as e:
             return {"ok": False, "error": str(e)}
 
     async def set_cookies(self, cookie_json: str) -> Dict[str, Any]:
@@ -333,7 +333,7 @@ class DouyinAutomation:
                 await self.browser.close()
             if self.playwright:
                 await self.playwright.stop()
-        except Exception:
+        except Error:
             pass
         finally:
             self.page = None
