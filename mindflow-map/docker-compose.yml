@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DEMO_MODE=true
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - BAIDU_MAP_AUTH_TOKEN=${BAIDU_MAP_AUTH_TOKEN:-}
+      - FEISHU_APP_ID=${FEISHU_APP_ID:-}
+      - FEISHU_APP_SECRET=${FEISHU_APP_SECRET:-}
+      - WECHAT_TOKEN=${WECHAT_TOKEN:-}
+      - WECHAT_APP_ID=${WECHAT_APP_ID:-}
+      - WECHAT_APP_SECRET=${WECHAT_APP_SECRET:-}
+      - SHORTDRAMAS_API_URL=${SHORTDRAMAS_API_URL:-}
+      - SHORTDRAMAS_API_KEY=${SHORTDRAMAS_API_KEY:-}
+    volumes:
+      - ./workflows:/app/workflows
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

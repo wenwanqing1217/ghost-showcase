@@ -62,5 +62,8 @@ class Settings(BaseSettings):
     # Autopilot 认证配置
     autopilot_api_key: str = ""
 
+    # 演示模式
+    demo_mode: bool = False
+
 
 settings = Settings()
