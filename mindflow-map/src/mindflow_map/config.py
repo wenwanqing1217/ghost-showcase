@@ -1,4 +1,4 @@
-"""配置管理 - 统一管理所有 API Key 和敏感信息"""
+"""短剧平台配置"""
 
 from pathlib import Path
 
@@ -19,13 +19,13 @@ class Settings(BaseSettings):
     app_version: str = "0.1.0"
     debug: bool = False
 
-    # 飞书配置
+    # 飞书协作通讯配置
     feishu_app_id: str = ""
     feishu_app_secret: str = ""
     feishu_verification_token: str = ""
     feishu_encrypt_key: str = ""
 
-    # 微信公众号配置
+    # 微信公众平台配置
     wechat_app_id: str = ""
     wechat_app_secret: str = ""
     wechat_token: str = ""
@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     # Shopify 配置
     shopify_shop_domain: str = ""
     shopify_access_token: str = ""
+
+    # 短剧平台内容预审配置
+    shortdramas_api_url: str = ""
+    shortdramas_api_key: str = ""
+    shortdramas_webhook_secret: str = ""
 
 
 settings = Settings()

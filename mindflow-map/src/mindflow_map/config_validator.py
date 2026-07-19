@@ -57,10 +57,27 @@ def check_shopify() -> Dict[str, Any]:
     }
 
 
+def check_shortdramas() -> Dict[str, Any]:
+    """检查短剧平台内容预审配置"""
+    missing = []
+    if not settings.shortdramas_api_url:
+        missing.append("SHORTDRAMAS_API_URL")
+    if not settings.shortdramas_api_key:
+        missing.append("SHORTDRAMAS_API_KEY")
+
+    return {
+        "platform": "shortdramas",
+        "configured": len(missing) == 0,
+        "missing": missing,
+        "message": "短剧平台预审配置完整" if not missing else f"缺少配置: {', '.join(missing)}",
+    }
+
+
 def check_all() -> Dict[str, Any]:
     """检查所有平台配置"""
     return {
         "wechat": check_wechat(),
         "douyin": check_douyin(),
         "shopify": check_shopify(),
+        "shortdramas": check_shortdramas(),
     }

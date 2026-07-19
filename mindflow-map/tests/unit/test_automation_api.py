@@ -54,3 +54,34 @@ class TestShopifyAPI:
         assert data["success"] is False
         assert data["demo"] is True
         assert data["product"]["title"] == "测试商品"
+
+
+class TestShortDramasAPI:
+    def test_submit_without_credentials_returns_demo(self, client):
+        """未配置 API 时返回演示模式"""
+        response = client.post("/api/v1/shortdramas/submit", json={
+            "title": "测试短剧",
+            "content": "测试内容",
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["demo"] is True
+        assert "job_id" in data
+        assert data["status"] == "pending"
+
+    def test_query_without_credentials_returns_demo(self, client):
+        """未配置 API 时查询返回演示模式"""
+        response = client.post("/api/v1/shortdramas/query", json={
+            "job_id": "test-job-123",
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["demo"] is True
+        assert data["status"] == "unknown"
+
+    def test_list_jobs_returns_empty_without_db(self, client):
+        """任务列表接口在无数据时返回空列表"""
+        response = client.get("/api/v1/shortdramas/jobs")
+        assert response.status_code == 200
+        data = response.json()
+        assert "jobs" in data

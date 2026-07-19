@@ -1,0 +1,82 @@
+"""Sample workflow: code review and deployment."""
+
+id: code-review-deploy
+name: Code Review and Deploy
+description: Automated code review, testing, and deployment workflow
+version: "1.0.0"
+timeout: 3600
+retry_policy:
+  max_retries: 3
+  retry_delay: 60
+
+triggers:
+  - type: manual
+    description: Manual trigger
+  - type: schedule
+    cron: "0 2 * * *"
+    description: Daily at 2 AM
+
+variables:
+  project_root: "."
+  branch: "main"
+
+steps:
+  - id: lint
+    type: task
+    name: Run Linting
+    agent: qa-engineer
+    prompt: "Run linting and code quality checks"
+    on_success: test
+    on_failure: notify-failure
+    retry_count: 2
+
+  - id: test
+    type: task
+    name: Run Tests
+    agent: qa-engineer
+    prompt: "Run all tests and generate coverage report"
+    on_success: security-scan
+    on_failure: notify-failure
+    retry_count: 2
+
+  - id: security-scan
+    type: task
+    name: Security Scan
+    agent: security-engineer
+    prompt: "Perform security scan and vulnerability check"
+    on_success: approval-gate
+    on_failure: notify-failure
+
+  - id: approval-gate
+    type: approval
+    name: Approval Gate
+    description: "Require approval before deployment"
+    approver: "tech-lead"
+    on_success: deploy
+    on_failure: notify-rejected
+
+  - id: deploy
+    type: task
+    name: Deploy
+    agent: devops-engineer
+    prompt: "Deploy to production"
+    on_success: notify-success
+    on_failure: notify-failure
+
+  - id: notify-success
+    type: notify
+    name: Notify Success
+    title: "Deployment Successful"
+    content: "Code has been successfully deployed to production"
+
+  - id: notify-failure
+    type: notify
+    name: Notify Failure
+    title: "Deployment Failed"
+    content: "Workflow failed at step {{current_step}}"
+
+  - id: notify-rejected
+    type: notify
+    name: Notify Rejected
+    title: "Deployment Rejected"
+    content: "Deployment was rejected by {{approver}}"
