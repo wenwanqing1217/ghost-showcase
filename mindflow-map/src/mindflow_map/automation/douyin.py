@@ -53,7 +53,14 @@ class DouyinAutomation:
             # 尝试注入 cookie
             cookie_json = getattr(self, "_cookie_json", "")
             if cookie_json:
-                cookies = json.loads(cookie_json)
+                try:
+                    cookies = json.loads(cookie_json)
+                except json.JSONDecodeError as exc:
+                    await self._set_state("IDLE")
+                    return {
+                        "ok": False,
+                        "error": f"Cookie JSON 格式错误: {exc}",
+                    }
                 await self.context.add_cookies(cookies)
                 await self._set_state("LOGGED_IN")
                 return {"ok": True, "message": "Cookie 注入成功", "method": "cookie"}
@@ -279,14 +286,17 @@ class DouyinAutomation:
         """注入 cookie JSON（用于无头环境保持登录态）"""
         try:
             cookies = json.loads(cookie_json)
-            self._cookie_json = cookie_json
-            if self.context:
-                await self.context.add_cookies(cookies)
-                await self._set_state("LOGGED_IN")
-                return {"ok": True, "message": "Cookie 已注入"}
-            return {"ok": True, "message": "Cookie 已缓存，下次启动时注入"}
-        except Exception as e:
-            return {"ok": False, "error": str(e)}
+        except json.JSONDecodeError as exc:
+            return {
+                "ok": False,
+                "error": f"Cookie JSON 格式错误: {exc}",
+            }
+        self._cookie_json = cookie_json
+        if self.context:
+            await self.context.add_cookies(cookies)
+            await self._set_state("LOGGED_IN")
+            return {"ok": True, "message": "Cookie 已注入"}
+        return {"ok": True, "message": "Cookie 已缓存，下次启动时注入"}
 
     async def close(self):
         try:

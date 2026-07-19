@@ -1,5 +1,9 @@
 """平台配置校验 - 启动时检查微信公众号/抖音/Shopify 配置"""
 
+from __future__ import annotations
+
+from typing import Any, Dict
+
 from mindflow_map.config import settings
 
 

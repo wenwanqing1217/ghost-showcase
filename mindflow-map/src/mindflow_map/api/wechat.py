@@ -78,8 +78,9 @@ def _check_signature(signature: str, timestamp: str, nonce: str) -> bool:
     """校验微信签名（sha1(token, timestamp, nonce)，按字典序排序后拼接）"""
     token = settings.wechat_token
     if not token:
-        logger.warning("WECHAT_TOKEN 未配置，跳过签名校验")
-        return True
+        # 未配置 token 时拒绝请求，而不是静默跳过验证
+        logger.error("WECHAT_TOKEN 未配置，拒绝所有微信请求")
+        raise HTTPException(status_code=500, detail="微信服务未配置：WECHAT_TOKEN 缺失")
 
     params = [token, timestamp, nonce]
     params.sort()
@@ -108,14 +109,16 @@ async def get_wechat_access_token() -> str:
     if not app_id or not app_secret:
         raise HTTPException(status_code=500, detail="微信公众号未配置 AppID/AppSecret")
 
-    url = (
-        "https://api.weixin.qq.com/cgi-bin/token"
-        f"?grant_type=client_credential&appid={app_id}&secret={app_secret}"
-    )
+    url = "https://api.weixin.qq.com/cgi-bin/token"
+    params = {
+        "grant_type": "client_credential",
+        "appid": app_id,
+        "secret": app_secret,
+    }
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url)
+            resp = await client.get(url, params=params)
             resp.raise_for_status()
             data = resp.json()
     except Exception as exc:

@@ -1,9 +1,13 @@
 """Shopify 电商运营自动化"""
 
+import re
 from typing import Dict, Any, Optional
 import httpx
 
 from mindflow_map.config import settings
+
+# 严格的 Shopify 域名格式校验
+_SHOPIFY_DOMAIN_RE = re.compile(r"^[a-z0-9-]+\.myshopify\.com$")
 
 
 class ShopifyClient:
@@ -12,6 +16,13 @@ class ShopifyClient:
     def __init__(self):
         self.shop_domain = settings.shopify_shop_domain
         self.access_token = settings.shopify_access_token
+        
+        if self.shop_domain and not _SHOPIFY_DOMAIN_RE.match(self.shop_domain):
+            raise ValueError(
+                f"无效的 Shopify 域名: {self.shop_domain}。"
+                "必须以 .myshopify.com 结尾，且仅包含小写字母、数字和连字符。"
+            )
+        
         self.base_url = f"https://{self.shop_domain}/admin/api/2024-01" if self.shop_domain else ""
     
     async def _request(self, method: str, path: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

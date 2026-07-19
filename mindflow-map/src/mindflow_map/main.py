@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from mindflow_map.config import settings
 from mindflow_map.config_validator import check_all
 from mindflow_map.api import automation, health, map, wechat, workflow
+from mindflow_map.workflows.engine import WorkflowEngine
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,19 @@ async def lifespan(app: FastAPI):
             )
         else:
             logger.info("平台配置就绪 [%s]", platform)
+
+    # 初始化共享工作流引擎
+    engine = WorkflowEngine()
+    app.state.workflow_engine = engine
+    wechat.workflow_engine = engine
+    workflow.workflow_engine = engine
+    if hasattr(automation, "workflow_engine"):
+        automation.workflow_engine = engine
+
     yield
+
+    # 关闭时释放资源
+    await engine.shutdown()
 
 
 app = FastAPI(
@@ -39,10 +52,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS - 仅允许可信来源，避免通配符 + 凭证的组合
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:8000",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:8000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -101,7 +101,8 @@ class WorkflowEngine:
         }
         self.alpha_id_client = AlphaIDClient()
         self.intent_parser = IntentParser()
-        self._executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="mindflow-worker")
+        self._max_workers = 8
+        self._executor = ThreadPoolExecutor(max_workers=self._max_workers, thread_name_prefix="mindflow-worker")
 
     async def shutdown(self) -> None:
         """关闭线程池，释放资源。"""
@@ -143,7 +144,7 @@ class WorkflowEngine:
     async def execute_parallel(
         self, requests: List[Dict[str, Any]], user_id: str = "default"
     ) -> List[Dict[str, Any]]:
-        """并发执行多个工具请求（多线程核心优化）。"""
+        """并发执行多个工具请求（纯 asyncio 并发，避免线程池嵌套）。"""
         if not requests:
             return []
 
@@ -151,51 +152,35 @@ class WorkflowEngine:
         intent_tasks = [self.intent_parser.parse(req.get("text", "")) for req in requests]
         intents = await asyncio.gather(*intent_tasks)
 
-        # 收集需要执行的工具
-        tool_calls: List[tuple[str, Tool, Dict[str, Any]]] = []
+        # 并发执行所有工具（纯 asyncio，无线程池）
+        async def _run_tool(tool: Tool, params: Dict[str, Any]) -> Dict[str, Any]:
+            try:
+                return await tool.execute(params)
+            except Exception as exc:
+                logger.error("Tool failed in parallel execution: %s", exc)
+                return {"error": str(exc)}
+
+        tool_calls: List[tuple[Tool, Dict[str, Any]]] = []
         for req, intent in zip(requests, intents):
             tool_name = self._select_tool(intent)
             tool = self.tools.get(tool_name)
             if tool:
                 params = self._build_params(intent, req.get("text", ""), req.get("context", {}))
-                tool_calls.append((tool_name, tool, params))
+                tool_calls.append((tool, params))
 
         if not tool_calls:
             return []
 
-        # 使用线程池并发执行所有工具
-        results: List[Dict[str, Any]] = []
-        with ThreadPoolExecutor(max_workers=min(len(tool_calls), self._executor._max_workers)) as pool:
-            futures = {
-                pool.submit(self._run_tool_sync, tool, params): tool_name
-                for tool_name, tool, params in tool_calls
-            }
-            for future in as_completed(futures):
-                tool_name = futures[future]
-                try:
-                    results.append(future.result())
-                except Exception as exc:
-                    logger.error("Tool %s failed in parallel execution: %s", tool_name, exc)
-                    results.append({"type": tool_name, "data": {"error": str(exc)}})
-
-        return results
+        results = await asyncio.gather(
+            *(_run_tool(tool, params) for tool, params in tool_calls)
+        )
+        return list(results)
 
     def _run_tool_sync(self, tool: Tool, params: Dict[str, Any]) -> Dict[str, Any]:
-        """同步运行异步工具（用于线程池并发执行）。"""
-        try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                # 在已有事件循环的线程中，使用 nest_asyncio 或创建新线程
-                # 这里采用最简单的方式：在独立线程中运行
-                import concurrent.futures
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as inner_pool:
-                    future = inner_pool.submit(asyncio.run, tool.execute(params))
-                    return future.result(timeout=30)
-            else:
-                return loop.run_until_complete(tool.execute(params))
-        except Exception:
-            # 最终回退：直接在新线程中运行
-            return asyncio.run(tool.execute(params))
+        """同步运行异步工具（已弃用：execute_parallel 现在使用纯 asyncio）。"""
+        raise NotImplementedError(
+            "_run_tool_sync is deprecated. Use execute_parallel with async tools directly."
+        )
 
     async def _get_user_context(self, user_id: str) -> Dict[str, Any]:
         """获取用户上下文"""
@@ -311,11 +296,9 @@ class WorkflowEngine:
         return "我已收到你的消息，正在处理中。"
 
     def _save_memory_sync(self, user_id: str, text: str, result: Dict[str, Any]):
-        """同步保存记忆（在线程池中运行，避免 asyncio.run 反模式）。"""
+        """同步保存记忆（在线程池中运行，使用独立 event loop，不干扰主线程）。"""
         try:
-            # 在线程池中创建新的事件循环来运行异步代码
             loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
             try:
                 loop.run_until_complete(
                     self.alpha_id_client.save_memory(

@@ -4,6 +4,7 @@ import hashlib
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from mindflow_map.main import app
@@ -34,9 +35,11 @@ class TestCheckSignature:
         monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", token)
         assert _check_signature(expected, timestamp, nonce) is True
 
-    def test_missing_token_skips_check(self, monkeypatch):
+    def test_missing_token_raises_500(self, monkeypatch):
         monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", "")
-        assert _check_signature("any", "1", "2") is True
+        with pytest.raises(HTTPException) as exc_info:
+            _check_signature("any", "1", "2")
+        assert exc_info.value.status_code == 500
 
     def test_signature_mismatch(self, monkeypatch):
         monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", "my_token")
@@ -130,7 +133,13 @@ class TestWechatMessage:
     """微信消息接收路由测试"""
 
     def test_text_message_returns_reply(self, monkeypatch):
-        monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", "")
+        token = "test_token"
+        timestamp = "1"
+        nonce = "2"
+        params = [token, timestamp, nonce]
+        params.sort()
+        signature = hashlib.sha1("".join(params).encode("utf-8")).hexdigest()
+        monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", token)
         body = (
             b"<xml>"
             b"<ToUserName><![CDATA[toUser]]></ToUserName>"
@@ -141,7 +150,7 @@ class TestWechatMessage:
             b"</xml>"
         )
         resp = client.post(
-            "/api/v1/wechat?signature=any&timestamp=1&nonce=2",
+            f"/api/v1/wechat?signature={signature}&timestamp={timestamp}&nonce={nonce}",
             content=body,
             headers={"Content-Type": "application/xml"},
         )
@@ -150,7 +159,13 @@ class TestWechatMessage:
         assert b"<Content>" in resp.content
 
     def test_non_text_message_returns_fallback(self, monkeypatch):
-        monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", "")
+        token = "test_token"
+        timestamp = "1"
+        nonce = "2"
+        params = [token, timestamp, nonce]
+        params.sort()
+        signature = hashlib.sha1("".join(params).encode("utf-8")).hexdigest()
+        monkeypatch.setattr("mindflow_map.api.wechat.settings.wechat_token", token)
         body = (
             b"<xml>"
             b"<ToUserName><![CDATA[toUser]]></ToUserName>"
@@ -161,7 +176,7 @@ class TestWechatMessage:
             b"</xml>"
         )
         resp = client.post(
-            "/api/v1/wechat?signature=any&timestamp=1&nonce=2",
+            f"/api/v1/wechat?signature={signature}&timestamp={timestamp}&nonce={nonce}",
             content=body,
             headers={"Content-Type": "application/xml"},
         )

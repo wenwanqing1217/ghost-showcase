@@ -48,8 +48,8 @@ class AlphaIDClient:
         timeout: float = 10.0,
         max_retries: int = 3,
     ) -> None:
-        self._base_url = (base_url or getattr(settings, "ALPHA_ID_BASE_URL", "")).rstrip("/")
-        self._api_key = api_key or getattr(settings, "ALPHA_ID_API_KEY", "")
+        self._base_url = (base_url or getattr(settings, "alpha_id_api_url", "")).rstrip("/")
+        self._api_key = api_key or getattr(settings, "alpha_id_api_key", "")
         self._cache_ttl = cache_ttl
         self._timeout = timeout
         self._max_retries = max_retries
