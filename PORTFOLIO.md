@@ -13,13 +13,13 @@
 cd mindflow/apps/web && npm run dev    # http://localhost:3000
 cd mindflow/apps/api && npm run dev    # http://localhost:3001
 
-# DS - AI Autonomous Shopify Shop
-cd DS && npm run dev                    # http://localhost:3002
+# mindflow-ds - AI Autonomous Shopify Shop
+cd mindflow-ds && npm run dev                    # http://localhost:3002
 
-# ai综艺 - AI Variety Show
-cd "ai综艺" && npm run dev            # http://localhost:5173
+# mindflow-variety - AI Variety Show
+cd "mindflow-variety" && npm run dev            # http://localhost:5173
 
-# ZCode Brain - Orchestration Layer
+# mindflow-brain - Orchestration Layer
 cd zcode-brain && npm test             # 运行测试
 ```
 
@@ -28,9 +28,10 @@ cd zcode-brain && npm test             # 运行测试
 | 项目 | 构建 | 测试 | 文档 | 状态 |
 |------|------|------|------|------|
 | MindFlow | ✅ | 32/32 ✅ | ✅ | 可直接运行 |
-| DS | ✅ | 20/20 ✅ | ✅ | 可直接运行 |
-| ai综艺 | ✅ | N/A | ✅ | 可直接运行 |
-| ZCode Brain | ✅ | 12/12 ✅ | ✅ | 可直接运行 |
+| mindflow-ds | ✅ | 20/20 ✅ | ✅ | 可直接运行 |
+| mindflow-variety | ✅ | N/A | ✅ | 可直接运行 |
+| mindflow-brain | ✅ | 12/12 ✅ | ✅ | 可直接运行 |
+| mindflow-aid | ✅ | N/A | ✅ | 待创建仓库 |
 
 ## 面试展示要点
 
@@ -50,7 +51,7 @@ cd zcode-brain && npm test             # 运行测试
 - Docker 多阶段构建
 - 32 个自动化测试
 
-### 2. DS - AI Autonomous Shopify Shop
+### 2. mindflow-ds - AI Autonomous Shopify Shop
 **一句话**: "我构建了一个自主运营的电商平台，有 3 个 AI Agent 自动化处理内容、广告和客服。"
 
 展示要点:
@@ -69,7 +70,7 @@ cd zcode-brain && npm test             # 运行测试
 - Recharts 数据可视化
 - 20 个自动化测试
 
-### 3. ai综艺 - AI Variety Show
+### 3. mindflow-variety - AI Variety Show
 **一句话**: "我创建了一个沉浸式 AI 推理综艺互动 Web 应用。"
 
 展示要点:
@@ -84,7 +85,7 @@ cd zcode-brain && npm test             # 运行测试
 - Tailwind CSS 样式
 - 生产级构建 (4.17s, 2208 modules)
 
-### 4. ZCode Brain - Agent Orchestration
+### 4. mindflow-brain - Agent Orchestration
 **一句话**: "我设计了一个智能代理编排系统，实现专家角色匹配和安全护栏。"
 
 展示要点:
@@ -103,10 +104,10 @@ cd zcode-brain && npm test             # 运行测试
 ## 技术栈总览
 
 ```
-MindFlow:  Next.js 14, Fastify, TypeScript, Prisma, Tailwind, Vitest, Docker
-DS:        Next.js 14, TypeScript, Tailwind, Prisma, OpenAI, Recharts, Vitest
-ai综艺:    React 18, Vite 6, TypeScript, Tailwind, Framer Motion
-ZCode:     TypeScript, Vitest, file-based JSON roles
+mindflow:     Next.js 14, Fastify, TypeScript, Prisma, Tailwind, Vitest, Docker
+mindflow-ds:      Next.js 14, TypeScript, Tailwind, Prisma, OpenAI, Recharts, Vitest
+mindflow-variety: React 18, Vite 6, TypeScript, Tailwind, Framer Motion
+mindflow-brain:   TypeScript, Vitest, file-based JSON roles
 ```
 
 ## 项目结构
@@ -145,19 +146,19 @@ mindflow-workspace/
 ## 数据流展示
 
 ```
-用户请求 → ZCode Brain (角色匹配 + 安全检查)
+用户请求 → mindflow-brain (角色匹配 + 安全检查)
                     ↓
             Codex (代码生成)
                     ↓
-            MindFlow / DS (部署运行)
+            MindFlow / mindflow-ds (部署运行)
 ```
 
 ## 部署准备
 
 所有项目已准备好部署到生产环境:
 
-- **ai综艺**: 直接部署到 Vercel (无需环境变量)
-- **DS**: 部署到 Vercel (需要 OPENAI_API_KEY, Shopify 凭证)
+- **mindflow-variety**: 直接部署到 Vercel (无需环境变量)
+- **mindflow-ds**: 部署到 Vercel (需要 OPENAI_API_KEY, Shopify 凭证)
 - **MindFlow**: Web 部署到 Vercel, API 部署到 Railway (需要 OPENAI_API_KEY)
 
 详见各项目的 `DEPLOY.md` 文件。
@@ -165,9 +166,9 @@ mindflow-workspace/
 ## 测试覆盖
 
 ```
-MindFlow:  32 测试通过 (API 16 + Web 11 + Shared 5)
-DS:        20 测试通过 (Risk 3 + API 2 + Pages 15)
-ZCode:     12 测试通过 (Dispatcher 10 + Safety 2)
+MindFlow:    32 测试通过 (API 16 + Web 11 + Shared 5)
+mindflow-ds:     20 测试通过 (Risk 3 + API 2 + Pages 15)
+mindflow-brain:  12 测试通过 (Dispatcher 10 + Safety 2)
 ```
 
 ## License

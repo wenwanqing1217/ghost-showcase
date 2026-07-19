@@ -2,14 +2,15 @@
 
 ## 当前状态
 
-所有 4 个项目已完成生产级加固，测试全部通过，代码已提交到本地 Git。
+所有 5 个项目已完成生产级加固，测试全部通过，代码已提交到本地 Git。
 
 | 项目 | 状态 | 测试 | 构建 |
 |------|------|------|------|
 | mindflow | 已提交，干净 | 16/16 通过 | 通过 |
-| DS | 已提交，干净 | 20/20 通过 | 通过 |
-| ai综艺 | 已提交，干净 | — | 通过 |
-| zcode-brain | 已提交，干净 | 10/10 通过 | 通过 |
+| mindflow-ds | 已提交，干净 | 20/20 通过 | 通过 |
+| mindflow-variety | 已提交，干净 | — | 通过 |
+| mindflow-brain | 已提交，干净 | 10/10 通过 | 通过 |
+| mindflow-aid | 已提交，干净 | — | 待创建仓库 |
 
 ## GitHub 推送步骤
 
@@ -28,12 +29,12 @@ gh auth login
 ```bash
 cd D:\mindflow-workspace
 
-# 创建 4 个仓库
+# 创建 5 个仓库（如已存在同名仓库，可先删除或使用 --force）
 gh repo create wenwanqing1217/mindflow --private --source=./mindflow --remote=origin --push
-gh repo create wenwanqing1217/DS --private --source=./DS --remote=origin --push
-gh repo create wenwanqing1217/ai综艺 --private --source=./ai综艺 --remote=origin --push
-gh repo create wenwanqing1217/zcode-brain --private --source=./zcode-brain --remote=origin --push
-```
+gh repo create wenwanqing1217/mindflow-ds --private --source=./DS --remote=origin --push
+gh repo create wenwanqing1217/mindflow-variety --private --source=./ai综艺 --remote=origin --push
+gh repo create wenwanqing1217/mindflow-brain --private --source=./zcode-brain --remote=origin --push
+gh repo create wenwanqing1217/mindflow-aid --private --source=./AID --remote=origin --push
 
 如果已有同名仓库，先删除远端分支冲突或使用 `--public`/`--private` 调整可见性。
 
@@ -80,6 +81,17 @@ cd D:\mindflow-workspace\ai综艺
 vercel --prod
 ```
 
+### 2.5. AID 部署
+
+AID 为数字身份层，当前以文档和 Python SDK 为主，可部署至 Vercel（静态）或自建服务：
+
+```bash
+cd D:\mindflow-workspace\AID
+
+# 静态文档站点
+vercel --prod
+```
+
 ### 3. MindFlow 部署
 
 MindFlow 是 monorepo，需要分别部署 web 和 api。
@@ -112,11 +124,12 @@ MindFlow（执行层）
 应用层（DS / ai综艺 / 小程序）
 ```
 
-当前 4 个仓库是 MindFlow 统一平台的 4 个独立应用：
+当前 5 个仓库是 MindFlow 统一平台的 5 个独立应用：
 - **mindflow**：核心平台（API + Web）
-- **DS**：Shopify 电商自动化应用
-- **ai综艺**：前端展示应用
-- **zcode-brain**：内部调度系统
+- **mindflow-ds**：Shopify 电商自动化应用
+- **mindflow-variety**：AI 推理综艺互动应用
+- **mindflow-brain**：内部调度系统
+- **mindflow-aid**：数字身份基础设施
 
 ## 常见问题
 
