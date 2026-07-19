@@ -4,6 +4,10 @@
 
 一句话：你在飞书/微信里说话，MindFlow 自动帮你查地图、规划路线、发短剧、运营店铺，所有平台统一在一个工作台里。
 
+![CI](https://github.com/your-org/mindflow-map/actions/workflows/ci.yml/badge.svg)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
+![Tests](https://img.shields.io/badge/tests-52%2F52%20passing-brightgreen)
+
 ---
 
 ## 面试演示要点
@@ -102,23 +106,44 @@ mindflow-map/
 5. **飞书入口**：展示飞书长连接已启动，手机端可发消息触发同一工作流
 6. **后台 API**：打开 `http://localhost:8000/docs`，展示 RESTful API 文档
 
-## 核心流程
+## 测试
 
+```bash
+# 运行所有测试（52 passed）
+pytest tests/ -v
+
+# 仅单元测试
+pytest tests/unit/ -v
+
+# 带覆盖率报告
+pytest tests/ --cov=mindflow_map --cov-report=html
+open htmlcov/index.html
 ```
-用户消息（飞书 / 微信 / Workspace）
-    ↓
-FastAPI 主入口
-    ↓
-工作流引擎（ThreadPoolExecutor 8 线程）
-    ├── 意图识别（地点搜索 / 导航 / 短剧 / 电商）
-    ├── 并行执行（用户上下文 + 意图解析）
-    └── 工具调用
-        ├── 百度地图 Agent Plan（地点 / 路线 / 天气）
-        ├── 抖音 Playwright（短剧发布）
-        └── Shopify Admin API（商品 / 订单）
-    ↓
-统一回复（飞书 / 微信 / Workspace）
-```
+
+## 架构
+
+详细架构文档：[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+
+核心设计：
+- **WorkflowEngine 单例**：通过 `app.state` 注入，避免线程池泄漏
+- **IntentParser 双模式**：LLM 优先，规则引擎 fallback，离线可用
+- **MemoryStore 懒初始化**：首次访问时建表，启动无阻塞
+- **连接池复用**：httpx.AsyncClient 实例级复用，提升性能
+
+## API 文档
+
+启动服务后访问：http://localhost:8000/docs
+
+主要端点：
+- `GET /health` - 健康检查 + 配置状态
+- `POST /api/v1/shortdramas/submit` - 提交短剧预审
+- `POST /api/v1/shortdramas/query` - 查询预审状态
+- `GET /api/v1/shortdramas/jobs` - 预审任务列表
+- `POST /api/v1/wechat` - 微信消息接收
+- `GET /api/v1/map/search` - 地点搜索
+- `GET /api/v1/map/direction` - 路线规划
+- `POST /api/v1/automation/douyin/publish` - 抖音发布
+- `POST /api/v1/workflow/execute` - 通用工作流执行
 
 ### 真实集成说明
 
@@ -152,14 +177,49 @@ FastAPI 主入口
 | DeepSeek API | 新用户送 5000万 token |
 | 部署 | 0元（本地 / 免费额度） |
 
+## 测试
+
+```bash
+# 运行所有测试（52 passed）
+pytest tests/ -v
+
+# 仅单元测试
+pytest tests/unit/ -v
+
+# 带覆盖率报告
+pytest tests/ --cov=mindflow_map --cov-report=html
+open htmlcov/index.html
+```
+
+## 架构
+
+详细架构文档：[docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+
+核心设计：
+- **WorkflowEngine 单例**：通过 `app.state` 注入，避免线程池泄漏
+- **IntentParser 双模式**：LLM 优先，规则引擎 fallback，离线可用
+- **MemoryStore 懒初始化**：首次访问时建表，启动无阻塞
+- **连接池复用**：httpx.AsyncClient 实例级复用，提升性能
+
 ## 路线图
 
 - [x] Phase 1: 基础架构 + 飞书长连接
 - [x] Phase 2: 百度地图 Agent Plan 集成
 - [x] Phase 3: MindFlow Workspace 统一工作台
 - [x] Phase 4: 微信公众号接入（Webhook 适配器已实现）
+- [x] Phase 4.5: P0/P1/P2 安全与稳定性优化（线程池泄漏、MemoryStore、event loop、意图解析、ShortDramasClient、CDATA、httpx 复用、URL 校验）
 - [ ] Phase 5: 抖音短剧全自动化
 - [ ] Phase 6: Shopify 深度运营
+- [ ] Phase 7: CI/CD + 自动化测试流水线
+- [ ] Phase 8: 多租户 + 用户认证
+
+## 贡献
+
+1. Fork 本项目
+2. 创建特性分支 (`git checkout -b feature/amazing-feature`)
+3. 提交更改 (`git commit -m 'feat: add amazing feature'`)
+4. 推送到分支 (`git push origin feature/amazing-feature`)
+5. 开启 Pull Request
 
 ## License
 

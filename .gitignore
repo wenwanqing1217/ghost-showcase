@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Build artifacts
+dist/
+build/
+.next/
+out/
+
+# Environment
+.env
+.env.*.local
+
+# Cache / temp
+.clawhub/
+*.log
+*.tmp
+
+# Ngrok
+ngrok.zip
+ngrok/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
