@@ -7,7 +7,7 @@
 | 项目 | 状态 | 测试 | 构建 |
 |------|------|------|------|
 | mindflow | 已提交，干净 | 32/32 通过 | 通过 |
-| mindflow-ds | 已提交，干净 | 20 passed / 8 failed | 通过 |
+| mindflow-ds | 已提交，干净 | 20/20 通过 | 通过 |
 | mindflow-variety | 已提交，干净 | 无测试脚本 | 通过 |
 | mindflow-brain | 已提交，干净 | 10/10 通过 | 通过 |
 | mindflow-aid | 已提交，干净 | 未验证 | 未验证 |

@@ -54,7 +54,7 @@ cd DS && npm run dev    # http://localhost:3002
 ```
 
 **技术栈**: Next.js 14, TypeScript, Tailwind, Prisma, OpenAI, Recharts, Vitest
-
+**测试**: 20/20 通过
 **测试**: 20 passed / 8 failed (待修复)
 
 **特点**:

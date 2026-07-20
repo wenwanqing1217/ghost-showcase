@@ -28,7 +28,7 @@ cd zcode-brain && npm test             # 运行测试
 | 项目 | 构建 | 测试 | 文档 | 状态 |
 |------|------|------|------|------|
 | MindFlow | ✅ | 32/32 ✅ | ✅ | 可直接运行 |
-| mindflow-ds | ✅ | 20 passed / 8 failed ⚠️ | ✅ | 可运行，测试待修 |
+| mindflow-ds | ✅ | 20/20 ✅ | ✅ | 可直接运行 |
 | mindflow-variety | ✅ | N/A | ✅ | 可直接运行 |
 | mindflow-brain | ✅ | 12/12 ✅ | ✅ | 可直接运行 |
 | mindflow-aid | ✅ | N/A | ✅ | 待创建仓库 |
@@ -167,7 +167,7 @@ mindflow-workspace/
 
 ```
 MindFlow:    32 测试通过 (API 16 + Web 11 + Shared 5)
-mindflow-ds:     20 passed / 8 failed (待修复)
+mindflow-ds:     20 测试通过 (Risk 3 + API 2 + Pages 15)
 mindflow-brain:  10 测试通过 (Dispatcher 10 + Safety 0)
 ```
 
