@@ -1,0 +1,31 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: "mindflow"
+    namespace: "mindflow"
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager:9093"
+
+# Load rules files
+rule_files:
+  - "/etc/prometheus/rules/*.yml"
+
+scrape_configs:
+  # MindFlow Map API metrics
+  - job_name: "mindflow-api"
+    static_configs:
+      - targets: ["localhost:8000"]
+    metrics_path: "/metrics"
+    scrape_interval: 15s
+    scrape_timeout: 10s
+
+  # Prometheus self-monitoring
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]

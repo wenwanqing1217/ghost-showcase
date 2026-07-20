@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from mindflow_map.config import settings
+from mindflow_map.schemas.map import LocationSearchRequest, RoutePlanRequest
 from mindflow_map.tools.baidu_map import BaiduMapTool
 
 router = APIRouter()

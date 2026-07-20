@@ -1,0 +1,63 @@
+groups:
+  - name: mindflow-api.rules
+    interval: 30s
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+          service: mindflow-api
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }}% (threshold: 5%)"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+          service: mindflow-api
+        annotations:
+          summary: "High latency detected"
+          description: "p95 latency is {{ $value }}s (threshold: 1s)"
+
+      - alert: LLMCircuitBreakerOpen
+        expr: llm_circuit_breaker_state == 1
+        for: 2m
+        labels:
+          severity: warning
+          service: mindflow-api
+        annotations:
+          summary: "LLM circuit breaker is OPEN"
+          description: "LLM circuit breaker has been open for {{ $value }} seconds"
+
+      - alert: LLMHighFailureRate
+        expr: rate(llm_requests_total{status="error"}[5m]) / rate(llm_requests_total[5m]) * 100 > 20
+        for: 5m
+        labels:
+          severity: warning
+          service: mindflow-api
+        annotations:
+          summary: "LLM failure rate is high"
+          description: "LLM error rate is {{ $value }}% (threshold: 20%)"
+
+      - alert: DatabaseDown
+        expr: up{job="mindflow-api"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: mindflow-api
+        annotations:
+          summary: "MindFlow API is down"
+          description: "MindFlow API has been unreachable for {{ $value }} seconds"
+
+      - alert: RedisDown
+        expr: redis_connected_clients == 0
+        for: 1m
+        labels:
+          severity: warning
+          service: redis
+        annotations:
+          summary: "Redis is down"
+          description: "Redis has no connected clients"

@@ -1,0 +1,40 @@
+global:
+  resolve_timeout: 5m
+  slack_api_url: ""
+
+route:
+  group_by: ["alertname", "cluster", "namespace"]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  receiver: "default"
+  routes:
+    - receiver: "default"
+      continue: true
+      match:
+        severity: critical
+
+receivers:
+  - name: "default"
+    slack_configs:
+      - channel: "#mindflow-alerts"
+        send_resolved: true
+        title: "{{ .GroupLabels.alertname }}"
+        text: "{{ range .Alerts }}{{ .Annotations.description }}{{ end }}"
+    email_configs:
+      - to: ["oncall@mindflow.ai"]
+        from: "alertmanager@mindflow.ai"
+        smarthost: "smtp.mindflow.ai:587"
+        auth_username: "alertmanager@mindflow.ai"
+        auth_password: "{{ env \"SMTP_PASSWORD\" }}"
+        send_resolved: true
+    webhook_configs:
+      - url: "http://localhost:8000/api/v1/alerts/webhook"
+        send_resolved: true
+
+inhibit_rules:
+  - source_match:
+      severity: "critical"
+    target_match:
+      severity: "warning"
+    equal: ["alertname", "namespace"]

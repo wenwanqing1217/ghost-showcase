@@ -1,10 +1,17 @@
 """基于 LLM 的意图识别，失败时 fallback 到规则引擎"""
 
+from __future__ import annotations
+
 import json
+import logging
+import time
 from typing import Any, Dict, Optional
 
+from mindflow_map.ai.circuit_breaker import CircuitBreaker
 from mindflow_map.ai.llm import LLMClient
 
+
+logger = logging.getLogger(__name__)
 
 _INTENT_SYSTEM_PROMPT = """\
 你是 MindFlow 工作流引擎的意图分类器。请根据用户消息，返回最匹配的意图 JSON。
@@ -33,11 +40,16 @@ _INTENT_SYSTEM_PROMPT = """\
 
 
 class IntentParser:
-    """基于 LLM 的意图识别器，失败时 fallback 到规则引擎"""
+    """基于 LLM 的意图识别器，失败时 fallback 到规则引擎。"""
 
-    def __init__(self, llm: Optional[LLMClient] = None):
+    def __init__(
+        self,
+        llm: Optional[LLMClient] = None,
+        circuit_breaker: Optional[CircuitBreaker] = None,
+    ) -> None:
         self.llm = llm or LLMClient()
         self._fallback_parser: Any = None
+        self._circuit_breaker = circuit_breaker or CircuitBreaker()
 
     def _get_fallback(self):
         if self._fallback_parser is None:
@@ -48,30 +60,52 @@ class IntentParser:
     async def parse(self, text: str) -> Dict[str, Any]:
         api_key = (self.llm.api_key or "").strip()
         if not api_key or api_key.startswith("your_") or api_key.endswith("_key"):
-            return self._fallback_rule(text)
+            result = self._get_fallback()(text)
+            logger.info("Intent mode=rule (no_api_key) text=%r", text[:50])
+            return result
 
-        try:
-            content = await self.llm.chat(
-                messages=[
-                    {"role": "system", "content": _INTENT_SYSTEM_PROMPT},
-                    {"role": "user", "content": text},
-                ],
-                temperature=0.2,
-                max_tokens=128,
+        start = time.perf_counter()
+
+        content = await self._circuit_breaker.call(
+            self.llm.chat,
+            messages=[
+                {"role": "system", "content": _INTENT_SYSTEM_PROMPT},
+                {"role": "user", "content": text},
+            ],
+            temperature=0.2,
+            max_tokens=128,
+        )
+
+        latency_ms = (time.perf_counter() - start) * 1000.0
+
+        if content is None:
+            result = self._get_fallback()(text)
+            logger.warning(
+                "Intent mode=rule (circuit_open|llm_error) "
+                "breaker_state=%s latency_ms=%.1f text=%r",
+                self._circuit_breaker.state.value,
+                latency_ms,
+                text[:50],
             )
-            # 兼容 markdown code block 包裹
-            content = content.strip()
-            if content.startswith("```"):
-                content = content.split("```", 2)[1]
-                if content.startswith("json"):
-                    content = content[4:]
-                content = content.strip()
+            return result
 
-            intent = json.loads(content)
-            intent.setdefault("confidence", 0.9)
-            return intent
-        except Exception:
-            return self._fallback_rule(text)
+        content = content.strip()
+        if content.startswith("```"):
+            content = content.split("```", 2)[1]
+            if content.startswith("json"):
+                content = content[4:]
+            content = content.strip()
+
+        intent: Dict[str, Any] = json.loads(content)
+        intent.setdefault("confidence", 0.9)
+
+        logger.info(
+            "Intent mode=llm type=%s latency_ms=%.1f text=%r",
+            intent.get("type"),
+            latency_ms,
+            text[:50],
+        )
+        return intent
 
     def _fallback_rule(self, text: str) -> Dict[str, Any]:
         """回退到规则引擎（纯函数，零外部依赖）"""

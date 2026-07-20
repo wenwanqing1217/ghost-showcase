@@ -2,8 +2,8 @@
 
 **AI 统一工作流引擎 | 飞书/微信/公众号多端接入 | 百度地图 Agent Plan | 抖音短剧自动化 | Shopify 电商运营**
 
-![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue)
-![Tests](https://img.shields.io/badge/tests-121%2F121%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-207%2F207%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-184%2F184%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 > **一句话定位**：你在飞书/微信里说话，MindFlow 自动帮你查地图、规划路线、发短剧、运营店铺，所有平台统一在一个工作台里。
@@ -23,6 +23,11 @@
 | 零配置试用 | `DEMO_MODE=true` 即可运行 | ❌ 需 Docker | ❌ SaaS | ❌ 需 API Key |
 | 中文生态原生 | 飞书/微信/抖音/百度全链路 | ❌ | 仅国内 | ❌ |
 | 可扩展工具 | 工具注册表 + 声明式 YAML 工作流 | 400+ 节点 | 封闭 | LangChain 工具 |
+| 流式执行 | SSE 实时推送工作流进度 | ❌ | ❌ | ❌ |
+| 多级审批 | 自定义审批流 + 历史记录 | ❌ | 基础 | ❌ |
+| 多租户 RBAC | 租户隔离 + 角色权限 + Token 认证 | ❌ | 基础 | ❌ |
+| 审计日志 | 全链路操作审计 + 过滤查询 | ❌ | ❌ | ❌ |
+| 生产级中间件 | 限流、CORS、统一错误响应、健康检查 | 部分 | 部分 | ❌ |
 
 ### 核心场景
 
@@ -69,13 +74,40 @@ cp .env.example .env
 uvicorn mindflow_map.main:app --host 0.0.0.0 --port 8000
 ```
 
+#### Docker（推荐）
+
+```bash
+# 构建镜像
+docker build -t mindflow-map:0.1.0 .
+
+# 使用 docker-compose 启动（SQLite 数据持久化）
+docker compose -f docker-compose.prod.yml up -d
+
+# 查看日志
+docker logs -f mindflow-api
+```
+
+#### Kubernetes / Helm
+
+```bash
+# 安装 Helm Chart
+helm upgrade --install mindflow-map ./helm/mindflow-map \
+  -n mindflow --create-namespace \
+  --set database.url="postgresql+asyncpg://mindflow:password@postgres:5432/mindflow"
+
+# 查看服务
+kubectl get pods,svc,ingress -n mindflow
+```
+
 ### 访问地址
 
 | 服务 | 地址 |
 |------|------|
 | Workspace 工作台 | http://localhost:8000/workspace |
+| 可视化工作流编辑器 | http://localhost:8000/editor |
 | API 文档 | http://localhost:8000/docs |
 | 健康检查 | http://localhost:8000/health |
+| 健康检查 (K8s) | http://localhost:8000/health/healthz |
 | 自动开发 API | http://localhost:8000/api/v1/autopilot |
 
 ---
@@ -122,7 +154,7 @@ mindflow-map/
 │       └── store.py         # SQLite 持久化
 ├── static/                  # Workspace 前端资源
 ├── templates/               # Workspace HTML
-├── tests/                   # 测试套件（121 passed）
+├── tests/                   # 测试套件（182 passed）
 ├── workflows/               # 示例 YAML 工作流
 ├── docs/                    # 架构与部署文档
 ├── scripts/                 # 启动与工具脚本
@@ -185,12 +217,42 @@ steps:
     agent: douyin
 ```
 
+### 5. SSE 流式执行
+
+工作流执行过程通过 Server-Sent Events 实时推送给客户端，事件类型包括：
+- `start` / `intent` / `result` / `message` / `done` / `error`
+
+### 6. 多级审批系统
+
+- 支持任意层级审批链
+- 审批历史可追溯
+- 审批通过/驳回即时通知
+
+### 7. 多租户 RBAC
+
+- 租户级数据隔离
+- 基于角色的权限控制
+- Bearer Token / Header 双认证模式
+
+### 8. 全链路审计日志
+
+- 自动记录所有 API 请求
+- 支持按租户、用户、操作类型过滤
+- 分页查询审计历史
+
+### 9. 生产级中间件
+
+- **限流**：滑动窗口算法，可配置窗口大小和最大请求数
+- **CORS**：白名单模式，避免通配符 + 凭证的组合
+- **统一错误响应**：所有 4xx/5xx 返回标准化 JSON 格式
+- **健康检查**：`/health/livez`、`/health/readyz`、`/health/healthz`
+
 ---
 
 ## 测试
 
 ```bash
-# 运行全量测试（121 passed）
+# 运行全量测试（182 passed）
 pytest tests/ -v
 
 # 仅单元测试
@@ -234,7 +296,19 @@ start htmlcov/index.html
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| GET | `/health` | 健康检查 + 配置状态 |
+| GET | `/health` | 健康检查 |
+| GET | `/health/livez` | K8s 存活探针 |
+| GET | `/health/readyz` | K8s 就绪探针 |
+| GET | `/health/healthz` | 详细健康检查（含依赖状态） |
+| GET | `/health/config` | 平台配置状态 |
+| POST | `/api/v1/streaming/stream` | SSE 流式工作流执行 |
+| POST | `/api/v1/approvals` | 创建审批 |
+| GET | `/api/v1/approvals` | 列出审批 |
+| GET | `/api/v1/approvals/{id}` | 审批详情 |
+| POST | `/api/v1/approvals/{id}/decide` | 审批决定 |
+| GET | `/api/v1/approvals/{id}/history` | 审批历史 |
+| POST | `/api/v1/events/feishu` | 飞书事件回调 |
+| POST | `/api/v1/events/wechat` | 微信事件回调 |
 | GET | `/api/v1/autopilot/health` | Autopilot 健康检查 |
 | POST | `/api/v1/autopilot/execute` | 自主执行任务 |
 | POST | `/api/v1/autopilot/self-loop` | 自循环改进 |
@@ -275,9 +349,9 @@ start htmlcov/index.html
 - [x] Phase 4: 微信公众号接入
 - [x] Phase 5: 抖音短剧预审 + 自动化
 - [x] Phase 6: Autopilot 自主开发系统
-- [ ] Phase 7: Visual Workflow Editor（拖拽式工作流编辑器）
-- [ ] Phase 8: Plugin SDK + Integration Marketplace
-- [ ] Phase 9: Multi-Tenancy + RBAC + Audit Logs
+- [x] Phase 7: Visual Workflow Editor（拖拽式工作流编辑器）
+- [x] Phase 8: Plugin SDK + Integration Marketplace
+- [x] Phase 9: Multi-Tenancy + RBAC + Audit Logs + 生产级中间件
 - [ ] Phase 10: 英文文档 + 国际化
 
 ---
