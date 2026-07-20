@@ -1,6 +1,6 @@
 # MindFlow Workspace - 成品展示
 
-**4 个生产级项目，全部构建完成，测试通过，可直接演示。**
+**5 个项目集合，核心项目已完成构建和测试修复，可直接演示。**
 
 ## 项目
 
@@ -36,7 +36,7 @@ cd mindflow/apps/api && npm run dev    # 后端 http://localhost:3001
 
 **技术栈**: Next.js 14, Fastify, TypeScript, Prisma, Tailwind, Vitest, Docker
 
-**测试**: 32/32 通过
+**测试**: 32/32 通过 (API 16 + Web 11 + Shared 5)
 
 **特点**:
 - 多 workspace 架构
@@ -55,7 +55,7 @@ cd DS && npm run dev    # http://localhost:3002
 
 **技术栈**: Next.js 14, TypeScript, Tailwind, Prisma, OpenAI, Recharts, Vitest
 
-**测试**: 20/20 通过
+**测试**: 20 passed / 8 failed (待修复)
 
 **特点**:
 - Content Agent: AI 生成商品文案 + 人工审核
@@ -94,7 +94,7 @@ cd zcode-brain && npm test    # 运行测试
 
 **技术栈**: TypeScript, Vitest, file-based JSON roles
 
-**测试**: 12/12 通过
+**测试**: 10/10 通过
 
 **特点**:
 - 10 个专家角色定义
@@ -163,4 +163,4 @@ A: DS 的 AI Agent 需要 `OPENAI_API_KEY`，演示模式使用 Mock 数据，�
 
 ---
 
-**状态**: 全部就绪 ✅ | **构建**: 全部通过 ✅ | **测试**: 64/64 通过 ✅
+**状态**: 核心项目已修复 ✅ | **构建**: mindflow 通过 ✅ | **测试**: mindflow 32/32、zcode-brain 10/10 通过 ⚠️ DS 仍有 8 个失败
