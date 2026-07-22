@@ -1,8 +1,59 @@
 # MindFlow 多仓库审计验收报告
 
-> 审计时间: 2026-07-19
+> 审计时间: 2026-07-19 | **翻新完成: 2026-07-22**
 > 审计范围: mindflow-map / AID / DS / mindflow
 > 执行人: ZCode 自动化审计 + 多智能体并行探索
+
+---
+
+## 翻新后状态（2026-07-22）
+
+本次审计发现的大部分问题已在翻新工程中修复。以下是当前状态：
+
+### 已修复项
+
+| 原始问题 | 修复状态 | 修复方式 |
+|----------|----------|----------|
+| AID JWT 无默认密钥 | ✅ 已修复 | 启动时校验 `AUTH_MASTER_KEY`，缺失则拒绝启动 |
+| AID 设备指纹绕过 | ✅ 已修复 | 登录时严格校验设备绑定 |
+| AID 真实密钥在 .env | ✅ 已修复 | `.env` 已 gitignore，`.env.example` 使用占位符 |
+| DS .env 被 git 追踪 | ✅ 已修复 | `.env` 已 gitignore |
+| DS API 无认证 | ✅ 已修复 | Session Cookie 认证 + 登录页面 |
+| DS 输入无校验 | ✅ 已修复 | Zod schema 验证所有 POST 路由 |
+| DS 健康检查副作用 | ✅ 已修复 | 改为检查配置可达性，不调用真实 API |
+| mindflow-map 数据库路径 | ✅ 已修复 | 固定到 `data/` 子目录并 gitignore |
+| zcode-brain process.cwd() 耦合 | ✅ 已修复 | 改用 `import.meta.url` |
+| zcode-brain 安全检测大小写 | ✅ 已修复 | 正则添加 `i` 标志 |
+
+### 测试状态（翻新后）
+
+| 项目 | 测试数 | 状态 |
+|------|--------|------|
+| AID | 928/928 | ✅ 全部通过 |
+| mindflow-map | 221/221 | ✅ 全部通过 |
+| DS | 40/40 | ✅ 全部通过 |
+| zcode-brain | 42/42 | ✅ 全部通过 |
+| MindFlow | 32/32 | ✅ 全部通过 |
+
+### 新增能力
+
+- **AID**: `/api/v1/identity/auth/verify` 跨服务 JWT 验证端点
+- **DS**: Session Cookie 认证 + `/login` 页面 + Zod 输入验证
+- **mindflow-map**: 数据库路径固定到 `data/`
+- **zcode-brain**: 42 个 vitest 测试（含安全检测、边界输入、调度器集成）
+- **统一健康检查**: `scripts/health_check.py`
+
+### 已知限制（仍需处理）
+
+- 默认 SQLite，生产需替换 PostgreSQL
+- 跨服务数据流尚未完全打通
+- LLM 调用需配置 API Key
+- 无 CI/CD 流水线
+- 生产部署需配置 HTTPS
+
+---
+
+## 原始审计发现（2026-07-19）
 
 ---
 

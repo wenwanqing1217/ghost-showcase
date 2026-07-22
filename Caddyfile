@@ -1,0 +1,88 @@
+# ════════════════════════════════════════════════════════════════════
+# Ghost Workspace — Caddy 生产配置
+# ════════════════════════════════════════════════════════════════════
+# 自动 HTTPS（Let's Encrypt），反向代理到各服务
+# 用法: caddy run --config Caddyfile
+#
+# 替换域名后即可启用生产 TLS - 取消注释下方站点块并修改域名
+# ════════════════════════════════════════════════════════════════════
+
+# ---------- 生产域名（取消注释并修改域名） ----------
+# map.example.com {
+#     encode gzip
+#     reverse_proxy mindflow-map:2002
+# }
+#
+# ds.example.com {
+#     encode gzip
+#     reverse_proxy ds:3000
+# }
+#
+# aid.example.com {
+#     encode gzip
+#     reverse_proxy aid:8000
+# }
+#
+# # 默认站点（重定向到其中一个）
+# example.com {
+#     redir https://map.example.com
+# }
+
+# ---------- 本地开发 / 自签名（无需域名） ----------
+:80 {
+    encode gzip
+
+    # 安全头
+    header {
+        X-Frame-Options "DENY"
+        X-Content-Type-Options "nosniff"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # 健康检查聚合
+    handle /health {
+        respond "OK" 200
+    }
+
+    # MindFlow Map API
+    handle_path /api/map/* {
+        reverse_proxy mindflow-map:2002
+    }
+
+    # DS Dashboard
+    handle_path /ds/* {
+        reverse_proxy ds:3000
+    }
+
+    # DS API（直接转发）
+    handle_path /api/ds/* {
+        uri strip_prefix /api/ds
+        reverse_proxy ds:3000
+    }
+
+    # AID API
+    handle_path /api/aid/* {
+        uri strip_prefix /api/aid
+        reverse_proxy aid:8000
+    }
+
+    # MindFlow Map 工作台
+    handle_path /workspace/* {
+        reverse_proxy mindflow-map:2002
+    }
+
+    # 编辑器
+    handle_path /editor/* {
+        reverse_proxy mindflow-map:2002
+    }
+
+    # 静态资源
+    handle_path /static/* {
+        reverse_proxy mindflow-map:2002
+    }
+
+    # 默认 → MindFlow Map
+    reverse_proxy mindflow-map:2002
+}

@@ -36,7 +36,7 @@
       "tests": 20,
       "build": "passed",
       "demo": {
-        "frontend": "http://localhost:3002",
+        "frontend": "http://localhost:3000",
         "startCommand": "cd DS && npm run dev",
         "features": [
           "Content Agent - AI product listing generation",
@@ -83,7 +83,7 @@
       "name": "ZCode Brain - Agent Orchestration",
       "tech": ["TypeScript", "Vitest", "JSON roles", "Pattern matching"],
       "status": "production-ready",
-      "tests": 12,
+      "tests": 10,
       "build": "passed",
       "demo": {
         "startCommand": "cd zcode-brain && npm test",
@@ -104,7 +104,7 @@
   ],
   "summary": {
     "totalProjects": 4,
-    "totalTests": 64,
+    "totalTests": 62,
     "buildStatus": "all-passed",
     "readyForDemo": true
   }

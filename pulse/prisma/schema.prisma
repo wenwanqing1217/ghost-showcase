@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id            String    @id @default(cuid())
+  shopifyId     String    @unique
+  title         String
+  description   String?
+  tags          String?
+  status        String    @default("draft")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  agentRuns     AgentRun[]
+}
+
+model AgentRun {
+  id           String   @id @default(cuid())
+  agentType    String
+  input        String
+  output       String
+  status       String   @default("success")
+  durationMs   Int?
+  createdAt    DateTime @default(now())
+  approvalId   String?
+  approval     Approval? @relation(fields: [approvalId], references: [id])
+  productId    String?
+  product      Product? @relation(fields: [productId], references: [id])
+}
+
+model Approval {
+  id            String     @id @default(cuid())
+  workflowType  String
+  status        String     @default("pending")
+  payload       String
+  result        String?
+  createdAt     DateTime   @default(now())
+  decidedAt     DateTime?
+  agentRuns     AgentRun[]
+}
+
+model Alert {
+  id          String   @id @default(cuid())
+  severity    String
+  category    String
+  message     String
+  metadata    String?
+  resolved    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+}
+
+model Order {
+  id           String   @id @default(cuid())
+  shopifyId    String   @unique
+  totalPrice   String
+  currency     String
+  fulfillmentStatus String?
+  riskLevel    String?
+  createdAt    DateTime @default(now())
+}

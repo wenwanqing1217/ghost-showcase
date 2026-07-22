@@ -1,0 +1,180 @@
+# =============================================================================
+# MindFlow Map - Production docker-compose with PostgreSQL + Redis + Monitoring
+# =============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mindflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-ghost}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-ghost_secret}
+      POSTGRES_DB: ${DB_NAME:-mindflow_map}
+    volumes:
+      - mindflow-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-ghost}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mindflow-net
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+  redis:
+    image: redis:7-alpine
+    container_name: mindflow-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - mindflow-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - mindflow-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+        reservations:
+          cpus: "0.1"
+          memory: 64M
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: mindflow-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - mindflow-prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"
+    depends_on:
+      mindflow-api:
+        condition: service_healthy
+    networks:
+      - mindflow-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: mindflow-alertmanager
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "127.0.0.1:9093:9093"
+    networks:
+      - mindflow-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.25"
+          memory: 256M
+        reservations:
+          cpus: "0.05"
+          memory: 64M
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: mindflow-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - mindflow-grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards:ro
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - mindflow-net
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+        reservations:
+          cpus: "0.1"
+          memory: 128M
+
+  mindflow-api:
+    image: mindflow-map:0.1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mindflow-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:2002:2002"
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${DB_USER:-ghost}:${DB_PASSWORD:-ghost_secret}@postgres:5432/mindflow_map
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_ENABLED=true
+      - UVICORN_WORKERS=4
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:2002/health/livez')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - mindflow-net
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 1G
+        reservations:
+          cpus: "0.5"
+          memory: 256M
+
+volumes:
+  mindflow-pgdata:
+    driver: local
+  mindflow-redis-data:
+    driver: local
+  mindflow-prometheus-data:
+    driver: local
+  mindflow-grafana-data:
+    driver: local
+  mindflow-data:
+    driver: local
+
+networks:
+  mindflow-net:
+    driver: bridge

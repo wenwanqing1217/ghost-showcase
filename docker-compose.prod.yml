@@ -1,0 +1,154 @@
+# ════════════════════════════════════════════════════════════════════
+# Ghost Workspace — 生产部署编排（Caddy + 全服务）
+# ════════════════════════════════════════════════════════════════════
+# 启动方式:   docker compose -f docker-compose.prod.yml up -d
+# 配置文件:    .env.production（复制自 .env.production.example）
+# Caddyfile:  Caddyfile（生产域名配置）
+# ════════════════════════════════════════════════════════════════════
+#
+# 架构:
+#   Internet → Caddy (443/80) → 各服务内部端口
+#
+# 端口分配（不对外暴露，仅内部 Docker 网络）:
+#   caddy         → 80, 443（唯一对外端口）
+#   db            → 5432
+#   mindflow-map  → 2002
+#   ds            → 3004
+#   aid           → 8000
+# ════════════════════════════════════════════════════════════════════
+
+services:
+  # ── Caddy 反向代理 + 自动 HTTPS ──
+  caddy:
+    image: caddy:2-alpine
+    container_name: ghost-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      mindflow-map:
+        condition: service_healthy
+      ds:
+        condition: service_healthy
+      aid:
+        condition: service_healthy
+    networks:
+      - ghost-net
+    healthcheck:
+      test: ["CMD", "caddy", "version"]
+      interval: 30s
+
+  # ── PostgreSQL 数据库 ──
+  db:
+    image: postgres:16-alpine
+    container_name: ghost-db
+    restart: unless-stopped
+    shm_size: 256mb
+    environment:
+      POSTGRES_USER: ${DB_USER:?DB_USER required}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required}
+      POSTGRES_DB: ${DB_NAME:-mw}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./sql/init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - ghost-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME:-mw}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+  # ── MindFlow Map ──
+  mindflow-map:
+    build:
+      context: ./mindflow-map
+      dockerfile: Dockerfile
+    container_name: ghost-mindflow-map
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/mindflow_map
+      UVICORN_WORKERS: 4
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ghost-net
+    expose:
+      - "2002"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:2002/health/livez')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── DS Dashboard ──
+  ds:
+    build:
+      context: ./DS
+      dockerfile: Dockerfile
+    container_name: ghost-ds
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/ds?schema=public
+      DS_API_KEY: ${DS_API_KEY:?DS_API_KEY required}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ghost-net
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── AID Alpha-ID ──
+  aid:
+    build:
+      context: ./AID/projects
+      dockerfile: Dockerfile
+    container_name: ghost-aid
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/alpha_id
+      AID_ENV: production
+      LOG_LEVEL: ${AID_LOG_LEVEL:-info}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - ghost-net
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+volumes:
+  pgdata:
+    driver: local
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  ghost-net:
+    driver: bridge

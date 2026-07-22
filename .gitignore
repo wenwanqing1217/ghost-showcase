@@ -10,20 +10,65 @@ out/
 # Environment
 .env
 .env.*.local
+.env.production
+.env.production.local
 
 # Cache / temp
 .clawhub/
 *.log
 *.tmp
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+*.coverage
+.coverage*
+htmlcov/
+nul
+temp*.py
 
-# Ngrok
-ngrok.zip
+# mindflow-map 测试输出垃圾
+mindflow-map/test*.txt
+mindflow-map/test_debug*.txt
+mindflow-map/test_output.txt
+mindflow-map/test_result*.txt
+mindflow-map/full_test_result.txt
+mindflow-map/all_tests_result.txt
+
+# 数据库
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# 残留空目录/第三方包（开发过程中生成的占位目录）
+echo/
+mkdir/
+Done/
+new/
+skills/
+codetime-machine/
+
+# ngrok
 ngrok/
+ngrok.zip
+
+# 工作副本（new/ 目录下的代码快照）
+new/
+
+# 运行现场残留（启动错误 dump 等）
+/_startup_err.txt
 
 # OS
 .DS_Store
 Thumbs.db
 
+# Caddy runtime data
+caddy_data/
+caddy_config/
+
 # IDE
 .idea/
 .vscode/
+*.swp
+*.swo
+*~

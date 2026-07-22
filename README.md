@@ -1,166 +1,220 @@
-# MindFlow Workspace - 成品展示
+# Ghost — AI 时代的 Ghost Layer
 
-**5 个项目集合，核心项目已完成构建和测试修复，可直接演示。**
+**6 个独立项目，各自可本地运行，部分支持 Docker 部署。**
 
-## 项目
+> **诚实说明**：这是一个开发中的项目集合，不是生产级平台。
+> 各项目独立运行，尚未实现跨服务数据互通。
 
-| 项目 | 描述 | 启动命令 | 端口 |
-|------|------|----------|------|
-| [MindFlow](#mindflow) | AI Workflow Platform | `cd mindflow/apps/web && npm run dev` | 3000 |
-| [DS](#ds) | AI Autonomous Shopify Shop | `cd DS && npm run dev` | 3002 |
-| [ai综艺](#ai综艺) | AI Variety Show | `cd ai综艺 && npm run dev` | 5173 |
-| [mindflow-brain](#mindflow-brain) | Agent Orchestration | `cd zcode-brain && npm test` | - |
+## 项目一览
+
+| 项目 | 描述 | 技术栈 | 本地启动 | 端口 |
+|------|------|--------|----------|------|
+| [mindflow-map](#mindflow-map) | AI 工作流引擎 | Python/FastAPI/SQLite | `uvicorn mindflow_map.main:app` | 2002 |
+| [DS](#ds) | AI 电商仪表盘 | Next.js/Prisma/SQLite | `npm run dev` | 3004 |
+| [AID](#aid) | 数字身份服务 | Python/FastAPI/JSON | `uvicorn src.main:app` | 8000 |
+| [MindFlow](#mindflow) | AI 工作流平台 | Next.js/Fastify | `npm run dev` | 3000/3001 |
+| [ai综艺](#ai综艺) | AI 综艺互动 | React/Vite | `npm run dev` | 5173 |
+| [zcode-brain](#zcode-brain) | Agent 编排 | TypeScript | `npm test` | - |
 
 ## 快速启动
 
-**Windows 用户**: 双击 `start-demo.bat`，选择项目即可。
+**Windows 用户**: 双击 `start-demo.bat`，选择项目。
 
-**Mac/Linux 用户**:
+**手动启动**:
 ```bash
-# 构建所有项目
-./build-all.sh
+# mindflow-map（需 .env 或 DEMO_MODE=true）
+cd mindflow-map && uvicorn mindflow_map.main:app --reload --port 2002
 
-# 启动演示
-./start-demo.sh
+# DS（需 .env 配置 DASH_USER/DASH_PASS）
+cd DS && npm run dev   # http://localhost:3004
+
+# AID（需 AUTH_MASTER_KEY 环境变量）
+cd AID/projects && uvicorn src.main:app --reload --port 8000
 ```
 
-## MindFlow
+## 测试状态
 
+| 项目 | 测试数 | 覆盖范围 |
+|------|--------|----------|
+| **AID** | 928/928 ✅ | JWT 认证、身份管理、社交、风控、API 端点 |
+| **mindflow-map** | 221/221 ✅ | 认证中间件、工作流、地图工具、意图识别 |
+| **DS** | 40/40 ✅ | 风险引擎、指标聚合、输入验证、API 路由 |
+| **zcode-brain** | 42/42 ✅ | 安全检查器、角色匹配、调度器、边界输入 |
+| **MindFlow** | 32/32 ✅ | API + Web 单元测试 |
+| **ai综艺** | N/A | 前端 Demo，无测试 |
+
+**合计**: 1263+ 测试通过
+
+## 项目详情
+
+### mindflow-map
+AI 统一工作流引擎，集成地图导航、内容预审、LLM 意图识别。
+
+**启动**:
+```bash
+cd mindflow-map
+pip install -e ".[dev]"
+uvicorn mindflow_map.main:app --reload --port 2002
+```
+
+**核心特性**:
+- LLM 意图识别 + 规则引擎双重 fallback
+- 多模型自动回退 + Circuit Breaker
+- 百度地图集成
+- 飞书/微信集成
+- 可视化工作流编辑器（React Flow）
+- Bearer Token 认证 + 权限角色系统
+
+**已知限制**:
+- 数据库默认 SQLite，生产需替换 PostgreSQL
+- LLM 调用需配置 API Key（支持 DeepSeek/LongCat 等 OpenAI 兼容接口）
+- 飞书/微信集成需对应平台开发者账号
+
+### DS
+AI 电商仪表盘，3 个 AI Agent 自动化处理内容、广告和客服。
+
+**启动**:
+```bash
+cd DS && npm run dev   # http://localhost:3004
+```
+
+**核心特性**:
+- Content Agent: AI 生成商品文案 + 人工审核
+- Ads Agent: 广告管理 + AI 优化建议
+- CS Agent: 客服工单 + 智能升级
+- 风险引擎 (ad-budget-cap, banned-words, price-change)
+- Session Cookie 认证 + 登录页面
+- Zod 输入验证
+
+**已知限制**:
+- 默认 SQLite + Demo 模式（无需 OpenAI Key 可运行）
+- 生产部署需替换 PostgreSQL + 配置真实 OpenAI/Shopify API Key
+- Dashboard 认证使用简单 session，非企业级 SSO
+
+### AID (Alpha-ID)
+数字身份基础设施，支持 DID 生成、设备指纹、JWT 认证。
+
+**启动**:
+```bash
+cd AID/projects
+pip install -e ".[dev]"
+# 必须设置 AUTH_MASTER_KEY（任意 32+ 字符）
+set AUTH_MASTER_KEY=your-random-key-here
+uvicorn src.main:app --reload --port 8000
+```
+
+**核心特性**:
+- 自定义 HS256 JWT 实现（零依赖）
+- 注册/登录/刷新令牌/跨设备同步
+- 跨服务 JWT 验证端点 (`/api/v1/identity/auth/verify`)
+- 风控评估 + 声纹验证
+- 短剧内容审核自动化
+
+**已知限制**:
+- 用户存储默认 JSON 文件（生产需实现 PostgresStorage）
+- 设备指纹为简单字符串匹配，非真实浏览器指纹
+- 无密码找回/重置流程
+
+### MindFlow
 全栈 AI 工作流平台，支持多步骤任务执行。
 
 **启动**:
 ```bash
-cd mindflow/apps/web && npm run dev    # 前端 http://localhost:3000
-cd mindflow/apps/api && npm run dev    # 后端 http://localhost:3001
+cd mindflow/apps/web && npm run dev    # http://localhost:3000
+cd mindflow/apps/api && npm run dev    # http://localhost:3001
 ```
 
-**技术栈**: Next.js 14, Fastify, TypeScript, Prisma, Tailwind, Vitest, Docker
+**已知限制**:
+- 前端 3000 端口与 DS 默认端口冲突（DS 已改为 3004）
+- 需要分别启动 web 和 api 两个服务
 
-**测试**: 32/32 通过 (API 16 + Web 11 + Shared 5)
-
-**特点**:
-- 多 workspace 架构
-- 完整的 CI/CD (GitHub Actions)
-- Docker 多阶段构建
-- 生产级错误处理
-
-## DS
-
-AI 自主运营的电商平台，包含 3 个 AI Agent。
-
-**启动**:
-```bash
-cd DS && npm run dev    # http://localhost:3002
-```
-
-**技术栈**: Next.js 14, TypeScript, Tailwind, Prisma, OpenAI, Recharts, Vitest
-**测试**: 20/20 通过
-**测试**: 20 passed / 8 failed (待修复)
-
-**特点**:
-- Content Agent: AI 生成商品文案 + 人工审核
-- Ads Agent: 广告优化 + 预算管理
-- CS Agent: 客服工单 + 智能升级
-- Revenue: Recharts 收入趋势图
-- Alerts: 实时通知系统
-
-## ai综艺
-
+### ai综艺
 沉浸式 AI 推理综艺互动 Web 应用。
 
 **启动**:
 ```bash
-cd "ai综艺" && npm run dev    # http://localhost:5173
+cd "ai综艺" && npm run dev   # http://localhost:5173
 ```
 
-**技术栈**: React 18, Vite 6, TypeScript, Tailwind, Framer Motion
+**已知限制**:
+- 纯前端 Demo，无后端 API
+- 数据为静态 mock
 
-**构建**: 2208 modules, 4.17s
+### zcode-brain
+Agent 编排层，支持多角色匹配和安全护栏。
 
-**特点**:
-- 流畅的动画过渡
-- 响应式设计
-- 交互式投票流程
-- 生产级构建优化
-
-## mindflow-brain
-
-智能代理编排层，实现专家角色匹配和安全护栏。
-
-**启动**:
+**运行测试**:
 ```bash
-cd zcode-brain && npm test    # 运行测试
+cd zcode-brain && npm test   # 42 个 vitest 测试
 ```
 
-**技术栈**: TypeScript, Vitest, file-based JSON roles
+**核心特性**:
+- 基于文件的 JSON 角色发现
+- 关键词匹配评分算法
+- 安全护栏（危险命令/密钥泄漏检测）
+- 调度器集成安全检查
 
-**测试**: 10/10 通过
+**已知限制**:
+- 角色匹配为关键词匹配，非语义理解
+- 安全检测基于正则，可被高级攻击绕过
+- 无实际 LLM 调用（仅编排层）
 
-**特点**:
-- 10 个专家角色定义
-- 关键词匹配评分
-- 6 条安全规则
-- Codex Bridge 集成
+## 部署
 
-## 面试展示脚本
+### Docker Compose（根目录统一编排）
+```bash
+docker compose up -d
+# mindflow-map:2002, ds:3004, aid:8000
+```
 
-### 5 分钟快速展示
+### 单独部署
+各项目目录下含独立 `Dockerfile` 和 `docker-compose.yml`。
 
-1. **MindFlow** (1 min)
-   - 打开 http://localhost:3000
-   - 展示聊天界面
-   - 输入 "Build a React component"
-   - 展示 WorkflowResult
+**注意**: Docker 部署需配置对应环境变量（见各项目 `.env.example`）。
 
-2. **DS Dashboard** (2 min)
-   - 打开 http://localhost:3002/dashboard
-   - 点击 Content Agent → Generate Listing → Approve
-   - 点击 Ads Agent → Auto-Optimize
-   - 点击 Revenue → 切换 Weekly/Monthly
-   - 点击 Alerts → 展示通知
+## 项目结构
+```
+D:\MW/
+├── mindflow-map/     # AI 工作流引擎（Python/FastAPI）[独立 git]
+├── mindflow/         # AI 工作流平台（Next.js/Fastify）[submodule]
+├── DS/               # AI 电商仪表盘（Next.js）[submodule]
+├── ai综艺/           # AI 综艺（Vite）[submodule]
+├── zcode-brain/      # Agent 编排 [submodule]
+├── AID/projects/     # 数字身份 [submodule]
+├── docs/             # 审计报告/翻新方案
+├── scripts/          # 工具脚本（health_check.py）
+├── demo/             # 演示配置
+├── docker-compose.yml # 统一编排
+├── start-demo.bat    # 一键启动
+└── Caddyfile         # 反向代理配置（需 Caddy）
+```
 
-3. **ai综艺** (1 min)
-   - 打开 http://localhost:5173
-   - 展示动画效果
-   - 演示交互
+## 架构现状
 
-4. **mindflow-brain** (1 min)
-   - 运行 `npm test`
-   - 展示 10 个 PASS 结果
-   - 解释角色匹配机制
+```
+用户 → start-demo.bat → 6 个独立服务
+                               ↓
+                        无数据互通（Phase 4 已建立 JWT 验证端点）
+                               ↓
+                        各自独立数据库
+```
 
-### 技术深度展示
+**集成状态**:
+- AID 提供 `/api/v1/identity/auth/verify` 端点，其他服务可验证其签发的 JWT
+- mindflow-map 已有 AlphaIDClient 连接 AID 的 profile/memory 接口
+- 尚未实现完整的跨服务数据流
 
-- **架构**: 展示 monorepo 结构，解释 workspace 划分
-- **测试**: 运行 `npm test` 各项目，展示 64+ 测试通过
-- **CI/CD**: 展示 GitHub Actions 配置文件
-- **Docker**: 展示 MindFlow Dockerfile 多阶段构建
-- **数据库**: 展示 DS Prisma schema 和迁移
+## 安全状态
 
-## 文件说明
+- ✅ 无密钥硬编码（全部环境变量注入）
+- ✅ DS 仪表盘 Session Cookie 认证
+- ✅ mindflow-map Bearer Token + 角色权限
+- ✅ AID JWT HS256 认证
+- ✅ Zod/Pydantic 输入验证
+- ✅ 安全护栏（zcode-brain 危险命令检测）
+- ⚠️ 生产部署需配置 HTTPS（Caddy 或反向代理）
+- ⚠️ 默认 SQLite，生产需 PostgreSQL
 
-- `start-demo.bat` - Windows 一键启动脚本
-- `build-all.bat` - 构建所有项目
-- `PORTFOLIO.md` - 详细面试指南
-- `DEPLOY.md` - 各项目部署指南
+## License
 
-## 环境要求
-
-- Node.js >= 18
-- npm >= 9
-- 4GB+ RAM (推荐 8GB)
-
-## 常见问题
-
-**Q: 启动失败怎么办？**
-A: 确保已运行 `npm install` 在各项目目录下。
-
-**Q: 端口被占用？**
-A: 修改各项目的 `.env` 或启动命令中的端口号。
-
-**Q: DS 的 AI 功能不工作？**
-A: DS 的 AI Agent 需要 `OPENAI_API_KEY`，演示模式使用 Mock 数据，可直接查看 UI。
-
----
-
-**状态**: 核心项目已修复 ✅ | **构建**: mindflow 通过 ✅ | **测试**: mindflow 32/32、zcode-brain 10/10 通过 ⚠️ DS 仍有 8 个失败
+MIT

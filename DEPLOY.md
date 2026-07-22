@@ -1,166 +1,140 @@
-# MindFlow 项目部署手册
+# Ghost 部署手册
 
 ## 当前状态
 
-部分项目已完成生产级加固，测试状态见下表，代码已提交到本地 Git。
+各项目已完成本地开发环境配置，可通过 `start-demo.bat` 或 Docker Compose 启动。
 
-| 项目 | 状态 | 测试 | 构建 |
-|------|------|------|------|
-| mindflow | 已提交，干净 | 32/32 通过 | 通过 |
-| mindflow-ds | 已提交，干净 | 20/20 通过 | 通过 |
-| mindflow-variety | 已提交，干净 | 无测试脚本 | 通过 |
-| mindflow-brain | 已提交，干净 | 10/10 通过 | 通过 |
-| mindflow-aid | 已提交，干净 | 未验证 | 未验证 |
+| 项目 | 本地运行 | Docker | 测试 | 备注 |
+|------|----------|--------|------|------|
+| mindflow-map | ✅ | ✅ | 221/221 通过 | 需 .env 或 DEMO_MODE=true |
+| DS | ✅ | ✅ | 40/40 通过 | 需 DASH_USER/DASH_PASS |
+| AID | ✅ | ✅ | 928/928 通过 | 需 AUTH_MASTER_KEY |
+| MindFlow | ✅ | ✅ | 32/32 通过 | web(3000) + api(3001) |
+| zcode-brain | ✅ | - | 42/42 通过 | 无 Docker，仅测试 |
+| ai综艺 | ✅ | - | N/A | 前端 Demo，无 Docker |
 
-## GitHub 推送步骤
+## 本地启动
 
-### 1. 登录 GitHub CLI
+### 方式一：一键启动（Windows）
+双击 `start-demo.bat`，按菜单选择项目。
 
-```bash
-gh auth login
-```
-
-按提示选择 GitHub.com -> HTTPS -> 浏览器授权或粘贴 token。
-
-### 2. 创建仓库
-
-在 `D:\mindflow-workspace` 根目录执行：
+### 方式二：命令行启动
 
 ```bash
-cd D:\mindflow-workspace
+# mindflow-map（端口 2002）
+cd mindflow-map
+pip install -e ".[dev]"
+uvicorn mindflow_map.main:app --reload --port 2002
 
-# 创建 5 个仓库（如已存在同名仓库，可先删除或使用 --force）
-gh repo create wenwanqing1217/mindflow --private --source=./mindflow --remote=origin --push
-gh repo create wenwanqing1217/mindflow-ds --private --source=./DS --remote=origin --push
-gh repo create wenwanqing1217/mindflow-variety --private --source=./ai综艺 --remote=origin --push
-gh repo create wenwanqing1217/mindflow-brain --private --source=./zcode-brain --remote=origin --push
-gh repo create wenwanqing1217/mindflow-aid --private --source=./AID --remote=origin --push
+# DS（端口 3004）
+cd DS
+npm install
+npm run dev
 
-如果已有同名仓库，先删除远端分支冲突或使用 `--public`/`--private` 调整可见性。
+# AID（端口 8000）
+cd AID/projects
+pip install -e ".\ !"
+# Windows: set AUTH_MASTER_KEY=your-key-here
+# Linux/Mac: export AUTH_MASTER_KEY=your-key-here
+uvicorn src.main:app --reload --port 8000
+```
 
-### 3. 验证
+## Docker 部署
+
+### 统一编排（推荐）
 
 ```bash
-gh repo list wenwanqing1217 --limit 10
+cd D:\MW
+docker compose up -d
 ```
 
-## Vercel 部署步骤
+服务端口分配：
+- mindflow-map: 2002
+- ds: 3004
+- aid: 8000
 
-### 前提
+### 单独部署
 
-- 已安装 Vercel CLI：`npm i -g vercel`
-- 已登录：`vercel login`
-
-### 1. DS 部署
+各项目目录含独立 `Dockerfile` 和 `docker-compose.yml`：
 
 ```bash
-cd D:\mindflow-workspace\DS
+# mindflow-map
+cd mindflow-map && docker compose up -d
 
-# 部署到生产环境
-vercel --prod
+# DS
+cd DS && docker compose up -d
 
-# 首次部署时添加环境变量
-vercel env add OPENAI_API_KEY production
-vercel env add SHOPIFY_SHOP_DOMAIN production
-vercel env add SHOPIFY_ACCESS_TOKEN production
-vercel env add DATABASE_URL production
+# AID
+cd AID/projects && docker compose up -d
 ```
 
-环境变量说明：
-- `OPENAI_API_KEY`：OpenAI API 密钥
-- `SHOPIFY_SHOP_DOMAIN`：Shopify 店铺域名，如 `your-store.myshopify.com`
-- `SHOPIFY_ACCESS_TOKEN`：Shopify Admin API Access Token
-- `DATABASE_URL`：PostgreSQL 数据库连接字符串
+### 环境变量配置
 
-### 2. ai综艺 部署
+各项目需提供 `.env` 文件（参考 `.env.example`）：
+
+| 项目 | 必需变量 |
+|------|----------|
+| mindflow-map | `OPENAI_API_KEY` (或 `DEMO_MODE=true`) |
+| DS | `DASH_USER`, `DASH_PASS` (或 `DEMO_MODE=true`) |
+| AID | `AUTH_MASTER_KEY` (必须，任意 32+ 字符) |
+
+## 生产部署注意事项
+
+### 数据库
+- 默认使用 SQLite，适合本地开发和演示
+- 生产环境建议替换为 PostgreSQL
+- DS 的 Prisma schema 支持多 provider
+
+### 认证 & HTTPS
+- 生产部署需配置 HTTPS（Caddy 或 Nginx 反向代理）
+- `Caddyfile` 提供了自动 TLS 配置模板
+- 各项目认证密钥需替换为强随机值
+
+### 环境变量
+- 生产 `.env` 文件不得提交到 Git
+- 使用 Docker secrets 或 K8s secrets 管理密钥
+- 轮换所有开发期间暴露的密钥
+
+### 端口分配
+
+| 服务 | 本地端口 | Docker 端口 |
+|------|----------|-------------|
+| mindflow-map | 2002 | 2002 |
+| DS | 3004 (单独运行 3000) | 3004 |
+| AID | 8000 | 8000 |
+| MindFlow Web | 3000 | 3000 |
+| MindFlow API | 3001 | 3001 |
+| ai综艺 | 5173 | 5173 |
+
+## 健康检查
 
 ```bash
-cd D:\mindflow-workspace\ai综艺
+# 快速检查所有服务
+python scripts/health_check.py
 
-# 部署到生产环境
-vercel --prod
+# 手动检查
+curl http://localhost:2002/health
+curl http://localhost:3004/api/health
+curl http://localhost:8000/health
 ```
 
-### 2.5. AID 部署
+## 已知限制
 
-AID 为数字身份层，当前以文档和 Python SDK 为主，可部署至 Vercel（静态）或自建服务：
+- **无 CI/CD**：测试仅在本地运行，未配置 GitHub Actions 等流水线
+- **跨服务通信**：AID 的 JWT 验证端点已就绪，但 mindflow-map/DS 尚未默认启用 JWT 验证
+- **LLM 依赖**：AI 功能需配置 OpenAI 兼容 API Key
+- **存储层**：JSON 文件存储（AID）和 SQLite 不适合高并发生产场景
 
-```bash
-cd D:\mindflow-workspace\AID
+## 故障排除
 
-# 静态文档站点
-vercel --prod
-```
+### mindflow-map 启动失败
+- 检查 `.env` 是否存在或设置 `DEMO_MODE=true`
+- 检查 `data/` 目录是否自动创建
 
-### 3. MindFlow 部署
+### DS 认证失败
+- 检查 `DASH_USER` 和 `DASH_PASS` 是否设置
+- 登录后 Cookie 未生效？检查浏览器是否阻止第三方 Cookie
 
-MindFlow 是 monorepo，需要分别部署 web 和 api。
-
-```bash
-cd D:\mindflow-workspace\mindflow
-
-# 部署 API
-cd apps/api
-vercel --prod --name mindflow-api
-
-# 部署 Web
-cd ../web
-vercel --prod --name mindflow-web
-```
-
-环境变量：
-- API：`OPENAI_API_KEY`、`DATABASE_URL`、`PORT`
-- Web：`NEXT_PUBLIC_API_URL`（指向 API 地址）
-
-## 统一架构说明
-
-根据 `new/MINDFLOW-AID-FUSION.md`，最终产品架构为：
-
-```
-AID（数字身份层）
-    ↓ DID 注入
-MindFlow（执行层）
-    ↓ API 调用
-应用层（DS / ai综艺 / 小程序）
-```
-
-当前 5 个仓库是 MindFlow 统一平台的 5 个独立应用：
-- **mindflow**：核心平台（API + Web）
-- **mindflow-ds**：Shopify 电商自动化应用
-- **mindflow-variety**：AI 推理综艺互动应用
-- **mindflow-brain**：内部调度系统
-- **mindflow-aid**：数字身份基础设施
-
-## 常见问题
-
-### GitHub CLI 登录失败
-
-如果浏览器授权不可用，使用 token 方式：
-
-```bash
-gh auth login --web --git-protocol https
-# 或使用 personal access token
-gh auth login --with-token < token.txt
-```
-
-### Vercel CLI 登录失败
-
-使用 token 方式：
-
-```bash
-vercel login --token <your-vercel-token>
-```
-
-### 数据库初始化
-
-DS 使用 Prisma，部署后需要运行：
-
-```bash
-cd D:\mindflow-workspace\DS
-npx prisma migrate deploy
-npx prisma db seed
-```
-
-## 联系
-
-如有问题，查看各项目 `DEPLOY.md` 获取详细部署说明。
+### AID AUTH_MASTER_KEY 缺失
+- AID 拒绝启动如果 `AUTH_MASTER_KEY` 未设置
+- 生成随机密钥：`python -c "import secrets; print(secrets.token_hex(32))"`

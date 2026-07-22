@@ -1,38 +1,38 @@
 @echo off
 chcp 65001 >nul
 echo ==========================================
-echo   MindFlow Workspace - Portfolio Demo
+echo   Ghost - Portfolio Demo
 echo ==========================================
 echo.
-echo [1/4] 检查 MindFlow...
-cd mindflow
+echo [1/4] 检查 Flow...
+cd flow
 if not exist apps\web\.next\BUILD_ID (
-    echo   正在构建 MindFlow...
+    echo   正在构建 Flow...
     call npm run build
 ) else (
-    echo   MindFlow 已构建
+    echo   Flow 已构建
 )
 echo.
-echo [2/4] 检查 DS...
-cd ..\DS
+echo [2/4] 检查 Pulse...
+cd ..\pulse
 if not exist .next\BUILD_ID (
-    echo   正在构建 DS...
+    echo   正在构建 Pulse...
     call npx next build
 ) else (
-    echo   DS 已构建
+    echo   Pulse 已构建
 )
 echo.
-echo [3/4] 检查 ai综艺...
-cd ..\ai综艺
+echo [3/4] 检查 Stage...
+cd ..\stage
 if not exist dist\index.html (
-    echo   正在构建 ai综艺...
+    echo   正在构建 Stage...
     call npm run build
 ) else (
-    echo   ai综艺 已构建
+    echo   Stage 已构建
 )
 echo.
-echo [4/4] 检查 ZCode Brain...
-cd ..\zcode-brain
+echo [4/4] 检查 Core...
+cd ..\core
 call npm test
 echo.
 echo ==========================================

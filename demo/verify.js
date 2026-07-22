@@ -1,12 +1,3 @@
-#!/usr/bin/env node
-
-/**
- * MindFlow Portfolio - Master Demo Runner
- * 
- * This script runs through all demo scenarios for portfolio showcase.
- * It verifies all projects are built and ready, then runs tests.
- */
-
 const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
@@ -27,7 +18,7 @@ const projects = [
     dir: 'DS',
     buildCheck: '.next/BUILD_ID',
     testCommand: 'npx vitest run',
-    demoUrl: 'http://localhost:3002',
+    demoUrl: 'http://localhost:3000',
     description: 'AI Autonomous Shopify Shop'
   },
   {
@@ -56,10 +47,9 @@ let allReady = true;
 
 projects.forEach(project => {
   const projectPath = path.join(WORKSPACE, project.dir);
-  
+
   console.log(`[${project.name}] ${project.description}`);
-  
-  // Check build
+
   if (project.buildCheck) {
     const buildPath = path.join(projectPath, project.buildCheck);
     if (fs.existsSync(buildPath)) {
@@ -69,19 +59,20 @@ projects.forEach(project => {
       allReady = false;
     }
   }
-  
-  // Run tests
+
   if (project.testCommand) {
     try {
       console.log(`  Running tests...`);
       const output = execSync(project.testCommand, {
         cwd: projectPath,
-        stdio: 'pipe',
-        encoding: 'utf-8'
+        stdio: ['pipe','pipe','pipe'],
+        encoding: 'utf8'
       });
-      const testMatch = output.match(/(\d+)\s+passed/);
-      if (testMatch) {
-        console.log(`  ✓ ${testMatch[1]} tests passed`);
+      const normalized = output.replace(/\u001b\[[;\d]*m/g, '');
+      const matches = normalized.match(/(\d+)\s+passed/g) || [];
+      const lastMatch = matches.at(-1);
+      if (lastMatch) {
+        console.log(`  ✓ ${lastMatch.split(/\s+/)[0]} tests passed`);
       } else {
         console.log(`  ✓ Tests completed`);
       }
@@ -91,12 +82,11 @@ projects.forEach(project => {
       allReady = false;
     }
   }
-  
-  // Demo URL
+
   if (project.demoUrl) {
     console.log(`  Demo: ${project.demoUrl}`);
   }
-  
+
   console.log('');
 });
 
