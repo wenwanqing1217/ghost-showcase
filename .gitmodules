@@ -1,12 +1,6 @@
 [submodule "alphaid/projects"]
 	path = alphaid/projects
 	url = https://github.com/wenwanqing1217/alpha-id.git
-[submodule "pulse"]
-	path = pulse
-	url = https://github.com/wenwanqing1217/mindflow-ds.git
-[submodule "stage"]
-	path = stage
-	url = https://github.com/wenwanqing1217/mindflow-variety.git
 [submodule "flow"]
 	path = flow
 	url = https://github.com/wenwanqing1217/mindflow.git

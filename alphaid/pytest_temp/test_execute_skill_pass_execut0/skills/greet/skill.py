@@ -1,1 +1,0 @@
-def main(p): return "hello " + p.get("name","world")
