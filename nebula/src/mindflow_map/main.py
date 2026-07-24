@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from mindflow_map.config import settings
 from mindflow_map.config_validator import check_all
-from mindflow_map.api import approvals, automation, autopilot, ds_proxy, events, health, map, shortdramas, streaming, wechat, workflow, feishu_webhook
+from mindflow_map.api import approvals, automation, events, health, map, shortdramas, streaming, wechat, workflow, feishu_webhook
 from mindflow_map.api.openapi_config import custom_openapi
 from mindflow_map.core.metrics import get_metrics
 from mindflow_map.logging_config import setup_logging
@@ -81,8 +81,6 @@ async def lifespan(app: FastAPI):
         await engine.alpha_id_client.close()
     except Exception:
         pass
-    from mindflow_map.api.ds_client import close_ds_client
-    await close_ds_client()
     await close_db()
 
 
@@ -99,16 +97,14 @@ app = FastAPI(
 # 使用自定义 OpenAPI Schema
 app.openapi = lambda: custom_openapi(app)
 
-# CORS - 允许可信来源（服务门户 + 编辑器 + DS）
+# CORS - 允许可信来源
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:2002",      # MindFlow Map 自身
-        "http://localhost:3000",      # MindFlow Web / DS Dashboard
-        "http://localhost:3004",      # DS Dashboard（独立端口）
+        "http://localhost:3000",      # MindFlow Web
         "http://127.0.0.1:2002",
         "http://127.0.0.1:3000",
-        "http://127.0.0.1:3004",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -153,12 +149,10 @@ app.include_router(workflow.router, prefix="/api/v1/workflow", tags=["工作流"
 app.include_router(wechat.router, prefix="/api/v1/wechat", tags=["微信"])
 app.include_router(automation.router, prefix="/api/v1/automation", tags=["自动化"])
 app.include_router(shortdramas.router, prefix="/api/v1/shortdramas", tags=["短剧预审"])
-app.include_router(autopilot.router, prefix="/api/v1/autopilot", tags=["autopilot"])
 app.include_router(streaming.router, prefix="/api/v1/streaming", tags=["streaming"])
 app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["approvals"])
 app.include_router(events.router, prefix="/api/v1/events", tags=["events"])
 app.include_router(feishu_webhook.router, prefix="/api/v1", tags=["飞书"])
-app.include_router(ds_proxy.router, prefix="/api/v1/ds", tags=["DS Dashboard"])
 
 
 @app.get("/")

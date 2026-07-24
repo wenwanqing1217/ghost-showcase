@@ -73,7 +73,6 @@ def custom_openapi(app: FastAPI) -> dict[str, Any]:
         {"name": "微信", "description": "微信公众号/小程序回调接口。"},
         {"name": "自动化", "description": "抖音短剧发布、Shopify 店铺运营等自动化任务。"},
         {"name": "短剧预审", "description": "短剧内容预审核与回调通知。"},
-        {"name": "autopilot", "description": "自动巡航与自循环工作流调度。"},
         {"name": "streaming", "description": "SSE 流式响应接口，用于实时事件推送。"},
         {"name": "approvals", "description": "多级审批流程与历史记录。"},
         {"name": "events", "description": "飞书与微信事件订阅回调。"},

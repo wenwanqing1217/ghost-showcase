@@ -94,17 +94,10 @@ class Settings(BaseSettings):
     shopify_shop_domain: str = ""
     shopify_access_token: str = ""
 
-    # DS Dashboard 跨服务通信
-    ds_api_url: str = "http://localhost:3004"
-    ds_api_key: str = ""
-
     # 短剧平台内容预审配置
     shortdramas_api_url: str = ""
     shortdramas_api_key: str = ""
     shortdramas_webhook_secret: str = ""
-
-    # Autopilot 认证配置
-    autopilot_api_key: str = ""
 
     # 演示模式
     demo_mode: bool = False
@@ -140,7 +133,6 @@ class Settings(BaseSettings):
             "shortdramas_api_url": "SHORTDRAMAS_API_URL",
             "shortdramas_api_key": "SHORTDRAMAS_API_KEY",
             "shortdramas_webhook_secret": "SHORTDRAMAS_WEBHOOK_SECRET",
-            "autopilot_api_key": "AUTOPILOT_API_KEY",
         }
         
         for field_name, env_var in secret_fields.items():
