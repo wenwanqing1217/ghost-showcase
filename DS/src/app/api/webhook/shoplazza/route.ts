@@ -19,15 +19,21 @@ import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
-// Webhook 签名验证密钥（可选，从环境变量读取）
+// Webhook 签名验证密钥（必须配置，否则拒绝所有请求）
 const WEBHOOK_SECRET = process.env.SHOPLAZZA_WEBHOOK_SECRET || '';
 
 /**
  * 验证 Shoplazza Webhook 签名
  * Shoplazza 使用 HMAC-SHA256 签名，放在 X-Shoplazza-Signature 头
+ *
+ * 安全策略：未配置密钥时拒绝所有请求（fail-closed），避免未授权写入
  */
 function verifySignature(body: string, signature: string | null): boolean {
-  if (!WEBHOOK_SECRET || !signature) return true; // 未配置密钥则跳过验证
+  if (!WEBHOOK_SECRET) {
+    console.error('[Webhook] SHOPLAZZA_WEBHOOK_SECRET 未配置，拒绝请求');
+    return false;
+  }
+  if (!signature) return false;
 
   const expected = crypto
     .createHmac('sha256', WEBHOOK_SECRET)

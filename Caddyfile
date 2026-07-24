@@ -8,6 +8,31 @@
 # ════════════════════════════════════════════════════════════════════
 
 # ---------- 生产域名（取消注释并修改域名） ----------
+# ghost.example.com {
+#     encode gzip
+#
+#     # 安全头（生产强化）
+#     header {
+#         Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com https://api.deepseek.com https://api.groq.com"
+#         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+#         X-Frame-Options "DENY"
+#         X-Content-Type-Options "nosniff"
+#         X-XSS-Protection "1; mode=block"
+#         Referrer-Policy "strict-origin-when-cross-origin"
+#         Permissions-Policy "camera=(self), microphone=(self), geolocation=(self)"
+#         -Server
+#     }
+#
+#     # Gateway 统一 API 入口
+#     handle_path /api/* {
+#         reverse_proxy gateway:18080
+#     }
+#
+#     # Ghost HTML 主站
+#     reverse_proxy localhost:8080
+# }
+#
+# # 子域名路由（可选，直接访问各服务）
 # map.example.com {
 #     encode gzip
 #     reverse_proxy nebula:2002
@@ -23,9 +48,9 @@
 #     reverse_proxy aid:8000
 # }
 #
-# # 默认站点（重定向到其中一个）
+# # 默认站点（重定向到主站）
 # example.com {
-#     redir https://map.example.com
+#     redir https://ghost.example.com
 # }
 
 # ---------- 本地开发 / 自签名（无需域名） ----------
@@ -38,12 +63,19 @@
         X-Content-Type-Options "nosniff"
         X-XSS-Protection "1; mode=block"
         Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(self), microphone=(self), geolocation=(self)"
         -Server
     }
 
     # 健康检查聚合
     handle /health {
         respond "OK" 200
+    }
+
+    # Gateway 统一 API 入口（优先匹配）
+    handle_path /api/gateway/* {
+        uri strip_prefix /api/gateway
+        reverse_proxy gateway:18080
     }
 
     # MindFlow Map API (nebula)

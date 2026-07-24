@@ -1,4 +1,4 @@
-"""百度地图工具 - 封装百度地图 Agent Plan API"""
+"""百度地图工具 - 封装百度地图 Agent Plan API — 复用单一 httpx 客户端"""
 
 import httpx
 from typing import Any, Dict, List, Optional
@@ -7,31 +7,38 @@ from mindflow_map.config import settings
 
 
 class BaiduMapTool:
-    """百度地图 Agent Plan API 封装
-    
+    """百度地图 Agent Plan API 封装 — 复用实例级别 httpx.AsyncClient
+
     使用 Bearer Token 鉴权，调用 Agent Plan 能力：
     - 语义化地点检索
     - AI 路线规划
     - 地理编码与逆地理编码
     - 天气查询
     """
-    
+
     def __init__(self):
         self.auth_token = settings.baidu_map_auth_token
         self.base_url = "https://api.map.baidu.com/agent_plan/v1"
-    
+        # 复用连接池，避免每请求创建新 client
+        self._client = httpx.AsyncClient(
+            timeout=30.0,
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
+
+    async def close(self) -> None:
+        await self._client.aclose()
+
     async def _request(self, endpoint: str, params: Dict[str, Any]) -> Dict[str, Any]:
         """发送 HTTP 请求"""
         if self.auth_token:
             params["baidu_map_auth_token"] = self.auth_token
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{self.base_url}/{endpoint}",
-                params=params,
-            )
-            response.raise_for_status()
-            data = response.json()
+        response = await self._client.get(
+            f"{self.base_url}/{endpoint}",
+            params=params,
+        )
+        response.raise_for_status()
+        data = response.json()
             
             # 检查百度地图 API 业务错误码
             status = data.get("status")

@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 📖 Documentation
+    url: https://github.com/wenwanqing1217/monorepo/blob/master/ARCHITECTURE.md
+    about: Check the architecture docs before opening an issue.
+  - name: 💬 Discussions
+    url: https://github.com/wenwanqing1217/monorepo/discussions
+    about: Ask questions and share ideas in Discussions.
+  - name: 🤖 Agent Playbook
+    url: https://github.com/wenwanqing1217/monorepo/blob/master/AGENT_PLAYBOOK.md
+    about: If you're an AI Agent contributing, read this first.

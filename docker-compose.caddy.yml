@@ -1,0 +1,33 @@
+# Caddy 反向代理 + 自动 HTTPS — 用于 Ghost 矩阵生产部署
+# 用法:
+#   1. 修改 Caddyfile 中的域名为你的真实域名
+#   2. docker-compose -f docker-compose.caddy.yml up -d
+#
+# 前提: 域名 DNS 已解析到服务器 IP，80/443 端口已开放
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    container_name: ghost-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"  # HTTP/3
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - ghost-net
+    # 安全：以非 root 运行（caddy 镜像默认已处理）
+
+networks:
+  ghost-net:
+    external: true  # 与主 docker-compose 共享网络
+
+volumes:
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local

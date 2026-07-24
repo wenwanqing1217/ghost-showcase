@@ -22,6 +22,30 @@ router = APIRouter()
 workflow_engine = None
 
 # ---------------------------------------------------------------------------
+# 共享 httpx 客户端（避免每请求创建连接池）
+# ---------------------------------------------------------------------------
+
+_wechat_client: Optional[httpx.AsyncClient] = None
+
+
+def _get_wechat_client() -> httpx.AsyncClient:
+    global _wechat_client
+    if _wechat_client is None:
+        _wechat_client = httpx.AsyncClient(
+            timeout=10.0,
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
+    return _wechat_client
+
+
+async def close_wechat_client() -> None:
+    global _wechat_client
+    if _wechat_client:
+        await _wechat_client.aclose()
+        _wechat_client = None
+
+
+# ---------------------------------------------------------------------------
 # WeChat Access Token 缓存
 # ---------------------------------------------------------------------------
 
@@ -144,10 +168,10 @@ async def get_wechat_access_token() -> str:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+        client = _get_wechat_client()
+        resp = await client.get(url, params=params)
+        resp.raise_for_status()
+        data = resp.json()
     except Exception as exc:
         logger.error("获取微信 Access Token 失败: %s", exc)
         raise HTTPException(status_code=502, detail="获取微信 Access Token 失败") from exc

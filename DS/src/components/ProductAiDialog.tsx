@@ -2,6 +2,24 @@
 
 import { useState } from 'react';
 
+/**
+ * 简单 HTML 白名单消毒器 — 只允许安全标签，移除所有属性/事件 handler
+ * ⚠️ 生产环境建议使用 DOMPurify (npm i dompurify)
+ */
+function sanitizeHtml(html: string): string {
+  // 只允许这些标签（无属性）
+  const allowedTags = new Set(['p', 'strong', 'em', 'br', 'ul', 'ol', 'li', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'span', 'div']);
+  // 匹配所有 HTML 标签
+  return html.replace(/<\/?([a-zA-Z][a-zA-Z0-9]*)[^>]*>/g, (match, tag) => {
+    if (allowedTags.has(tag.toLowerCase())) {
+      // 只保留标签名，丢弃所有属性
+      return match.startsWith('</') ? `</${tag.toLowerCase()}>` : `<${tag.toLowerCase()}>`;
+    }
+    // 不允许的标签直接移除
+    return '';
+  });
+}
+
 interface Product {
   id: string;
   title: string;
@@ -231,7 +249,7 @@ export default function ProductAiDialog({
             <div
               className="input-textarea"
               style={{ background: 'var(--bg-secondary)', marginBottom: 12 }}
-              dangerouslySetInnerHTML={{ __html: result.description }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(result.description) }}
             />
 
             {result.keywords.length > 0 && (

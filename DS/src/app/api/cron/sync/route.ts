@@ -15,6 +15,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createShoplazzaClient, ShoplazzaError } from '@/lib/shoplazza';
+import crypto from 'crypto';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120; // 最长运行 2 分钟
@@ -22,12 +23,20 @@ export const maxDuration = 120; // 最长运行 2 分钟
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
 /**
- * 简单的 Bearer Token 验证
+ * Bearer Token 验证
+ *
+ * 安全策略：未配置密钥时拒绝所有请求（fail-closed），避免未授权触发同步
  */
 function verifyAuth(req: NextRequest): boolean {
-  if (!CRON_SECRET) return true; // 未配置则跳过验证
+  if (!CRON_SECRET) {
+    console.error('[Cron] CRON_SECRET 未配置，拒绝请求');
+    return false;
+  }
   const auth = req.headers.get('authorization');
-  return auth === `Bearer ${CRON_SECRET}`;
+  // 使用 timingSafeEqual 防止时序攻击
+  const expected = `Bearer ${CRON_SECRET}`;
+  if (!auth || auth.length !== expected.length) return false;
+  return crypto.timingSafeEqual(Buffer.from(auth), Buffer.from(expected));
 }
 
 export async function POST(req: NextRequest) {

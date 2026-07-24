@@ -76,6 +76,11 @@ async def lifespan(app: FastAPI):
     # 关闭时释放资源
     if _feishu_client:
         _feishu_client.stop()
+    # 关闭共享 httpx 客户端
+    from mindflow_map.api.feishu_sender import FeishuSender
+    from mindflow_map.api.wechat import close_wechat_client
+    await FeishuSender.close_shared_client()
+    await close_wechat_client()
     await engine.shutdown()
     try:
         await engine.alpha_id_client.close()

@@ -14,30 +14,23 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 10
 
-  # zcode-brain (Node.js)
+  # core (TypeScript)
   - package-ecosystem: "npm"
-    directory: "/zcode-brain"
+    directory: "/core"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
 
-  # mindflow-map (Python)
+  # nebula (Python — 执行层)
   - package-ecosystem: "pip"
-    directory: "/mindflow-map"
+    directory: "/nebula"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
 
-  # AID (Python)
+  # alphaid (Python — 身份层)
   - package-ecosystem: "pip"
-    directory: "/AID/projects"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
-
-  # mindflow workspace (Node.js root)
-  - package-ecosystem: "npm"
-    directory: "/mindflow"
+    directory: "/alphaid/projects"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10

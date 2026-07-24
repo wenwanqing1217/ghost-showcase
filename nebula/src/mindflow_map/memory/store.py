@@ -4,7 +4,7 @@ import json
 from datetime import datetime
 from typing import List, Optional, Dict, Any
 
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import String, DateTime, Text, JSON
 
@@ -44,29 +44,26 @@ class PrecheckJob(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now, onupdate=datetime.now)
 
 
-def _is_sqlite_url(url: str) -> bool:
-    return "sqlite" in url.lower()
-
-
 class MemoryStore:
-    """记忆存储（自动适配 SQLite / PostgreSQL）"""
+    """记忆存储 — 复用全局 Database 实例，避免双引擎/双连接池"""
 
     def __init__(self, database_url: Optional[str] = None):
-        self.database_url = database_url or settings.database_url
-        self._use_sqlite = _is_sqlite_url(self.database_url)
-        # PostgreSQL 需要 pool_pre_ping 检测断连
-        engine_kwargs = {"echo": False}
-        if not self._use_sqlite:
-            engine_kwargs["pool_pre_ping"] = True
-            engine_kwargs["pool_recycle"] = 3600
-        self.engine = create_async_engine(self.database_url, **engine_kwargs)
+        # 延迟导入避免循环依赖；复用全局 Database 的 engine
+        from mindflow_map.models.session import get_database, _db, Database
+        if _db is not None and not database_url:
+            db = _db
+        elif database_url:
+            db = Database(database_url)
+        else:
+            db = get_database()
+        self._db = db
         self.async_session = async_sessionmaker(
-            self.engine, class_=AsyncSession, expire_on_commit=False
+            db.engine, class_=AsyncSession, expire_on_commit=False
         )
 
     async def init(self):
-        """初始化数据库（create_all — 适用于 SQLite 和 PostgreSQL）"""
-        async with self.engine.begin() as conn:
+        """初始化数据库表（复用全局 engine）"""
+        async with self._db.engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
     
     async def save(self, user_id: str, content: str, meta: Optional[Dict] = None) -> Memory:

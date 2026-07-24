@@ -13,6 +13,7 @@ import os
 import json
 import time
 import httpx
+from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,7 +29,8 @@ ALPHAID_URL = os.getenv("ALPHAID_URL", "http://localhost:8000")
 DS_URL = os.getenv("DS_URL", "http://localhost:3004")
 NEBULA_URL = os.getenv("NEBULA_URL", "http://localhost:2002")
 FLOW_URL = os.getenv("FLOW_URL", "http://localhost:3001")
-DEFAULT_ALPHA_ID = os.getenv("DEFAULT_ALPHA_ID", "Alpha-001")
+# 身份必须从认证令牌中获取，不再使用硬编码默认值
+DEFAULT_ALPHA_ID = os.getenv("DEFAULT_ALPHA_ID", "")
 GATEWAY_PORT = int(os.getenv("GATEWAY_PORT", "8080"))
 
 # ============================================================
@@ -38,6 +40,7 @@ app = FastAPI(
     title="Ghost Gateway",
     description="Ghost Web4.0 统一 API 网关 — 私有网关 + 公共网关",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # CORS：允许所有来源（Ghost.html 可能从 file:// 或任意域名打开）
@@ -49,8 +52,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# HTTP 客户端（复用连接池）
-client = httpx.AsyncClient(timeout=30.0)
+# HTTP 客户端（复用连接池）— 在 lifespan 中管理生命周期
+client: httpx.AsyncClient = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """应用生命周期管理 — 启动时创建客户端，关闭时清理"""
+    global client
+    client = httpx.AsyncClient(timeout=30.0, limits=httpx.Limits(max_connections=100, max_keepalive_connections=20))
+    yield
+    await client.aclose()
 
 
 # ============================================================
@@ -62,6 +74,7 @@ async def proxy_get(path: str, base_url: str, headers: dict = None) -> dict:
         resp = await client.get(f"{base_url}{path}", headers=headers or {})
         if resp.status_code == 200:
             return resp.json()
+        # 返回错误信息但不掩盖失败 — 让调用者决定如何处理
         return {"_error": f"backend returned {resp.status_code}", "_raw": resp.text[:200]}
     except Exception as e:
         return {"_error": f"backend unreachable: {str(e)}"}
@@ -73,14 +86,22 @@ async def proxy_post(path: str, base_url: str, body: dict = None, headers: dict 
         resp = await client.post(f"{base_url}{path}", json=body or {}, headers=headers or {})
         if resp.status_code in (200, 201):
             return resp.json()
+        # 返回错误信息但不掩盖失败 — 让调用者决定如何处理
         return {"_error": f"backend returned {resp.status_code}", "_raw": resp.text[:200]}
     except Exception as e:
         return {"_error": f"backend unreachable: {str(e)}"}
 
 
+def has_error(data: dict) -> bool:
+    """检查代理响应是否包含后端错误"""
+    return isinstance(data, dict) and "_error" in data
+
+
 def ok(data: dict) -> JSONResponse:
-    """统一成功响应"""
-    return JSONResponse({"success": True, "data": data, "ts": int(time.time())})
+    """统一成功响应 — 如果数据包含后端错误，返回失败状态"""
+    if has_error(data):
+        return JSONResponse({"success": False, "error": data["_error"], "data": data, "ts": int(time.time())}, status_code=502)
+    return JSONResponse({"success": True, "data": data, "ts": int(time.time())}))
 
 
 def fail(msg: str, code: int = 500) -> JSONResponse:
@@ -382,11 +403,11 @@ async def register_complete(request: Request):
 async def dashboard():
     """
     统一仪表盘 — Ghost.html 打开 workbench 时调用一次
-    并行请求所有后端，聚合返回
+    并行请求所有后端，聚合返回（单个后端失败不影响其他）
     """
     import asyncio
 
-    # 并行请求
+    # 并行请求（return_exceptions=True 确保单个后端失败不会导致整个仪表盘 500）
     identity, brain, topology, profile, shop, products, orders = await asyncio.gather(
         proxy_get("/identity", ALPHAID_URL, headers={"X-Alpha-ID": DEFAULT_ALPHA_ID}),
         proxy_get(f"/brain/status?alpha_id={DEFAULT_ALPHA_ID}", ALPHAID_URL),
@@ -395,6 +416,17 @@ async def dashboard():
         proxy_get("/api/shop", DS_URL),
         proxy_get("/api/products", DS_URL),
         proxy_get("/api/orders", DS_URL),
+        return_exceptions=True,
+    )
+
+    # 将异常转换为错误字典
+    def _to_result(value):
+        if isinstance(value, Exception):
+            return {"_error": str(value)}
+        return value
+
+    identity, brain, topology, profile, shop, products, orders = (
+        _to_result(v) for v in (identity, brain, topology, profile, shop, products, orders)
     )
 
     # 计算电商统计

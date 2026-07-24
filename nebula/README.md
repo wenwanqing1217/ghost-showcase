@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python&logoColor=white)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.100+-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-221%20passing-brightgreen.svg)](https://github.com/wenwanqing1217/mindflow-map)
+[![Tests](https://img.shields.io/badge/tests-166%20passing-brightgreen.svg)](https://github.com/wenwanqing1217/mindflow-map)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/wenwanqing1217/mindflow-map/blob/main/LICENSE)
 
 > **Ghost 矩阵的执行层** — 工作流引擎、LLM 意图识别、多平台接入。

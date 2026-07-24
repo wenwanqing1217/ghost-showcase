@@ -18,9 +18,13 @@ from dataclasses import dataclass
 # ── Service registry ──
 
 SERVICES: dict[str, dict[str, str]] = {
-    "mindflow-map": {
+    "gateway": {
+        "url": "http://localhost:18080/health",
+        "label": "Gateway (Unified API)",
+    },
+    "nebula": {
         "url": "http://localhost:2002/health",
-        "label": "MindFlow Map (Workflow Engine)",
+        "label": "Nebula (Workflow Engine)",
     },
     "ds": {
         "url": "http://localhost:3004/api/health",
@@ -28,7 +32,7 @@ SERVICES: dict[str, dict[str, str]] = {
     },
     "aid": {
         "url": "http://localhost:8000/health",
-        "label": "AID (Identity Service)",
+        "label": "Alpha-ID (Identity Service)",
     },
 }
 

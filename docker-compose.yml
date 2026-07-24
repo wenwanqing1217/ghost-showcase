@@ -109,5 +109,32 @@ services:
       retries: 3
       start_period: 15s
 
+  # ── Gateway（统一 API 网关） ──
+  gateway:
+    build:
+      context: ./ghost-main/gateway
+      dockerfile: Dockerfile
+    ports:
+      - "18080:18080"
+    environment:
+      ALPHAID_URL: http://alphaid:8000
+      DS_URL: http://ds:3000
+      NEBULA_URL: http://nebula:2002
+      GATEWAY_PORT: "18080"
+    depends_on:
+      alphaid:
+        condition: service_healthy
+      nebula:
+        condition: service_healthy
+      ds:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:18080/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
 volumes:
   pgdata:
