@@ -13,6 +13,7 @@ import os
 import json
 import time
 import httpx
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from typing import Optional
 from fastapi import FastAPI, Request, HTTPException
@@ -32,6 +33,39 @@ FLOW_URL = os.getenv("FLOW_URL", "http://localhost:3001")
 # 身份必须从认证令牌中获取，不再使用硬编码默认值
 DEFAULT_ALPHA_ID = os.getenv("DEFAULT_ALPHA_ID", "")
 GATEWAY_PORT = int(os.getenv("GATEWAY_PORT", "8080"))
+
+# ============================================================
+# 速率限制（内存滑动窗口，防 SMS 轰炸）
+# ============================================================
+_rate_buckets: dict = defaultdict(list)  # key → [timestamp, ...]
+_RATE_LIMIT_MAX = int(os.getenv("RATE_LIMIT_MAX", "5"))       # 窗口内最大请求数
+_RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))  # 窗口大小（秒）
+
+
+def _rate_limit_check(key: str, max_requests: int = None, window: int = None) -> bool:
+    """检查是否超过速率限制。返回 True 表示允许，False 表示超限。"""
+    now = time.time()
+    max_req = max_requests or _RATE_LIMIT_MAX
+    win = window or _RATE_LIMIT_WINDOW
+
+    # 清理过期条目
+    bucket = _rate_buckets[key]
+    cutoff = now - win
+    _rate_buckets[key] = [t for t in bucket if t > cutoff]
+
+    if len(_rate_buckets[key]) >= max_req:
+        return False
+    _rate_buckets[key].append(now)
+    return True
+
+
+def _client_ip(request: Request) -> str:
+    """获取客户端真实 IP（考虑反向代理）"""
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
 
 # ============================================================
 # FastAPI 应用
@@ -95,6 +129,22 @@ async def proxy_post(path: str, base_url: str, body: dict = None, headers: dict 
 def has_error(data: dict) -> bool:
     """检查代理响应是否包含后端错误"""
     return isinstance(data, dict) and "_error" in data
+
+
+def unwrap_flow_response(data: dict) -> dict:
+    """
+    解包 flow/api 的 {success, data/error} 信封，转换为 Gateway 统一信封。
+    flow/api 返回 {success: true, data: {...}} 或 {success: false, error: "..."}。
+    """
+    if not isinstance(data, dict):
+        return data
+    if data.get("success") is False:
+        # 后端失败 → 转为错误格式让 ok() 处理
+        return {"_error": data.get("error", "flow/api 返回失败")}
+    if data.get("success") is True and "data" in data:
+        # 成功 → 提取 data 字段作为原始数据
+        return data["data"]
+    return data
 
 
 def ok(data: dict) -> JSONResponse:
@@ -345,15 +395,20 @@ async def execute_workflow(request: Request):
 # ============================================================
 # 公共网关 — 注册流程 (flow/api)
 # ============================================================
-# 注册路由直接透传 flow/api 的原始响应（不包裹 ok()），
-# 因为 flow/api 自身已返回 {success, data/error} 格式。
+# 注册路由统一使用 ok() 包裹，保持响应信封一致性（H9 修复）
+# flow/api 返回 {success, data/error}，ok() 会透传 success=False，
+# 并将 success=True 的 data 提取到 Gateway 信封的 data 字段。
 
 @app.post("/v1/register/send-sms")
 async def register_send_sms(request: Request):
-    """发送短信验证码 → 代理到 flow/api"""
+    """发送短信验证码 → 代理到 flow/api（速率限制：60秒5次/IP）"""
+    # H8: 速率限制防 SMS 轰炸
+    ip = _client_ip(request)
+    if not _rate_limit_check(f"sms:{ip}", max_requests=5, window=60):
+        return fail("请求过于频繁，请稍后再试", 429)
     body = await request.json()
     data = await proxy_post("/api/register/send-sms", FLOW_URL, body=body)
-    return JSONResponse(data)
+    return ok(unwrap_flow_response(data))
 
 
 @app.post("/v1/register/verify-sms")
@@ -361,7 +416,7 @@ async def register_verify_sms(request: Request):
     """验证短信验证码 → 代理到 flow/api"""
     body = await request.json()
     data = await proxy_post("/api/register/verify-sms", FLOW_URL, body=body)
-    return JSONResponse(data)
+    return ok(unwrap_flow_response(data))
 
 
 @app.post("/v1/register/face-verify")
@@ -369,7 +424,7 @@ async def register_face_verify(request: Request):
     """发起支付宝人脸认证 → 代理到 flow/api"""
     body = await request.json()
     data = await proxy_post("/api/register/face-verify", FLOW_URL, body=body)
-    return JSONResponse(data)
+    return ok(unwrap_flow_response(data))
 
 
 @app.post("/v1/register/face-query")
@@ -377,7 +432,7 @@ async def register_face_query(request: Request):
     """查询人脸认证结果 → 代理到 flow/api"""
     body = await request.json()
     data = await proxy_post("/api/register/face-query", FLOW_URL, body=body)
-    return JSONResponse(data)
+    return ok(unwrap_flow_response(data))
 
 
 @app.post("/v1/register/generate-did")
@@ -385,7 +440,7 @@ async def register_generate_did(request: Request):
     """生成去中心化身份 DID → 代理到 flow/api"""
     body = await request.json()
     data = await proxy_post("/api/register/generate-did", FLOW_URL, body=body)
-    return JSONResponse(data)
+    return ok(unwrap_flow_response(data))
 
 
 @app.post("/v1/register/complete")
@@ -393,7 +448,7 @@ async def register_complete(request: Request):
     """完成注册 → 代理到 flow/api"""
     body = await request.json()
     data = await proxy_post("/api/register/complete-registration", FLOW_URL, body=body)
-    return JSONResponse(data)
+    return ok(unwrap_flow_response(data))
 
 
 # ============================================================
