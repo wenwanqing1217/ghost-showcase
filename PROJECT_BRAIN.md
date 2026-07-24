@@ -1,7 +1,7 @@
 # 🧠 PROJECT_BRAIN — Ghost 项目大脑
 
 > **每个新会话的第一件事：读这个文件。读透它，你就知道一切。**
-> 最后更新：2026-07-24
+> 最后更新：2026-07-24（Phase 2 完成：nebula identity/memory 空壳已清理）
 
 ---
 
@@ -320,7 +320,7 @@ flow/api (:3001) [代理模式]
 
 | # | 问题 | 影响 | 优先级 |
 |---|------|------|--------|
-| 1 | nebula 自有 identity/memory 与 alphaid 重复 | 数据不一致 | P1 |
+| 1 | ~~nebula 自有 identity/memory 与 alphaid 重复~~ | ✅ 已删除空壳模块，alphaid 为唯一源 | — |
 | 2 | ~~nebula 未运行~~ | ✅ 已运行，工作流引擎可用 | — |
 | 3 | PostgreSQL 未启动（Docker 未运行） | nebula 用 SQLite，影响有限 | P2 |
 | 4 | flow/web 与 Ghost.html 双前端 | 维护浪费 | P2 |
@@ -381,10 +381,10 @@ flow/api (:3001) [代理模式]
 - [x] Gateway 新增 register 代理路由，透传 flow/api 响应
 - [x] Nebula (2002) 启动并连接网关
 
-### Phase 2：合并重复
-- [ ] 删除 nebula/src/identity/，改为调 alphaid API
-- [ ] 删除 nebula/src/memory/，改为调 alphaid API
-- [ ] 统一用户体系：一个 DID 贯穿所有层
+### Phase 2：合并重复 ✅ 已完成
+- [x] 删除 nebula/src/identity/（空壳模块，无任何实现）
+- [x] 删除 nebula/src/memory/（空壳模块，无任何实现）
+- [x] 统一用户体系：alphaid 为唯一身份源，nebula 无重复身份/记忆逻辑
 
 ### Phase 3：整合前端
 - [ ] 把 flow/web 里有价值的页面（register/identity/ai）移植到 Ghost.html
