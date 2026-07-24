@@ -12,9 +12,9 @@
 # 端口分配（不对外暴露，仅内部 Docker 网络）:
 #   caddy         → 80, 443（唯一对外端口）
 #   db            → 5432
-#   mindflow-map  → 2002
+#   nebula        → 2002
 #   ds            → 3004
-#   aid           → 8000
+#   alphaid       → 8000
 # ════════════════════════════════════════════════════════════════════
 
 services:
@@ -32,11 +32,11 @@ services:
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
-      mindflow-map:
+      nebula:
         condition: service_healthy
       ds:
         condition: service_healthy
-      aid:
+      alphaid:
         condition: service_healthy
     networks:
       - ghost-net
@@ -66,15 +66,15 @@ services:
       retries: 5
       start_period: 10s
 
-  # ── MindFlow Map ──
-  mindflow-map:
+  # ── Nebula（执行层） ──
+  nebula:
     build:
-      context: ./mindflow-map
+      context: ./nebula
       dockerfile: Dockerfile
-    container_name: ghost-mindflow-map
+    container_name: ghost-nebula
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/mindflow_map
+      DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/nebula
       UVICORN_WORKERS: 4
     depends_on:
       db:
@@ -116,12 +116,12 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── AID Alpha-ID ──
-  aid:
+  # ── Alpha-ID（身份层） ──
+  alphaid:
     build:
-      context: ./AID/projects
+      context: ./alphaid/projects
       dockerfile: Dockerfile
-    container_name: ghost-aid
+    container_name: ghost-alphaid
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/alpha_id

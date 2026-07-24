@@ -7,12 +7,9 @@
 # ════════════════════════════════════════════════════════════════════
 #
 # 端口分配:
-#   MindFlow Web    → 3000
-#   MindFlow API    → 3001
-#   MindFlow Map    → 2002
-#   DS Dashboard    → 3004
-#   AID Alpha-ID    → 8000
-#   ai综艺          → 5173 (需单独启动，非 Docker 化)
+#   Nebula (执行层) → 2002
+#   DS (电商后端)   → 3004
+#   Alpha-ID (身份) → 8000
 #   PostgreSQL      → 5432
 # ════════════════════════════════════════════════════════════════════
 
@@ -38,17 +35,17 @@ services:
       retries: 5
       start_period: 10s
 
-  # ── MindFlow Map ──
-  mindflow-map:
+  # ── Nebula（执行层） ──
+  nebula:
     build:
-      context: ./mindflow-map
+      context: ./nebula
       dockerfile: Dockerfile
     ports:
       - "2002:2002"
     environment:
-      DATABASE_URL: postgresql+asyncpg://${DB_USER:-ghost}:${DB_PASSWORD:-ghost_secret}@db:5432/mindflow_map
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:-ghost}:${DB_PASSWORD:-ghost_secret}@db:5432/nebula
     env_file:
-      - ./mindflow-map/.env
+      - ./nebula/.env
     depends_on:
       db:
         condition: service_healthy
@@ -60,7 +57,7 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── DS Dashboard ──
+  # ── DS（电商后端） ──
   ds:
     build:
       context: ./DS
@@ -71,13 +68,14 @@ services:
       NODE_ENV: production
       PORT: 3000
       DATABASE_URL: postgresql://${DB_USER:-ghost}:${DB_PASSWORD:-ghost_secret}@db:5432/ds?schema=public
-      DEMO_MODE: ${DEMO_MODE:-false}
-      DS_API_KEY: ${DS_API_KEY:-}
+      DEMO_MODE: ${DEMO_MODE:-true}
       DASH_USER: ${DASH_USER:-}
       DASH_PASS: ${DASH_PASS:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY_DS:-}
-      SHOPIFY_SHOP_DOMAIN: ${SHOPIFY_SHOP_DOMAIN:-}
-      SHOPIFY_ACCESS_TOKEN: ${SHOPIFY_ACCESS_TOKEN:-}
+      AI_API_KEY: ${DEEPSEEK_API_KEY:-}
+      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
+      AI_MODEL: ${AI_MODEL:-deepseek-chat}
+      SHOPLAZZA_SHOP_DOMAIN: ${SHOPLAZZA_SHOP_DOMAIN:-}
+      SHOPLAZZA_ACCESS_TOKEN: ${SHOPLAZZA_ACCESS_TOKEN:-}
     depends_on:
       db:
         condition: service_healthy
@@ -89,17 +87,17 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── AID Alpha-ID ──
-  aid:
+  # ── Alpha-ID（身份层） ──
+  alphaid:
     build:
-      context: ./AID/projects
+      context: ./alphaid/projects
       dockerfile: Dockerfile
     ports:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://${DB_USER:-ghost}:${DB_PASSWORD:-ghost_secret}@db:5432/alpha_id
     env_file:
-      - ./AID/projects/.env
+      - ./alphaid/projects/.env
     depends_on:
       db:
         condition: service_healthy

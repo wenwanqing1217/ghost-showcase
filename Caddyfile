@@ -10,12 +10,12 @@
 # ---------- 生产域名（取消注释并修改域名） ----------
 # map.example.com {
 #     encode gzip
-#     reverse_proxy mindflow-map:2002
+#     reverse_proxy nebula:2002
 # }
 #
 # ds.example.com {
 #     encode gzip
-#     reverse_proxy ds:3000
+#     reverse_proxy ds:3004
 # }
 #
 # aid.example.com {
@@ -46,20 +46,20 @@
         respond "OK" 200
     }
 
-    # MindFlow Map API
+    # MindFlow Map API (nebula)
     handle_path /api/map/* {
-        reverse_proxy mindflow-map:2002
+        reverse_proxy nebula:2002
     }
 
     # DS Dashboard
     handle_path /ds/* {
-        reverse_proxy ds:3000
+        reverse_proxy ds:3004
     }
 
     # DS API（直接转发）
     handle_path /api/ds/* {
         uri strip_prefix /api/ds
-        reverse_proxy ds:3000
+        reverse_proxy ds:3004
     }
 
     # AID API
@@ -68,21 +68,21 @@
         reverse_proxy aid:8000
     }
 
-    # MindFlow Map 工作台
+    # MindFlow Map 工作台 (nebula)
     handle_path /workspace/* {
-        reverse_proxy mindflow-map:2002
+        reverse_proxy nebula:2002
     }
 
     # 编辑器
     handle_path /editor/* {
-        reverse_proxy mindflow-map:2002
+        reverse_proxy nebula:2002
     }
 
     # 静态资源
     handle_path /static/* {
-        reverse_proxy mindflow-map:2002
+        reverse_proxy nebula:2002
     }
 
-    # 默认 → MindFlow Map
-    reverse_proxy mindflow-map:2002
+    # 默认 → MindFlow Map (nebula)
+    reverse_proxy nebula:2002
 }

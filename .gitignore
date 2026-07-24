@@ -72,3 +72,21 @@ caddy_config/
 *.swp
 *.swo
 *~
+
+# 敏感文件 - 密钥/证书/签名
+*.pem
+*.key
+*.jks
+*.p12
+*.pfx
+*.keystore
+*.cer
+*.crt
+*.p7b
+*.p8
+*private*
+*oneline*.txt
+ExportAlipayKey.*
+ExportKey.*
+alipay_*
+ghost_*
