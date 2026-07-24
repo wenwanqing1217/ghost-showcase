@@ -42,7 +42,7 @@
 - ✅ Layer 2 记忆层：Brain 双链 + 数据采集器
 - 🔄 Layer 3 网关层：Caddy 本地开发配置已有
 - ✅ Layer 4 调度层：Ghost Gateway (18080) 统一路由
-- 🔄 Layer 5 业务层：nebula 代码完整但未运行
+- ✅ Layer 5 业务层：nebula 运行中（工作流引擎+飞书+地图+抖音+Shopify）
 - ✅ Layer 6 商业层：DS 电商后端运行中
 
 ---
@@ -77,7 +77,7 @@ Ghost.html  ──fetch──▶  Ghost Gateway (:18080)
                          ├── /v1/ecommerce/stats ← DS 统计
                          ├── /v1/intent/parse   ← 智能路由（按关键词分发）
                          ├── /v1/chat           ← alphaid AI 对话
-                         └── /v1/workflows      ← nebula 工作流（待连）
+                         └── /v1/workflows      ← nebula 工作流（✅ 已连）
 ```
 
 ---
@@ -109,8 +109,8 @@ Ghost.html  ──fetch──▶  Ghost Gateway (:18080)
 | `/v1/orders` | GET | DS :3004 | 订单列表 |
 | `/v1/ecommerce/stats` | GET | DS :3004 | 电商统计 |
 | `/v1/ecommerce/sync` | POST | DS :3004 | 触发同步 |
-| `/v1/workflows` | GET | nebula :2002 | 工作流列表（待连） |
-| `/v1/workflows/execute` | POST | nebula :2002 | 执行工作流（待连） |
+| `/v1/workflows` | GET | nebula :2002 | 工作流列表 ✅ |
+| `/v1/workflows/execute` | POST | nebula :2002 | 执行工作流 ✅ |
 
 **Intent 路由规则：**
 - 含"订单/商品/店铺"关键词 → DS 电商
@@ -262,7 +262,7 @@ Ghost Gateway (:18080)  ←── 统一入口
   ├── /v1/products/*    → DS (:3004)
   ├── /v1/orders/*      → DS (:3004)
   ├── /v1/ecommerce/*   → DS (:3004)
-  ├── /v1/workflows/*   → nebula (:2002) ← 工作流唯一源（待连）
+  ├── /v1/workflows/*   → nebula (:2002) ← 工作流唯一源 ✅
   └── /v1/intent/*      → 智能路由分发
 
 alphaid (:8000)
@@ -282,7 +282,7 @@ DS (:3004) → Shoplazza OpenAPI → nero.myshoplaza.com
   ├── /api/orders   → 订单列表
   └── /api/sync     → 手动同步
 
-nebula (:2002) [未运行]
+nebula (:2002) [✅ 运行中]
   ├── 工作流引擎
   ├── LLM 意图识别
   ├── 飞书/微信接入
@@ -313,8 +313,8 @@ flow/api (:3001) [代理模式]
 | # | 问题 | 影响 | 优先级 |
 |---|------|------|--------|
 | 1 | nebula 自有 identity/memory 与 alphaid 重复 | 数据不一致 | P1 |
-| 2 | nebula 未运行 | 工作流引擎不可用 | P1 |
-| 3 | PostgreSQL 未启动（Docker 未运行） | 无持久化存储 | P1 |
+| 2 | ~~nebula 未运行~~ | ✅ 已运行，工作流引擎可用 | — |
+| 3 | PostgreSQL 未启动（Docker 未运行） | nebula 用 SQLite，影响有限 | P2 |
 | 4 | flow/web 与 Ghost.html 双前端 | 维护浪费 | P2 |
 | 5 | 支付宝/短信/人脸验证 SDK 未接入 | 身份层缺少实名认证 | P0 |
 | 6 | core 编排层为"空壳" | 没有真正调度 | P2 |
@@ -381,7 +381,7 @@ flow/api (:3001) [代理模式]
 
 ### Phase 4：补齐基础设施
 - [ ] 启动 PostgreSQL (Docker)
-- [ ] 启动 nebula，连接到网关
+- [x] 启动 nebula，连接到网关
 - [ ] Caddy 生产配置
 - [ ] 支付宝/短信/人脸验证 SDK 接入
 
@@ -429,7 +429,7 @@ flow/api (:3001) [代理模式]
 | alphaid（身份层） | 8000 | `http://localhost:8000` | ✅ 运行中 |
 | DS（电商后端） | 3004 | `http://localhost:3004` | ✅ 运行中 |
 | core（编排层） | 3001 | `http://localhost:3001` | ❓ 未知 |
-| nebula（执行层） | 2002 | `http://localhost:2002` | ❌ 未运行 |
+| nebula（执行层） | 2002 | `http://localhost:2002` | ✅ 运行中 |
 | flow/web（前端原型） | 3000 | `http://localhost:3000` | ❌ 未部署 |
 | flow/api（BFF） | 3001 | `http://localhost:3001` | ❓ 未知 |
 
