@@ -237,10 +237,12 @@ Ghost.html  ──fetch──▶  Ghost Gateway (:18080)
 
 **包含页面：** register、identity、dashboard、ai、map、multimodal、platform、usage、assistant
 
-**定位：** 功能原型参考，不是官网。Ghost.html 是唯一对外入口。
+**定位：** ~~功能原型参考~~ → **已废弃**。所有有价值的功能已移植到 Ghost.html。
 **flow/api 现状：** 注册服务（短信+人脸+DID）运行中，通过 Gateway `/v1/register/*` 对外提供。
 
 **flow/api 更新：** `aid.service.ts` 已改为代理到 alphaid（:8000），不再返回假数据。
+
+**Phase 3 整合：** map（交互地图）、multimodal（多模态）、assistant（AI助理）→ 全部移植到 Ghost.html workbench。
 
 ---
 
@@ -323,7 +325,7 @@ flow/api (:3001) [代理模式]
 | 1 | ~~nebula 自有 identity/memory 与 alphaid 重复~~ | ✅ 已删除空壳模块，alphaid 为唯一源 | — |
 | 2 | ~~nebula 未运行~~ | ✅ 已运行，工作流引擎可用 | — |
 | 3 | PostgreSQL 未启动（Docker 未运行） | nebula 用 SQLite，影响有限 | P2 |
-| 4 | flow/web 与 Ghost.html 双前端 | 维护浪费 | P2 |
+| 4 | ~~flow/web 与 Ghost.html 双前端~~ | ✅ 已整合：地图/多模态/助理已移植到 Ghost.html，flow/web 废弃 | — |
 | 5 | ~~支付宝/短信/人脸验证 SDK 未接入~~ | ✅ 已接入 flow/api，通过 Gateway /v1/register/* 提供 | — |
 | 6 | core 编排层为"空壳" | 没有真正调度 | P2 |
 
@@ -386,9 +388,10 @@ flow/api (:3001) [代理模式]
 - [x] 删除 nebula/src/memory/（空壳模块，无任何实现）
 - [x] 统一用户体系：alphaid 为唯一身份源，nebula 无重复身份/记忆逻辑
 
-### Phase 3：整合前端
-- [ ] 把 flow/web 里有价值的页面（register/identity/ai）移植到 Ghost.html
-- [ ] 或者：部署 flow/web 为正式官网，Ghost.html 降为 landing page
+### Phase 3：整合前端 ✅ 已完成
+- [x] 移植 /map 交互地图到 Ghost.html（Leaflet + OSM + Overpass + OSRM 路线规划）
+- [x] 移植 /multimodal + /assistant 为 Ghost.html AI 智能助理面板（文本 + 语音输入 + 语音播报 + 图片上传）
+- [x] flow/web 有价值的功能已全部移植到 Ghost.html，flow/web 定位为废弃原型
 
 ### Phase 4：补齐基础设施
 - [ ] 启动 PostgreSQL (Docker)
