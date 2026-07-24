@@ -51,15 +51,14 @@ async def lifespan(app: FastAPI):
     await init_db()
     logger.info("Database initialized")
 
-    # 初始化共享工作流引擎
+    # 初始化共享工作流引擎（统一注册到 EngineRegistry）
     engine = WorkflowEngine()
     engine._main_loop = asyncio.get_running_loop()
     app.state.workflow_engine = engine
     app.state._main_loop = engine._main_loop
-    wechat.workflow_engine = engine
-    workflow.workflow_engine = engine
-    streaming.router._workflow_engine = engine
-    feishu_webhook.workflow_engine = engine
+    # H14 修复：统一使用 EngineRegistry，不再注入到各模块的全局变量
+    from mindflow_map.core.engine_registry import set_engine
+    set_engine(engine)
 
     # 启动飞书长连接机器人（后台线程）
     try:

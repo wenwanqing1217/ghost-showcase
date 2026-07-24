@@ -14,12 +14,11 @@ from pydantic import BaseModel
 from starlette.responses import Response
 
 from mindflow_map.config import settings
+from mindflow_map.core.engine_registry import get_workflow_engine
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-# workflow_engine 由 main.py lifespan 注入，此处不预先实例化
-workflow_engine = None
 
 # ---------------------------------------------------------------------------
 # 共享 httpx 客户端（避免每请求创建连接池）
@@ -243,7 +242,8 @@ async def wechat_message(request: Request):
         return Response(content=reply, media_type="application/xml")
 
     try:
-        result = await workflow_engine.execute(msg.content, user_id=msg.from_user)
+        engine = get_workflow_engine()
+        result = await engine.execute(msg.content, user_id=msg.from_user)
         response_text = result.get("text", str(result))
     except Exception as exc:
         logger.exception("处理微信消息失败")

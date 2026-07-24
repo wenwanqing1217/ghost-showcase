@@ -11,20 +11,19 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from mindflow_map.workflows.engine import WorkflowEngine
+from mindflow_map.core.engine_registry import get_workflow_engine, has_engine
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-# workflow_engine 由 main.py lifespan 注入
 
 
 async def _stream_workflow_execution(text: str, user_id: str) -> AsyncGenerator[str, None]:
     """流式执行工作流并推送进度事件。"""
-    engine: WorkflowEngine | None = getattr(router, "_workflow_engine", None)
-    if engine is None:
+    if not has_engine():
         yield f"event: error\ndata: {json.dumps({'error': 'Workflow engine not initialized'})}\n\n"
         return
+    engine = get_workflow_engine()
 
     try:
         yield f"event: start\ndata: {json.dumps({'text': text, 'user_id': user_id})}\n\n"

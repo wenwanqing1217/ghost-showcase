@@ -3,11 +3,9 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from mindflow_map.workflows.engine import WorkflowEngine
+from mindflow_map.core.engine_registry import get_workflow_engine
 
 router = APIRouter()
-# workflow_engine 由 main.py lifespan 注入，此处不预先实例化
-workflow_engine: WorkflowEngine | None = None
 
 
 class WorkflowExecuteRequest(BaseModel):
@@ -25,7 +23,8 @@ class WorkflowExecuteResponse(BaseModel):
 async def execute_workflow(request: WorkflowExecuteRequest):
     """执行工作流"""
     try:
-        result = await workflow_engine.execute(request.text, user_id=request.user_id)
+        engine = get_workflow_engine()
+        result = await engine.execute(request.text, user_id=request.user_id)
         return WorkflowExecuteResponse(
             success=True,
             result=result,

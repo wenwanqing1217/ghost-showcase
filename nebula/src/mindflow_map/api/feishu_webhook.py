@@ -8,7 +8,7 @@ from typing import Dict, Any
 from fastapi import APIRouter, Request, HTTPException
 
 from mindflow_map.config import settings
-from mindflow_map.workflows.engine import WorkflowEngine
+from mindflow_map.core.engine_registry import get_workflow_engine
 from mindflow_map.api.feishu_sender import FeishuSender
 
 
@@ -16,7 +16,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 _sender = FeishuSender()
-workflow_engine: WorkflowEngine = None
 
 
 @router.post("/webhook/feishu")
@@ -92,13 +91,9 @@ async def _handle_im_message(event: Dict[str, Any]):
 
     logger.info("飞书消息 from=%s: %s", user_id, text)
 
-    global workflow_engine
-    if workflow_engine is None:
-        logger.error("workflow_engine 未注入")
-        return
-
     try:
-        result = await workflow_engine.execute(text, user_id=user_id or "feishu_user")
+        engine = get_workflow_engine()
+        result = await engine.execute(text, user_id=user_id or "feishu_user")
         reply = result.get("text", str(result))
     except Exception as e:
         logger.error("工作流引擎执行失败: %s", e)

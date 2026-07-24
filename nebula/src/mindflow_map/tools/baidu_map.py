@@ -39,19 +39,19 @@ class BaiduMapTool:
         )
         response.raise_for_status()
         data = response.json()
-            
-            # 检查百度地图 API 业务错误码
-            status = data.get("status")
-            if status not in (0, "0", None):
-                message = data.get("message", "未知错误")
-                return {
-                    "message": f"百度地图 API 错误：{message}",
-                    "status": status,
-                    "raw": data,
-                }
-            
-            return data.get("result", data)
-    
+
+        # 检查百度地图 API 业务错误码
+        status = data.get("status")
+        if status not in (0, "0", None):
+            message = data.get("message", "未知错误")
+            return {
+                "message": f"百度地图 API 错误：{message}",
+                "status": status,
+                "raw": data,
+            }
+
+        return data.get("result", data)
+
     async def search_location(
         self,
         query: str,
