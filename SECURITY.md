@@ -54,11 +54,15 @@ Please include:
 - Run `pip audit` / `npm audit` before submitting PRs
 - Pin dependency versions in production
 
-## Known Security Considerations
+## Security Measures
 
-- Ghost.html uses `allow_origins=["*"]` for CORS — acceptable for the public gateway layer, but internal APIs should restrict origins
-- The demo mode in DS uses default credentials — **always** change `DASH_PASS` in production
-- JWT tokens should use strong, randomly generated secrets (`AUTH_MASTER_KEY`)
+- **JWT + jti revocation**: Every token has a unique ID; logout revokes instantly
+- **Token rotation**: Refresh tokens are single-use; rotation detects reuse
+- **Rate limiting**: Sliding window per-IP (5 req/60s for sensitive endpoints)
+- **AES-256-GCM**: Private memory chain encrypted at rest
+- **Ed25519 DID**: Client-side key generation via Web Crypto API
+- **CORS allowlist**: Explicit origin whitelist, not `*`
+- **No hardcoded secrets**: All credentials via environment variables
 
 ## Security Hall of Fame
 

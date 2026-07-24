@@ -1,23 +1,23 @@
 # ════════════════════════════════════════════════════════════════════
-# Ghost Workspace — Caddy 生产配置（真实域名 + 自动 HTTPS）
+# Ghost Workspace — Caddy Production Config (Real Domain + Auto HTTPS)
 # ════════════════════════════════════════════════════════════════════
-# 使用方法：
-#   1. 替换所有 example.com 为你的真实域名
-#   2. 确保 DNS 已解析到服务器 IP
+# Usage:
+#   1. Replace all example.com with your real domain
+#   2. Ensure DNS resolves to your server IP
 #   3. caddy run --config Caddyfile.production
 #
-# 自动功能：
-#   - Let's Encrypt 自动申请/续期 TLS 证书
-#   - HTTP → HTTPS 自动重定向
-#   - HTTP/3 (QUIC) 支持
-#   - Brotli + Gzip 压缩
+# Auto features:
+#   - Let's Encrypt auto TLS certificate provisioning/renewal
+#   - HTTP → HTTPS auto redirect
+#   - HTTP/3 (QUIC) support
+#   - Brotli + Gzip compression
 # ════════════════════════════════════════════════════════════════════
 
-# ── 主站入口 ──
+# ── Main entry ──
 ghost.example.com {
     encode gzip
 
-    # 安全头
+    # Security headers
     header {
         Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com https://api.deepseek.com https://api.groq.com"
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -29,42 +29,37 @@ ghost.example.com {
         -Server
     }
 
-    # 健康检查
+    # Health check
     handle /health {
         respond "OK" 200
     }
 
-    # Gateway 统一 API 入口
+    # Gateway — Unified API entry point
     handle_path /api/* {
         reverse_proxy gateway:18080
     }
 
-    # Ghost HTML 主站（静态文件或 dev server）
-    reverse_proxy localhost:8080
+    # Default → Gateway
+    reverse_proxy gateway:18080
 }
 
-# ── 子域名路由 ──
-map.example.com {
+# ── Sub-domain routing ──
+nebula.example.com {
     encode gzip
     reverse_proxy nebula:2002
 }
 
-ds.example.com {
-    encode gzip
-    reverse_proxy ds:3004
-}
-
 aid.example.com {
     encode gzip
-    reverse_proxy aid:8000
+    reverse_proxy alphaid:8000
 }
 
-# ── 根域名重定向 ──
+# ── Root domain redirect ──
 example.com {
     redir https://ghost.example.com permanent
 }
 
-# ── www 重定向 ──
+# ── www redirect ──
 www.ghost.example.com {
     redir https://ghost.example.com permanent
 }

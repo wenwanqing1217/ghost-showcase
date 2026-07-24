@@ -26,15 +26,7 @@ htmlcov/
 nul
 temp*.py
 
-# mindflow-map 测试输出垃圾
-mindflow-map/test*.txt
-mindflow-map/test_debug*.txt
-mindflow-map/test_output.txt
-mindflow-map/test_result*.txt
-mindflow-map/full_test_result.txt
-mindflow-map/all_tests_result.txt
-
-# 数据库
+# Database
 *.db
 *.db-journal
 *.db-wal
@@ -90,3 +82,19 @@ ExportAlipayKey.*
 ExportKey.*
 alipay_*
 ghost_*
+
+# ── 非核心项目（独立仓库，不在此 monorepo 中跟踪） ──
+DS/
+obsidian-plugin/
+profile-readme/
+Ghost.html
+Ghost*.html
+package.json
+package-lock.json
+
+# ── 临时/内部文档 ──
+*.tmp.md
+AUDIT.md
+AUDIT_FIXES.md
+AGENT_PLAYBOOK.md
+PROJECT_BRAIN.md

@@ -1,9 +1,0 @@
-{
-  "id": "ghost-dual-chain",
-  "name": "Ghost Dual-Chain Memory",
-  "version": "0.1.0",
-  "minAppVersion": "0.15.0",
-  "author": "Ghost Team",
-  "description": "双向同步 Obsidian 笔记与 Ghost 双链记忆系统（私有链 + 知识链）",
-  "isDesktopOnly": false
-}

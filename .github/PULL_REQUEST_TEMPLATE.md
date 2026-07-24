@@ -26,9 +26,8 @@ Fixes #(issue)
 
 - [ ] Alpha-ID (identity layer)
 - [ ] Nebula (workflow engine)
-- [ ] DS (e-commerce backend)
 - [ ] core (orchestration)
-- [ ] Ghost.html (official website)
+- [ ] flow (frontend portal)
 - [ ] Gateway (API gateway)
 - [ ] Infrastructure (Docker, CI, etc.)
 

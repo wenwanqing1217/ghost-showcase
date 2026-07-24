@@ -1,20 +1,20 @@
 # ════════════════════════════════════════════════════════════════════
-# Ghost Workspace — 统一编排（PostgreSQL）
+# Ghost Workspace — Unified Orchestration (PostgreSQL)
 # ════════════════════════════════════════════════════════════════════
-# 启动: docker compose up -d
-# 停止: docker compose down
-# 日志: docker compose logs -f
+# Start:    docker compose up -d
+# Stop:     docker compose down
+# Logs:     docker compose logs -f
 # ════════════════════════════════════════════════════════════════════
 #
-# 端口分配:
-#   Nebula (执行层) → 2002
-#   DS (电商后端)   → 3004
-#   Alpha-ID (身份) → 8000
-#   PostgreSQL      → 5432
+# Port allocation:
+#   Gateway (Unified API) → 18080
+#   Nebula (Workflow)     → 2002
+#   Alpha-ID (Identity)   → 8000
+#   PostgreSQL            → 5432
 # ════════════════════════════════════════════════════════════════════
 
 services:
-  # ── PostgreSQL 数据库（共享实例） ──
+  # ── PostgreSQL (shared instance) ──
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -35,7 +35,7 @@ services:
       retries: 5
       start_period: 10s
 
-  # ── Nebula（执行层） ──
+  # ── Nebula (Workflow Engine) ──
   nebula:
     build:
       context: ./nebula
@@ -57,37 +57,7 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── DS（电商后端） ──
-  ds:
-    build:
-      context: ./DS
-      dockerfile: Dockerfile
-    ports:
-      - "3004:3000"
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-      DATABASE_URL: postgresql://${DB_USER:-ghost}:${DB_PASSWORD:-ghost_secret}@db:5432/ds?schema=public
-      DEMO_MODE: ${DEMO_MODE:-true}
-      DASH_USER: ${DASH_USER:-}
-      DASH_PASS: ${DASH_PASS:-}
-      AI_API_KEY: ${DEEPSEEK_API_KEY:-}
-      AI_BASE_URL: ${AI_BASE_URL:-https://api.deepseek.com/v1}
-      AI_MODEL: ${AI_MODEL:-deepseek-chat}
-      SHOPLAZZA_SHOP_DOMAIN: ${SHOPLAZZA_SHOP_DOMAIN:-}
-      SHOPLAZZA_ACCESS_TOKEN: ${SHOPLAZZA_ACCESS_TOKEN:-}
-    depends_on:
-      db:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-
-  # ── Alpha-ID（身份层） ──
+  # ── Alpha-ID (Identity Layer) ──
   alphaid:
     build:
       context: ./alphaid/projects
@@ -109,7 +79,7 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── Gateway（统一 API 网关） ──
+  # ── Gateway (Unified API Gateway) ──
   gateway:
     build:
       context: ./ghost-main/gateway
@@ -118,15 +88,12 @@ services:
       - "18080:18080"
     environment:
       ALPHAID_URL: http://alphaid:8000
-      DS_URL: http://ds:3000
       NEBULA_URL: http://nebula:2002
       GATEWAY_PORT: "18080"
     depends_on:
       alphaid:
         condition: service_healthy
       nebula:
-        condition: service_healthy
-      ds:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:

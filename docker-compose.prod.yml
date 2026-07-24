@@ -1,24 +1,24 @@
 # ════════════════════════════════════════════════════════════════════
-# Ghost Workspace — 生产部署编排（Caddy + 全服务）
+# Ghost Workspace — Production Deployment (Caddy + All Services)
 # ════════════════════════════════════════════════════════════════════
-# 启动方式:   docker compose -f docker-compose.prod.yml up -d
-# 配置文件:    .env.production（复制自 .env.production.example）
-# Caddyfile:  Caddyfile（生产域名配置）
+# Start:      docker compose -f docker-compose.prod.yml up -d
+# Env file:   .env.production (copy from .env.production.example)
+# Caddyfile:  Caddyfile (production domain config)
 # ════════════════════════════════════════════════════════════════════
 #
-# 架构:
-#   Internet → Caddy (443/80) → 各服务内部端口
+# Architecture:
+#   Internet → Caddy (443/80) → internal service ports
 #
-# 端口分配（不对外暴露，仅内部 Docker 网络）:
-#   caddy         → 80, 443（唯一对外端口）
-#   db            → 5432
-#   nebula        → 2002
-#   ds            → 3004
-#   alphaid       → 8000
+# Port allocation (internal Docker network only):
+#   caddy   → 80, 443 (only public-facing ports)
+#   db      → 5432
+#   nebula  → 2002
+#   alphaid → 8000
+#   gateway → 18080
 # ════════════════════════════════════════════════════════════════════
 
 services:
-  # ── Caddy 反向代理 + 自动 HTTPS ──
+  # ── Caddy Reverse Proxy + Auto HTTPS ──
   caddy:
     image: caddy:2-alpine
     container_name: ghost-caddy
@@ -34,9 +34,9 @@ services:
     depends_on:
       nebula:
         condition: service_healthy
-      ds:
-        condition: service_healthy
       alphaid:
+        condition: service_healthy
+      gateway:
         condition: service_healthy
     networks:
       - ghost-net
@@ -44,7 +44,7 @@ services:
       test: ["CMD", "caddy", "version"]
       interval: 30s
 
-  # ── PostgreSQL 数据库 ──
+  # ── PostgreSQL ──
   db:
     image: postgres:16-alpine
     container_name: ghost-db
@@ -66,7 +66,7 @@ services:
       retries: 5
       start_period: 10s
 
-  # ── Nebula（执行层） ──
+  # ── Nebula (Workflow Engine) ──
   nebula:
     build:
       context: ./nebula
@@ -90,33 +90,7 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── DS Dashboard ──
-  ds:
-    build:
-      context: ./DS
-      dockerfile: Dockerfile
-    container_name: ghost-ds
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      PORT: 3000
-      DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/ds?schema=public
-      DS_API_KEY: ${DS_API_KEY:?DS_API_KEY required}
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - ghost-net
-    expose:
-      - "3000"
-    healthcheck:
-      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-
-  # ── Alpha-ID（身份层） ──
+  # ── Alpha-ID (Identity Layer) ──
   alphaid:
     build:
       context: ./alphaid/projects
@@ -136,6 +110,33 @@ services:
       - "8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Gateway (Unified API Gateway) ──
+  gateway:
+    build:
+      context: ./ghost-main/gateway
+      dockerfile: Dockerfile
+    container_name: ghost-gateway
+    restart: unless-stopped
+    environment:
+      ALPHAID_URL: http://alphaid:8000
+      NEBULA_URL: http://nebula:2002
+      GATEWAY_PORT: "18080"
+    depends_on:
+      alphaid:
+        condition: service_healthy
+      nebula:
+        condition: service_healthy
+    networks:
+      - ghost-net
+    expose:
+      - "18080"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:18080/health')"]
       interval: 30s
       timeout: 5s
       retries: 3

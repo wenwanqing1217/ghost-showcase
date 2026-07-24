@@ -1,17 +1,17 @@
 # ════════════════════════════════════════════════════════════════════
-# Ghost Workspace — Caddy 生产配置
+# Ghost Workspace — Caddy Production Config
 # ════════════════════════════════════════════════════════════════════
-# 自动 HTTPS（Let's Encrypt），反向代理到各服务
-# 用法: caddy run --config Caddyfile
+# Auto HTTPS (Let's Encrypt), reverse proxy to internal services
+# Usage: caddy run --config Caddyfile
 #
-# 替换域名后即可启用生产 TLS - 取消注释下方站点块并修改域名
+# Uncomment and set your domain to enable production TLS
 # ════════════════════════════════════════════════════════════════════
 
-# ---------- 生产域名（取消注释并修改域名） ----------
+# ---------- Production domain (uncomment & set your domain) ----------
 # ghost.example.com {
 #     encode gzip
 #
-#     # 安全头（生产强化）
+#     # Security headers
 #     header {
 #         Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https://api.stripe.com https://api.deepseek.com https://api.groq.com"
 #         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -23,41 +23,31 @@
 #         -Server
 #     }
 #
-#     # Gateway 统一 API 入口
+#     # Gateway — Unified API entry point
 #     handle_path /api/* {
 #         reverse_proxy gateway:18080
 #     }
 #
-#     # Ghost HTML 主站
-#     reverse_proxy localhost:8080
+#     # Default → Gateway
+#     reverse_proxy gateway:18080
 # }
 #
-# # 子域名路由（可选，直接访问各服务）
-# map.example.com {
+# # Sub-domains (optional, direct service access)
+# nebula.example.com {
 #     encode gzip
 #     reverse_proxy nebula:2002
 # }
 #
-# ds.example.com {
-#     encode gzip
-#     reverse_proxy ds:3004
-# }
-#
 # aid.example.com {
 #     encode gzip
-#     reverse_proxy aid:8000
-# }
-#
-# # 默认站点（重定向到主站）
-# example.com {
-#     redir https://ghost.example.com
+#     reverse_proxy alphaid:8000
 # }
 
-# ---------- 本地开发 / 自签名（无需域名） ----------
+# ---------- Local development / self-signed (no domain needed) ----------
 :80 {
     encode gzip
 
-    # 安全头
+    # Security headers
     header {
         X-Frame-Options "DENY"
         X-Content-Type-Options "nosniff"
@@ -67,54 +57,28 @@
         -Server
     }
 
-    # 健康检查聚合
+    # Health check
     handle /health {
         respond "OK" 200
     }
 
-    # Gateway 统一 API 入口（优先匹配）
+    # Gateway — Unified API entry point (priority match)
     handle_path /api/gateway/* {
         uri strip_prefix /api/gateway
         reverse_proxy gateway:18080
     }
 
-    # MindFlow Map API (nebula)
-    handle_path /api/map/* {
-        reverse_proxy nebula:2002
-    }
-
-    # DS Dashboard
-    handle_path /ds/* {
-        reverse_proxy ds:3004
-    }
-
-    # DS API（直接转发）
-    handle_path /api/ds/* {
-        uri strip_prefix /api/ds
-        reverse_proxy ds:3004
-    }
-
-    # AID API
+    # Alpha-ID API
     handle_path /api/aid/* {
         uri strip_prefix /api/aid
-        reverse_proxy aid:8000
+        reverse_proxy alphaid:8000
     }
 
-    # MindFlow Map 工作台 (nebula)
-    handle_path /workspace/* {
+    # Nebula Workflow Engine
+    handle_path /api/nebula/* {
         reverse_proxy nebula:2002
     }
 
-    # 编辑器
-    handle_path /editor/* {
-        reverse_proxy nebula:2002
-    }
-
-    # 静态资源
-    handle_path /static/* {
-        reverse_proxy nebula:2002
-    }
-
-    # 默认 → MindFlow Map (nebula)
-    reverse_proxy nebula:2002
+    # Default → Gateway
+    reverse_proxy gateway:18080
 }

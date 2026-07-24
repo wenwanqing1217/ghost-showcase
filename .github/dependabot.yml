@@ -7,13 +7,6 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 5
 
-  # DS (Node.js)
-  - package-ecosystem: "npm"
-    directory: "/DS"
-    schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 10
-
   # core (TypeScript)
   - package-ecosystem: "npm"
     directory: "/core"
@@ -21,14 +14,21 @@ updates:
       interval: "weekly"
     open-pull-requests-limit: 10
 
-  # nebula (Python — 执行层)
+  # flow (Next.js)
+  - package-ecosystem: "npm"
+    directory: "/flow"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  # nebula (Python — Workflow Engine)
   - package-ecosystem: "pip"
     directory: "/nebula"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
 
-  # alphaid (Python — 身份层)
+  # alphaid (Python — Identity Layer)
   - package-ecosystem: "pip"
     directory: "/alphaid/projects"
     schedule:

@@ -16,9 +16,8 @@ body:
       options:
         - Alpha-ID (identity layer)
         - Nebula (workflow engine)
-        - DS (e-commerce backend)
         - core (orchestration)
-        - Ghost.html (official website)
+        - flow (frontend portal)
         - Gateway (API gateway)
         - Other
     validations:

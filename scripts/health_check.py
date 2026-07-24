@@ -1,10 +1,10 @@
-""" Unified health check for all Ghost services.
+"""Unified health check for all Ghost services.
 
 Usage:
     python scripts/health_check.py
 
 Checks each service's health endpoint and reports overall status.
-Useful for quick verification after `docker compose up` or `start-demo.bat`.
+Useful for quick verification after `docker compose up`.
 """
 
 from __future__ import annotations
@@ -25,10 +25,6 @@ SERVICES: dict[str, dict[str, str]] = {
     "nebula": {
         "url": "http://localhost:2002/health",
         "label": "Nebula (Workflow Engine)",
-    },
-    "ds": {
-        "url": "http://localhost:3004/api/health",
-        "label": "DS (Shopify Dashboard)",
     },
     "aid": {
         "url": "http://localhost:8000/health",
