@@ -2894,6 +2894,9 @@
       </button>
       <button class="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition router-nav-btn" data-route="ecommerce">
 <button class="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition router-nav-btn" data-route="map">
+<button class="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-400 hover:text-white hover:bg-white/5 transition router-nav-btn" data-route="ai">
+  <span class="inline-flex items-center gap-2"><span class="w-5 h-5 rounded bg-purple-500/20 flex items-center justify-center text-xs">馃</span>AI 鍔╃悊</span>
+</button>
   <span class="inline-flex items-center gap-2"><span class="w-5 h-5 rounded bg-green-500/20 flex items-center justify-center text-xs">馃搷</span>浜や簰鍦板浘</span>
 </button>
         <span class="inline-flex items-center gap-2"><span class="w-5 h-5 rounded bg-orange-500/20 flex items-center justify-center text-xs">🛒</span>电商管理</span>
@@ -3198,6 +3201,75 @@
       <div class="router-node">
         <h3 class="text-sm font-semibold text-white mb-2">路线规划</h3>
         <div id="map-route-info" class="text-xs text-slate-400">选择地点后点击"去这里"规划路线</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- AI 智能助理面板 (聊天 + 语音 + 图片) -->
+<div id="route-ai" class="wb-route-panel hidden">
+  <div class="flex items-center justify-between mb-4">
+    <div>
+      <h2 class="text-2xl font-bold text-white">AI 智能助理</h2>
+      <p class="text-slate-400 text-sm">文本 · 语音 · 图片 · 流式对话</p>
+    </div>
+    <div class="flex items-center gap-2">
+      <button id="ai-voice-btn" class="px-3 py-1.5 rounded-lg bg-red-500/20 border border-red-500/30 text-red-300 text-xs hover:bg-red-500/30" onclick="aiToggleVoice()">🎤 语音输入</button>
+      <button id="ai-clear-btn" class="px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-400 text-xs hover:bg-white/10" onclick="aiClearChat()">清空对话</button>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+    <!-- 对话区域 -->
+    <div class="lg:col-span-3">
+      <div id="ai-chat-messages" class="space-y-3 mb-4 p-4 rounded-xl bg-black/20 border border-white/5" style="min-height:320px;max-height:420px;overflow-y:auto;">
+        <div class="flex justify-start">
+          <div class="max-w-[80%] rounded-2xl px-4 py-2.5 bg-white/[0.04] border border-white/[0.06]">
+            <p class="text-white/90 text-sm">你好！我是 Ghost AI 助理。我可以帮你处理意图解析、电商查询、身份管理等问题。你可以打字、语音输入或上传图片来和我交流。</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 输入区域 -->
+      <div id="ai-image-preview-wrap" class="hidden mb-2 relative inline-block">
+        <img id="ai-image-preview" src="" class="max-h-24 rounded-lg border border-white/10" />
+        <button onclick="aiClearImage()" class="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500/80 text-white text-xs flex items-center justify-center">x</button>
+      </div>
+      <div class="flex gap-2">
+        <input id="ai-chat-input" type="text" placeholder="输入消息... (Enter 发送, Shift+Enter 换行)" class="flex-1 px-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white text-sm placeholder-white/30 focus:border-nebula-500/50 outline-none" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();aiSendMsg()}" />
+        <button onclick="aiUploadImage()" class="px-3 py-2.5 rounded-xl bg-green-500/20 border border-green-500/30 text-green-300 text-sm hover:bg-green-500/30" title="上传图片">📷</button>
+        <button id="ai-send-btn" onclick="aiSendMsg()" class="px-5 py-2.5 rounded-xl bg-nebula-500/20 border border-nebula-500/30 text-nebula-300 text-sm font-medium hover:bg-nebula-500/30">发送</button>
+      </div>
+      <input id="ai-image-input" type="file" accept="image/*" class="hidden" onchange="aiHandleImage(this)" />
+      <p class="text-[10px] text-slate-500 mt-2">提示：语音输入需要 Chrome/Edge 浏览器；图片分析会发送到 AI 视觉模型</p>
+    </div>
+
+    <!-- 侧栏：状态与快捷 -->
+    <div class="space-y-4">
+      <div class="router-node">
+        <h3 class="text-sm font-semibold text-white mb-2">会话状态</h3>
+        <div class="space-y-1 text-xs text-slate-400">
+          <div class="flex justify-between"><span>消息数</span><span id="ai-msg-count" class="text-nebula-300">0</span></div>
+          <div class="flex justify-between"><span>状态</span><span id="ai-status-text" class="text-emerald-400">就绪</span></div>
+        </div>
+      </div>
+      <div class="router-node">
+        <h3 class="text-sm font-semibold text-white mb-2">快捷指令</h3>
+        <div class="space-y-1.5">
+          <button class="w-full text-left px-3 py-1.5 rounded-lg bg-white/5 text-xs text-slate-300 hover:bg-white/10" onclick="aiQuickSend('查看我的身份信息')">查看身份</button>
+          <button class="w-full text-left px-3 py-1.5 rounded-lg bg-white/5 text-xs text-slate-300 hover:bg-white/10" onclick="aiQuickSend('同步电商数据')">同步电商</button>
+          <button class="w-full text-left px-3 py-1.5 rounded-lg bg-white/5 text-xs text-slate-300 hover:bg-white/10" onclick="aiQuickSend('查看订单列表')">查看订单</button>
+          <button class="w-full text-left px-3 py-1.5 rounded-lg bg-white/5 text-xs text-slate-300 hover:bg-white/10" onclick="aiQuickSend('现在几点')">现在时间</button>
+          <button class="w-full text-left px-3 py-1.5 rounded-lg bg-white/5 text-xs text-slate-300 hover:bg-white/10" onclick="aiQuickSend('帮我设置一个5秒后的提醒')">定时提醒</button>
+        </div>
+      </div>
+      <div class="router-node">
+        <h3 class="text-sm font-semibold text-white mb-2">语音播报</h3>
+        <div class="flex gap-2">
+          <button id="ai-speak-btn" class="flex-1 px-3 py-1.5 rounded-lg bg-purple-500/20 border border-purple-500/30 text-purple-300 text-xs hover:bg-purple-500/30" onclick="aiToggleSpeak()">🔊 自动播报</button>
+        </div>
+        <p class="text-[10px] text-slate-500 mt-1">开启后 AI 回复将自动朗读</p>
       </div>
     </div>
   </div>
@@ -4499,6 +4571,163 @@ var ghostMapObserver = new MutationObserver(function(mutations) {
 });
 if (document.getElementById("route-map")) {
   ghostMapObserver.observe(document.getElementById("route-map"), { attributes: true, attributeFilter: ["class"] });
+}
+
+
+// ============ AI 智能助理 (文本 + 语音 + 图片) ============
+var aiMsgCount = 0;
+var aiSpeaking = false;
+var aiImageBase64 = null;
+var aiRecognition = null;
+
+function aiAddMsg(role, content, image) {
+  var box = document.getElementById('ai-chat-messages');
+  var div = document.createElement('div');
+  div.className = role === 'user' ? 'flex justify-end' : 'flex justify-start';
+  var bubble = document.createElement('div');
+  bubble.className = role === 'user' ? 'max-w-[80%] rounded-2xl px-4 py-2.5 bg-purple-600/20 border border-purple-500/20' : 'max-w-[80%] rounded-2xl px-4 py-2.5 bg-white/[0.04] border border-white/[0.06]';
+  var p = document.createElement('p');
+  p.className = 'text-white/90 text-sm whitespace-pre-wrap break-words';
+  p.textContent = content;
+  if (image) {
+    var img = document.createElement('img');
+    img.src = image;
+    img.className = 'max-w-full rounded-lg mb-2 border border-white/10';
+    bubble.appendChild(img);
+  }
+  bubble.appendChild(p);
+  div.appendChild(bubble);
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+  aiMsgCount++;
+  document.getElementById('ai-msg-count').textContent = aiMsgCount;
+}
+
+function aiSetStatus(text, color) {
+  var el = document.getElementById('ai-status-text');
+  el.textContent = text;
+  el.className = color || 'text-emerald-400';
+}
+
+function aiSendMsg() {
+  var input = document.getElementById('ai-chat-input');
+  var text = input.value.trim();
+  if (!text && !aiImageBase64) return;
+  input.value = '';
+  aiAddMsg('user', text || '分析这张图片', aiImageBase64 ? aiImagePreviewSrc : null);
+  aiClearImage();
+  aiSetStatus('思考中...', 'text-amber-400');
+  document.getElementById('ai-send-btn').disabled = true;
+  var payload = { message: text };
+  if (aiImageBase64) {
+    payload.image = aiImageBase64;
+    payload.alpha_id = (typeof MY_ALPHA_ID !== 'undefined' && MY_ALPHA_ID) || 'anonymous';
+  } else {
+    payload.alpha_id = (typeof MY_ALPHA_ID !== 'undefined' && MY_ALPHA_ID) || 'anonymous';
+  }
+  fetch('http://localhost:18080/v1/chat', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(function(r) { return r.json(); }).then(function(data) {
+    var reply = data && data.reply ? data.reply : (data && data.content ? data.content : JSON.stringify(data));
+    aiAddMsg('ai', reply);
+    aiSetStatus('就绪', 'text-emerald-400');
+    if (aiSpeaking) aiSpeak(reply);
+  }).catch(function(e) {
+    aiAddMsg('ai', '连接失败: ' + e.message + '\n请确认 Gateway (18080) 已启动');
+    aiSetStatus('连接失败', 'text-red-400');
+  }).finally(function() {
+    document.getElementById('ai-send-btn').disabled = false;
+  });
+}
+
+function aiQuickSend(text) {
+  document.getElementById('ai-chat-input').value = text;
+  aiSendMsg();
+}
+
+function aiClearChat() {
+  document.getElementById('ai-chat-messages').innerHTML = '';
+  aiMsgCount = 0;
+  document.getElementById('ai-msg-count').textContent = '0';
+}
+
+function aiUploadImage() {
+  document.getElementById('ai-image-input').click();
+}
+
+var aiImagePreviewSrc = null;
+function aiHandleImage(input) {
+  var file = input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    aiImageBase64 = e.target.result;
+    aiImagePreviewSrc = e.target.result;
+    document.getElementById('ai-image-preview').src = e.target.result;
+    document.getElementById('ai-image-preview-wrap').classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function aiClearImage() {
+  aiImageBase64 = null;
+  aiImagePreviewSrc = null;
+  document.getElementById('ai-image-preview-wrap').classList.add('hidden');
+  document.getElementById('ai-image-input').value = '';
+}
+
+function aiToggleVoice() {
+  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) { alert('浏览器不支持语音识别，请使用 Chrome/Edge'); return; }
+  if (aiRecognition) {
+    aiRecognition.stop();
+    aiRecognition = null;
+    document.getElementById('ai-voice-btn').textContent = '🎤 语音输入';
+    return;
+  }
+  var rec = new SR();
+  rec.lang = 'zh-CN';
+  rec.interimResults = false;
+  rec.onresult = function(e) {
+    var text = e.results[0][0].transcript;
+    document.getElementById('ai-chat-input').value = text;
+    document.getElementById('ai-voice-btn').textContent = '🎤 语音输入';
+  };
+  rec.onerror = function() {
+    document.getElementById('ai-voice-btn').textContent = '🎤 语音输入';
+  };
+  rec.onend = function() {
+    aiRecognition = null;
+    document.getElementById('ai-voice-btn').textContent = '🎤 语音输入';
+  };
+  rec.start();
+  aiRecognition = rec;
+  document.getElementById('ai-voice-btn').textContent = '🔴 正在听...';
+}
+
+function aiSpeak(text) {
+  if (!window.speechSynthesis) return;
+  window.speechSynthesis.cancel();
+  var utter = new SpeechSynthesisUtterance(text);
+  utter.lang = 'zh-CN';
+  utter.rate = 1;
+  window.speechSynthesis.speak(utter);
+}
+
+function aiToggleSpeak() {
+  aiSpeaking = !aiSpeaking;
+  var btn = document.getElementById('ai-speak-btn');
+  if (aiSpeaking) {
+    btn.textContent = '🔊 播报中';
+    btn.classList.add('bg-purple-500/40');
+  } else {
+    btn.textContent = '🔊 自动播报';
+    btn.classList.remove('bg-purple-500/40');
+    window.speechSynthesis.cancel();
+  }
 }
 
 </script>
