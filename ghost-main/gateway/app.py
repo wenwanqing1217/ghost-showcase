@@ -27,6 +27,7 @@ load_dotenv()
 ALPHAID_URL = os.getenv("ALPHAID_URL", "http://localhost:8000")
 DS_URL = os.getenv("DS_URL", "http://localhost:3004")
 NEBULA_URL = os.getenv("NEBULA_URL", "http://localhost:2002")
+FLOW_URL = os.getenv("FLOW_URL", "http://localhost:3001")
 DEFAULT_ALPHA_ID = os.getenv("DEFAULT_ALPHA_ID", "Alpha-001")
 GATEWAY_PORT = int(os.getenv("GATEWAY_PORT", "8080"))
 
@@ -98,6 +99,7 @@ async def health():
         "alphaid": "unknown",
         "ds": "unknown",
         "nebula": "unknown",
+        "flow": "unknown",
     }
     # 检查 alphaid
     try:
@@ -117,6 +119,12 @@ async def health():
         result["nebula"] = "ok" if r.status_code == 200 else f"error({r.status_code})"
     except:
         result["nebula"] = "unreachable"
+    # 检查 flow
+    try:
+        r = await client.get(f"{FLOW_URL}/api/register/status/test", timeout=3)
+        result["flow"] = "ok" if r.status_code in (200, 404) else f"error({r.status_code})"
+    except:
+        result["flow"] = "unreachable"
     return ok(result)
 
 
@@ -314,6 +322,60 @@ async def execute_workflow(request: Request):
 
 
 # ============================================================
+# 公共网关 — 注册流程 (flow/api)
+# ============================================================
+# 注册路由直接透传 flow/api 的原始响应（不包裹 ok()），
+# 因为 flow/api 自身已返回 {success, data/error} 格式。
+
+@app.post("/v1/register/send-sms")
+async def register_send_sms(request: Request):
+    """发送短信验证码 → 代理到 flow/api"""
+    body = await request.json()
+    data = await proxy_post("/api/register/send-sms", FLOW_URL, body=body)
+    return JSONResponse(data)
+
+
+@app.post("/v1/register/verify-sms")
+async def register_verify_sms(request: Request):
+    """验证短信验证码 → 代理到 flow/api"""
+    body = await request.json()
+    data = await proxy_post("/api/register/verify-sms", FLOW_URL, body=body)
+    return JSONResponse(data)
+
+
+@app.post("/v1/register/face-verify")
+async def register_face_verify(request: Request):
+    """发起支付宝人脸认证 → 代理到 flow/api"""
+    body = await request.json()
+    data = await proxy_post("/api/register/face-verify", FLOW_URL, body=body)
+    return JSONResponse(data)
+
+
+@app.post("/v1/register/face-query")
+async def register_face_query(request: Request):
+    """查询人脸认证结果 → 代理到 flow/api"""
+    body = await request.json()
+    data = await proxy_post("/api/register/face-query", FLOW_URL, body=body)
+    return JSONResponse(data)
+
+
+@app.post("/v1/register/generate-did")
+async def register_generate_did(request: Request):
+    """生成去中心化身份 DID → 代理到 flow/api"""
+    body = await request.json()
+    data = await proxy_post("/api/register/generate-did", FLOW_URL, body=body)
+    return JSONResponse(data)
+
+
+@app.post("/v1/register/complete")
+async def register_complete(request: Request):
+    """完成注册 → 代理到 flow/api"""
+    body = await request.json()
+    data = await proxy_post("/api/register/complete-registration", FLOW_URL, body=body)
+    return JSONResponse(data)
+
+
+# ============================================================
 # 统一仪表盘 — 一次性返回 Ghost.html 需要的所有数据
 # ============================================================
 @app.get("/v1/dashboard")
@@ -374,6 +436,7 @@ if __name__ == "__main__":
 ║  Alpha-ID: {ALPHAID_URL}    ║
 ║  DS:       {DS_URL}       ║
 ║  Nebula:   {NEBULA_URL}       ║
+║  Flow:     {FLOW_URL}       ║
 ╚══════════════════════════════════════════════════╝
     """)
     uvicorn.run(app, host="0.0.0.0", port=GATEWAY_PORT)
