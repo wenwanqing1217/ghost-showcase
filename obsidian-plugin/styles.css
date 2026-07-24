@@ -1,0 +1,22 @@
+/* Ghost Dual-Chain Memory Plugin Styles */
+
+.ghost-sync-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.ghost-sync-status.connected {
+  color: #10b981;
+}
+
+.ghost-sync-status.disconnected {
+  color: #ef4444;
+}
+
+.ghost-sync-status.syncing {
+  color: #8b5cf6;
+}
