@@ -111,6 +111,12 @@ Ghost.html  ──fetch──▶  Ghost Gateway (:18080)
 | `/v1/ecommerce/sync` | POST | DS :3004 | 触发同步 |
 | `/v1/workflows` | GET | nebula :2002 | 工作流列表 ✅ |
 | `/v1/workflows/execute` | POST | nebula :2002 | 执行工作流 ✅ |
+| `/v1/register/send-sms` | POST | flow/api :3001 | 发送短信验证码 ✅ |
+| `/v1/register/verify-sms` | POST | flow/api :3001 | 验证短信验证码 ✅ |
+| `/v1/register/face-verify` | POST | flow/api :3001 | 发起支付宝人脸认证 ✅ |
+| `/v1/register/face-query` | POST | flow/api :3001 | 查询人脸认证结果 ✅ |
+| `/v1/register/generate-did` | POST | flow/api :3001 | 生成去中心化身份 DID ✅ |
+| `/v1/register/complete` | POST | flow/api :3001 | 完成注册 ✅ |
 
 **Intent 路由规则：**
 - 含"订单/商品/店铺"关键词 → DS 电商
@@ -226,12 +232,13 @@ Ghost.html  ──fetch──▶  Ghost Gateway (:18080)
 | 技术 | Next.js 14 + React 18 + TypeScript + Fastify + Leaflet |
 | 端口 | 3000（前端）/ 3001（API） |
 | 测试 | 32/32 全部通过 |
-| 部署 | ❌ 未部署 |
+| 部署 | ❌ 前端未部署；✅ flow/api(3001) 运行中 |
 | 仓库 | [github.com/wenwanqing1217/mindflow](https://github.com/wenwanqing1217/mindflow) |
 
 **包含页面：** register、identity、dashboard、ai、map、multimodal、platform、usage、assistant
 
 **定位：** 功能原型参考，不是官网。Ghost.html 是唯一对外入口。
+**flow/api 现状：** 注册服务（短信+人脸+DID）运行中，通过 Gateway `/v1/register/*` 对外提供。
 
 **flow/api 更新：** `aid.service.ts` 已改为代理到 alphaid（:8000），不再返回假数据。
 
@@ -263,6 +270,7 @@ Ghost Gateway (:18080)  ←── 统一入口
   ├── /v1/orders/*      → DS (:3004)
   ├── /v1/ecommerce/*   → DS (:3004)
   ├── /v1/workflows/*   → nebula (:2002) ← 工作流唯一源 ✅
+  ├── /v1/register/*    → flow/api (:3001) ← 注册/短信/人脸/DID ✅
   └── /v1/intent/*      → 智能路由分发
 
 alphaid (:8000)
@@ -316,7 +324,7 @@ flow/api (:3001) [代理模式]
 | 2 | ~~nebula 未运行~~ | ✅ 已运行，工作流引擎可用 | — |
 | 3 | PostgreSQL 未启动（Docker 未运行） | nebula 用 SQLite，影响有限 | P2 |
 | 4 | flow/web 与 Ghost.html 双前端 | 维护浪费 | P2 |
-| 5 | 支付宝/短信/人脸验证 SDK 未接入 | 身份层缺少实名认证 | P0 |
+| 5 | ~~支付宝/短信/人脸验证 SDK 未接入~~ | ✅ 已接入 flow/api，通过 Gateway /v1/register/* 提供 | — |
 | 6 | core 编排层为"空壳" | 没有真正调度 | P2 |
 
 ---
@@ -369,6 +377,9 @@ flow/api (:3001) [代理模式]
 - [x] Ghost Gateway (18080) 统一入口
 - [x] Ghost.html 统一走网关，清理散落端口调用
 - [x] /v1/dashboard 聚合全部数据
+- [x] 注册流程（短信+人脸+DID）接入 Ghost.html，走网关 /v1/register/*
+- [x] Gateway 新增 register 代理路由，透传 flow/api 响应
+- [x] Nebula (2002) 启动并连接网关
 
 ### Phase 2：合并重复
 - [ ] 删除 nebula/src/identity/，改为调 alphaid API

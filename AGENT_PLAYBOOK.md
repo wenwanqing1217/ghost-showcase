@@ -14,8 +14,8 @@
 | `alphaid/` | 身份层（DID/JWT/记忆） | 8000 | ✅ 运行中 | ✅ |
 | `DS/` | 电商后端 API | 3004 | ✅ 运行中 | ✅ |
 | `core/` | 编排层 | 3001 | ❓ | ✅ |
-| `nebula/` | 执行层 | 2002 | ❌ 未运行 | ✅ 代码完整 |
-| `flow/` | Next.js 功能原型 | 3000/3001 | ❌ 未部署 | ⚠️ 别往里加官网功能 |
+| `nebula/` | 执行层 | 2002 | ✅ 运行中 | ✅ |
+| `flow/` | 注册/身份认证 | 3001 | ✅ 运行中 | ⚠️ 别往里加官网功能 |
 | `obsidian-plugin/` | Obsidian 插件 | — | — | ✅ |
 
 ---
@@ -75,8 +75,14 @@
 | `GET /v1/orders` | DS :3004 | 订单列表 |
 | `GET /v1/ecommerce/stats` | DS :3004 | 电商统计 |
 | `POST /v1/ecommerce/sync` | DS :3004 | 触发同步 |
-| `GET /v1/workflows` | nebula :2002 | 工作流列表（待连） |
-| `POST /v1/workflows/execute` | nebula :2002 | 执行工作流（待连） |
+| `GET /v1/workflows` | nebula :2002 | 工作流列表 |
+| `POST /v1/workflows/execute` | nebula :2002 | 执行工作流 |
+| `POST /v1/register/send-sms` | flow/api :3001 | 发送短信验证码 |
+| `POST /v1/register/verify-sms` | flow/api :3001 | 验证短信验证码 |
+| `POST /v1/register/face-verify` | flow/api :3001 | 发起支付宝人脸认证 |
+| `POST /v1/register/face-query` | flow/api :3001 | 查询人脸认证结果 |
+| `POST /v1/register/generate-did` | flow/api :3001 | 生成去中心化身份 DID |
+| `POST /v1/register/complete` | flow/api :3001 | 完成注册 |
 
 **Intent 路由规则：**
 - "订单/商品/店铺" → DS 电商
