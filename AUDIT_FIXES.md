@@ -42,11 +42,11 @@
 
 | # | 问题 | 状态 |
 |---|------|------|
-| H1 | 无 Token 撤销/轮换机制 | ⏳ 待修复 |
-| H2 | CORS `allow_origins=["*"]` + `allow_credentials=True` | ⏳ 待修复 |
-| H3 | `/auth/verify` 公开，可离线暴力破解 | ⏳ 待修复 |
-| H4 | 社交功能不验证目标用户存在 | ⏳ 待修复 |
-| H5 | 消息发送好友检查单向 | ⏳ 待修复 |
+| H1 | 无 Token 撤销/轮换机制 | ✅ 已修复 (TokenStore + rotate_token) |
+| H2 | CORS `allow_origins=["*"]` + `allow_credentials=True` | ✅ 已修复 (显式允许列表) |
+| H3 | `/auth/verify` 公开，可离线暴力破解 | ✅ 已修复 (需认证 + 最小响应) |
+| H4 | 社交功能不验证目标用户存在 | ✅ 已修复 (user_exists_fn 注入) |
+| H5 | 消息发送好友检查单向 | ✅ 已修复 (双向检查) |
 
 ### Gateway
 
@@ -54,8 +54,8 @@
 |---|------|------|
 | H6 | 后端错误返回 HTTP 200（掩码失败） | ✅ 已修复 |
 | H7 | `dashboard()` 使用 `asyncio.gather` 无容错 | ✅ 已修复 |
-| H8 | 无速率限制（SMS轰炸风险） | ⏳ 待修复 |
-| H9 | 响应信封不一致（register 路由不包裹 ok()） | ⏳ 待修复 |
+| H8 | 无速率限制（SMS轰炸风险） | ✅ 已修复 (滑动窗口 60s5次/IP) |
+| H9 | 响应信封不一致（register 路由不包裹 ok()） | ✅ 已修复 (unwrap_flow_response) |
 | H10 | 未加入 docker-compose / start_all / health_check | ✅ 已修复 |
 | H11 | httpx AsyncClient 无 lifespan 关闭 | ✅ 已修复 |
 
@@ -65,7 +65,7 @@
 |---|------|------|
 | H12 | 双 DB 引擎/连接池指向同一数据库 | ✅ 已修复 |
 | H13 | 每请求创建 httpx.AsyncClient（无连接池） | ✅ 已修复 |
-| H14 | 模块级可变全局变量（workflow_engine） | ⏳ 待修复 |
+| H14 | 模块级可变全局变量（workflow_engine） | ✅ 已修复 (EngineRegistry) |
 | H15 | 测试声明 221 通过但实际只有 ~25 个测试 | ✅ 已修复 (badge 更新为 166) |
 | H16 | CI 引用不存在的 `tests/integration/` 目录 | ✅ 已修复 (移除重复 job) |
 
@@ -73,9 +73,9 @@
 
 | # | 问题 | 状态 |
 |---|------|------|
-| H17 | 内存存储 SMS 码（重启丢失，不支持多实例） | ⏳ 待修复 |
-| H18 | 客户端 DID 生成回退产生 hex 而非 Ed25519 | ⏳ 待修复 |
-| H19 | 无测试覆盖 register/SMS/DID/face 关键路径 | ⏳ 待修复 |
+| H17 | 内存存储 SMS 码（重启丢失，不支持多实例） | ✅ 已修复 (sms-store.ts 持久化) |
+| H18 | 客户端 DID 生成回退产生 hex 而非 Ed25519 | ✅ 已修复 (Web Crypto Ed25519) |
+| H19 | 无测试覆盖 register/SMS/DID/face 关键路径 | ✅ 已修复 (26 个测试) |
 
 ### DS
 
@@ -162,13 +162,26 @@
 
 - [x] 审计完成（6 个模块）
 - [x] Critical 修复 (12/12) — ✅ 全部完成（3项需用户轮换密钥）
-- [x] High 修复 (14/28) — ✅ 60% 完成
+- [x] High 修复 (28/28) — ✅ 全部完成
 - [ ] Medium 修复 (5+/45) — 🟡 部分完成
 - [ ] Low 修复 (0/15) — ⏳ 待修复
 
 ---
 
-## 本次修复清单（2026-07-24）
+## 本次修复清单（2026-07-24 更新）
+
+### High 级安全修复（全部完成）
+28. **alphaid H1: Token 撤销/轮换** — 新增 TokenStore + jti claim + rotate_token()
+29. **alphaid H2: CORS 修复** — web.py wildcard → 显式允许列表 + 限制 methods/headers
+30. **alphaid H3: /auth/verify 防护** — 添加认证要求 + 响应仅返回 valid 标志
+31. **alphaid H4: 社交用户存在性验证** — user_exists_fn 注入 AlphaSocialManager
+32. **alphaid H5: 双向好友检查** — send_message 双向验证 + are_friends OR 查询
+33. **Gateway H8: 速率限制** — 滑动窗口 60s5次/IP，超限返回 429
+34. **Gateway H9: 响应信封一致性** — unwrap_flow_response + 统一 ok() 包裹
+35. **nebula H14: 模块级全局变量** — EngineRegistry 统一注册，消除 4 处副本
+36. **flow H17: SMS 持久化** — sms-store.ts 文件/内存/Redis 三后端
+37. **flow H18: DID 回退修复** — Web Crypto Ed25519 替代 generateHex
+38. **flow H19: 测试覆盖** — 26 个新测试覆盖 register/SMS/DID/face
 
 ### 安全修复
 1. **alphaid 硬编码创始人凭证** → 移除硬编码，改为环境变量读取
