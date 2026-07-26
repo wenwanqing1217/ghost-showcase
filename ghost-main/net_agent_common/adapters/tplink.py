@@ -17,7 +17,7 @@ import asyncio
 import re
 from typing import Optional
 
-from adapters.base import (
+from net_agent_common.adapters.base import (
     AdapterAuthError,
     AdapterConnectionError,
     AdapterError,
@@ -27,7 +27,7 @@ from adapters.base import (
     RouterBasicInfo,
     WanInfo,
 )
-from adapter_meta.vendor_registry import register
+from net_agent_common.adapter_meta.vendor_registry import register
 
 
 @register("tplink")
@@ -171,6 +171,10 @@ def _encode_tplink_password(password: str) -> str:
     """
     TP-Link uses a simple encoding for the login password.
     Most modern TP-Link routers use base64 encoding.
+
+    TODO 🟠: This is a guess — TP-Link models vary (XOR, RSA, base64).
+    Need per-model detection or a config option for encryption type.
+    Real-world testing required before production use.
     """
     import base64
     return base64.b64encode(password.encode()).decode()

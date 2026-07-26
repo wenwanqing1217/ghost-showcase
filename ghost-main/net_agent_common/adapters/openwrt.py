@@ -17,7 +17,7 @@ Usage::
 import asyncio
 from typing import Optional
 
-from adapters.base import (
+from net_agent_common.adapters.base import (
     AdapterAuthError,
     AdapterConnectionError,
     AdapterError,
@@ -27,7 +27,7 @@ from adapters.base import (
     RouterBasicInfo,
     WanInfo,
 )
-from adapter_meta.vendor_registry import register
+from net_agent_common.adapter_meta.vendor_registry import register
 
 
 @register("openwrt")

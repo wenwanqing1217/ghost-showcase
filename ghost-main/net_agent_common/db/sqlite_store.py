@@ -8,7 +8,7 @@ import sqlite3
 import time
 from contextlib import contextmanager
 
-from config.settings import DB_PATH
+from net_agent_common.config.settings import DB_PATH
 from .models import init_db
 
 # Ensure directory exists

@@ -18,7 +18,7 @@ import asyncio
 from functools import partial
 from typing import Optional
 
-from adapters.base import (
+from net_agent_common.adapters.base import (
     AdapterConnectionError,
     AdapterError,
     BaseRouterAdapter,
@@ -27,7 +27,7 @@ from adapters.base import (
     RouterBasicInfo,
     WanInfo,
 )
-from adapter_meta.vendor_registry import register
+from net_agent_common.adapter_meta.vendor_registry import register
 
 
 @register("xiaomi")
@@ -49,7 +49,7 @@ class XiaomiAdapter(BaseRouterAdapter):
             from miwifi import MiWiFi
             self._client = MiWiFi(host=self.host, password=self.password)
             # Validate connection
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._client.login)
         except ImportError:
             raise AdapterError("python-xiaomi-miwifi not installed: pip install python-xiaomi-miwifi")
@@ -63,7 +63,7 @@ class XiaomiAdapter(BaseRouterAdapter):
 
     async def get_wan_info(self) -> WanInfo:
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             status = await loop.run_in_executor(
                 None, partial(self._client.status)
             )
@@ -80,7 +80,7 @@ class XiaomiAdapter(BaseRouterAdapter):
 
     async def get_lan_devices(self) -> list[LanDevice]:
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             devices_raw = await loop.run_in_executor(
                 None, partial(self._client.device_list)
             )
@@ -107,7 +107,7 @@ class XiaomiAdapter(BaseRouterAdapter):
 
     async def reboot(self) -> bool:
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(None, self._client.reboot)
             return True
         except Exception as e:
@@ -115,7 +115,7 @@ class XiaomiAdapter(BaseRouterAdapter):
 
     async def set_wifi_channel(self, band: str, channel: int) -> bool:
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             # Xiaomi miwifi lib does not expose channel set directly
             # Use the miwifi CLI-equivalent if available
             raise AdapterError("set_wifi_channel not yet implemented for Xiaomi")
@@ -126,7 +126,7 @@ class XiaomiAdapter(BaseRouterAdapter):
 
     async def ban_mac(self, mac_addr: str) -> bool:
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             await loop.run_in_executor(
                 None, partial(self._client.block_device, mac_addr)
             )
@@ -136,7 +136,7 @@ class XiaomiAdapter(BaseRouterAdapter):
 
     async def get_basic_info(self) -> RouterBasicInfo:
         try:
-            loop = asyncio.get_event_loop()
+            loop = asyncio.get_running_loop()
             info = await loop.run_in_executor(
                 None, partial(self._client.miio_info)
             )

@@ -7,12 +7,12 @@ All user-scoped routes enforce row-level isolation.
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from auth.permission import get_current_user, require_same_user
-from db.sqlite_store import get_connection, now
+from net_agent_common.auth.permission import get_current_user, require_same_user
+from net_agent_common.db.sqlite_store import get_connection, now
 from task_queue.task_manager import enqueue_task, claim_next_task, complete_task, list_pending
-from adapter_meta.vendor_registry import get_adapter, list_vendors
-from auth.crypto import encrypt_credential, decrypt_credential, generate_user_salt
-from utils.logger import logger
+from net_agent_common.adapter_meta.vendor_registry import get_adapter, list_vendors
+from net_agent_common.auth.crypto import encrypt_credential, decrypt_credential, generate_user_salt
+from net_agent_common.utils.logger import logger
 
 router = APIRouter(prefix="/v1/net", tags=["net-agent"])
 
@@ -139,6 +139,45 @@ async def finish_task(
     """Local client reports task completion."""
     complete_task(task_id, success, detail)
     return {"status": "recorded"}
+
+
+# ── metrics upload (client → server) ───────────────────────
+
+@router.post("/metrics/upload")
+async def upload_metrics(
+    body: dict,
+    user_id: str = Depends(get_current_user),
+):
+    """
+    Receive network metrics from the local client and store them.
+    Called periodically by net_client.upload_metrics().
+    """
+    import json
+
+    required_fields = {"timestamp"}
+    missing = required_fields - body.keys()
+    if missing:
+        raise HTTPException(status_code=400, detail=f"Missing fields: {missing}")
+
+    with get_connection() as conn:
+        conn.execute(
+            """INSERT INTO network_inspect_logs
+               (user_id, timestamp, latency_ms, packet_loss_pct, jitter_ms,
+                online_devices_count, network_score, raw_data)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                user_id,
+                body["timestamp"],
+                body.get("latency_ms", 0),
+                body.get("packet_loss_pct", 0),
+                body.get("jitter_ms", 0),
+                body.get("online_devices_count", 0),
+                body.get("network_score", 100),
+                json.dumps(body),
+            ),
+        )
+    logger.info("Metrics uploaded for user %s (score=%s)", user_id, body.get("network_score"))
+    return {"status": "ok"}
 
 
 # ── logs ────────────────────────────────────────────────────

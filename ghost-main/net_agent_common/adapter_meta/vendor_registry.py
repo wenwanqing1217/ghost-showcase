@@ -6,10 +6,10 @@ Central place to register new router brands. Adding a brand is two steps:
   2. Import + register it below
 """
 
-from adapters.base import BaseRouterAdapter
-from adapters.openwrt import OpenWrtAdapter
-from adapters.xiaomi import XiaomiAdapter
-from adapters.tplink import TPLinkWebAdapter
+from net_agent_common.adapters.base import BaseRouterAdapter
+from net_agent_common.adapters.openwrt import OpenWrtAdapter
+from net_agent_common.adapters.xiaomi import XiaomiAdapter
+from net_agent_common.adapters.tplink import TPLinkWebAdapter
 
 # ── registry: vendor string → adapter class ──────────────────
 _REGISTRY: dict[str, type[BaseRouterAdapter]] = {}

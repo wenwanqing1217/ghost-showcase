@@ -14,23 +14,28 @@ Run:
 import os
 import sys
 
-# Ensure project root is on path (for importing config, auth, etc.)
-sys.path.insert(0, os.path.dirname(__file__))
+# __file__ = ghost-main/net_agent_server/main.py
+# We need ghost-main/ on path for net_agent_common imports,
+# and net_agent_server/ on path for api/ imports.
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_PARENT = os.path.dirname(_HERE)  # ghost-main/
+sys.path.insert(0, _PARENT)
+sys.path.insert(0, _HERE)
 
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from config.settings import (
+from net_agent_common.config.settings import (
     NET_AGENT_HOST,
     NET_AGENT_PORT,
     GATEWAY_URL,
 )
 from api.routes import router as net_router
-from db.models import init_db
-from db.sqlite_store import DB_PATH
-from utils.logger import logger
+from net_agent_common.db.models import init_db
+from net_agent_common.db.sqlite_store import DB_PATH
+from net_agent_common.utils.logger import logger
 
 
 @asynccontextmanager
@@ -42,7 +47,7 @@ async def lifespan(app: FastAPI):
     init_db(conn)
     conn.close()
     logger.info("Net-Agent database ready at %s", DB_PATH)
-    logger.info("Net-Agent server started — listening on %s:%d", NET_AGENT_HOST, NET_AGENT_PORT)
+    logger.info("Net-Agent server started \u2014 listening on %s:%d", NET_AGENT_HOST, NET_AGENT_PORT)
     logger.info("Upstream: Gateway at %s", GATEWAY_URL)
     yield
     logger.info("Net-Agent server shutdown complete")
@@ -50,12 +55,12 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Net-Agent Server",
-    description="Ghost Network Operations Service — /v1/net/*",
+    description="Ghost Network Operations Service \u2014 /v1/net/*",
     version="1.0.0",
     lifespan=lifespan,
 )
 
-# CORS — match Gateway's allowlist for consistency
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -71,28 +76,20 @@ app.add_middleware(
 )
 
 
-# ── health check ────────────────────────────────────────────
 @app.get("/health")
 async def health():
-    """Liveness probe."""
     return {"service": "net-agent", "status": "ok"}
 
 
-# ── mount all /v1/net routes ──────────────────────────────
 app.include_router(net_router)
 
 
-# ── startup banner ─────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
     print(f"""
-╔══════════════════════════════════════════════════╗
-║           Net-Agent Server v1.0.0                ║
-║   Ghost Network Operations Service               ║
-╠══════════════════════════════════════════════════╣
-║   Port:      {NET_AGENT_PORT}                                ║
-║   DB:        {DB_PATH}  ║
-║   Gateway:   {GATEWAY_URL}    ║
-╚══════════════════════════════════════════════════╝
+\u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557
+\u2551           Net-Agent Server v1.0.0                \u2551
+\u2551   Ghost Network Operations Service               \u2551
+\u255a\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u255d
     """)
     uvicorn.run(app, host=NET_AGENT_HOST, port=NET_AGENT_PORT)

@@ -14,7 +14,7 @@ import time
 from fastapi import Request, HTTPException
 from fastapi.security import HTTPBearer
 
-from config.settings import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_HOURS
+from net_agent_common.config.settings import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_HOURS
 
 security = HTTPBearer()
 

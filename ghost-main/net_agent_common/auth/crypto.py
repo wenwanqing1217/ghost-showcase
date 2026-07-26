@@ -15,7 +15,7 @@ import base64
 import hashlib
 import hmac
 
-from config.settings import AES_MASTER_KEY
+from net_agent_common.config.settings import AES_MASTER_KEY
 
 
 class CredentialCrypto:

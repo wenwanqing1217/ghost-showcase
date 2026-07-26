@@ -9,7 +9,7 @@ import json
 import time
 from typing import Optional
 
-from db.sqlite_store import get_connection, now
+from net_agent_common.db.sqlite_store import get_connection, now
 
 
 def enqueue_task(user_id: str, task_type: str, body: dict = None) -> int:
@@ -25,8 +25,13 @@ def enqueue_task(user_id: str, task_type: str, body: dict = None) -> int:
 
 def claim_next_task(user_id: str) -> Optional[dict]:
     """
-    Atomically claim the next pending task for a user.
+    Claim the next pending task for a user.
     Returns None if no pending tasks.
+
+    TODO 🟠: SELECT then UPDATE is not atomic — if multiple clients poll
+    the same user simultaneously, they could claim the same task.
+    Fix: use UPDATE ... RETURNING or a single UPDATE with WHERE status='pending'
+    and check rows affected. Acceptable for single-client-per-user for now.
     """
     with get_connection() as conn:
         row = conn.execute(
