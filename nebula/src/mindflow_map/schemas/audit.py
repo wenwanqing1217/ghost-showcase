@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 
 
 class AuditAction(str, Enum):
+    # HTTP request-level
+    ACCESS = "access"
     # Workflow
     WORKFLOW_CREATED = "workflow.created"
     WORKFLOW_UPDATED = "workflow.updated"

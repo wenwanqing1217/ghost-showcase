@@ -102,32 +102,32 @@ app = FastAPI(
 app.openapi = lambda: custom_openapi(app)
 
 # ── 中间件注册 ──
-# ⚠️ 执行顺序与添加顺序相反：最后添加的最先执行（LIFO）
-# 期望的请求处理顺序：
-#   1. CorrelationId  — 生成/提取请求追踪 ID（最外层）
-#   2. CORS           — 跨域头处理
-#   3. RateLimit      — 限流（认证前拒绝，节省资源）
+# ⚠️ FastAPI/Starlette 中间件执行顺序与添加顺序相反（LIFO）：
+#    最后添加 = 最外层 = 最先处理请求
+# 期望的请求处理顺序（外层 → 内层）：
+#   1. CorrelationId  — 生成/提取请求追踪 ID
+#   2. CORS           — 跨域头处理（拒绝非法来源，节省后续资源）
+#   3. RateLimit      — IP 限流（认证前拒绝，防 flood）
 #   4. Auth           — 认证（解析用户身份）
 #   5. Audit          — 审计日志（认证后记录，包含用户信息）
 #   6. Prometheus     — 指标采集（最内层，测量真实业务处理时间）
+# 因此添加顺序与执行顺序相反：Prometheus 最先添加，CorrelationId 最后添加。
 
-# 1. Correlation ID（最先执行）
-app.add_middleware(CorrelationIdMiddleware)
+db = get_database()
 
-# 2. Prometheus 指标采集
+# 1. Prometheus（最先添加 = 最内层）
 app.add_middleware(PrometheusMiddleware)
 
-# 3. 审计日志（认证后执行，可记录用户身份）
-db = get_database()
+# 2. Audit（认证后执行，可记录用户身份）
 app.add_middleware(AuditMiddleware, db=db)
 
-# 4. 认证中间件
+# 3. Auth（解析用户身份，供 Audit 使用）
 app.add_middleware(AuthMiddleware, db=db)
 
-# 5. 限流中间件（认证前执行，避免无效请求浪费资源）
+# 4. RateLimit（认证前限流，拒绝 flood 请求）
 app.add_middleware(RateLimitMiddleware)
 
-# 6. CORS（最后执行，最先添加）
+# 5. CORS（处理跨域，拒绝非法来源 preflight）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -140,6 +140,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 6. CorrelationId（最后添加 = 最外层，所有下游都能获取 request_id）
+app.add_middleware(CorrelationIdMiddleware)
 
 # 注册统一错误处理器
 register_error_handlers(app)

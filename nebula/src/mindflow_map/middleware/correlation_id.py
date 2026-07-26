@@ -27,21 +27,26 @@ def get_request_id() -> str:
 
 
 class CorrelationIdMiddleware(BaseHTTPMiddleware):
-    """Reads or generates an X-Request-ID and propagates it."""
+    """Reads or generates an X-Request-ID, propagates it inward and back in the response."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
         request_id = request.headers.get("X-Request-ID")
         if not request_id:
             request_id = str(uuid.uuid4())
 
-        if _request_id_var is not None:
-            _request_id_var.set(request_id)
-
+        # Set on request.state for downstream access
         request.state.request_id = request_id
+
+        # Set in ContextVar with token for proper async-safe reset
+        token: Optional[contextvars.Token] = None
+        if _request_id_var is not None:
+            token = _request_id_var.set(request_id)
 
         try:
             response = await call_next(request)
+            # Echo the request ID back to the client for log correlation
+            response.headers["X-Request-ID"] = request_id
             return response
         finally:
-            if _request_id_var is not None:
-                _request_id_var.set("")
+            if _request_id_var is not None and token is not None:
+                _request_id_var.reset(token)

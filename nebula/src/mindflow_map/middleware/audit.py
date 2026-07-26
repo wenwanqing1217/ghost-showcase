@@ -37,11 +37,24 @@ class AuditMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         async with self._db.get_session() as session:
             store = SQLAuditStore(session)
-            request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+            # Reuse the request_id set by CorrelationIdMiddleware (outer layer).
+            # Do NOT generate a new UUID — that would break log correlation.
+            request_id = getattr(request.state, "request_id", None) or request.headers.get("X-Request-ID", str(uuid.uuid4()))
             request.state.request_id = request_id
             request.state.audit_logger = _AuditLogger(request, store)
 
             response = await call_next(request)
+
+            # Emit request-level audit log to database
+            await request.state.audit_logger.log(
+                action=AuditAction.ACCESS,
+                resource_type="http_request",
+                detail={
+                    "method": request.method,
+                    "path": request.url.path,
+                    "status": response.status_code,
+                },
+            )
 
             logger.info(
                 "Audit: method=%s path=%s status=%s",
