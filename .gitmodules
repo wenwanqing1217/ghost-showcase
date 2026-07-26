@@ -1,9 +1,0 @@
-[submodule "alphaid/projects"]
-	path = alphaid/projects
-	url = https://github.com/wenwanqing1217/alpha-id.git
-[submodule "flow"]
-	path = flow
-	url = https://github.com/wenwanqing1217/mindflow.git
-[submodule "core"]
-	path = core
-	url = https://github.com/wenwanqing1217/zcode-brain.git

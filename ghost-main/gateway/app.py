@@ -424,7 +424,7 @@ async def parse_intent(request: Request):
     is_identity = any(kw in text_lower for kw in ["身份", "我是谁", "did", "identity", "画像"])
 
     if is_identity:
-        identity = await proxy_get("/identity", ALPHAID_URL, headers={"X-Alpha-ID": DEFAULT_ALPHA_ID})
+        identity = await proxy_get("/api/v1/identity/stats/overview", ALPHAID_URL)
         profile = await proxy_get("/api/profile", ALPHAID_URL)
         return ok({
             "route": "identity",
@@ -608,48 +608,48 @@ async def register_send_sms(request: Request):
     if not _rate_limit_check(f"sms:{ip}", max_requests=5, window=60):
         return fail("Too many requests, please try again later", 429, request)
     body = await request.json()
-    data = await proxy_post("/api/register/send-sms", FLOW_URL, body=body)
-    return ok(unwrap_flow_response(data), request)
+    data = await proxy_post("/api/v1/register/send-sms", ALPHAID_URL, body=body)
+    return ok(data, request)
 
 
 @app.post("/v1/register/verify-sms")
 async def register_verify_sms(request: Request):
     """Verify SMS code → proxy to flow/api."""
     body = await request.json()
-    data = await proxy_post("/api/register/verify-sms", FLOW_URL, body=body)
-    return ok(unwrap_flow_response(data), request)
+    data = await proxy_post("/api/v1/register/verify-sms", ALPHAID_URL, body=body)
+    return ok(data, request)
 
 
 @app.post("/v1/register/face-verify")
 async def register_face_verify(request: Request):
     """Initiate face verification → proxy to flow/api."""
     body = await request.json()
-    data = await proxy_post("/api/register/face-verify", FLOW_URL, body=body)
-    return ok(unwrap_flow_response(data), request)
+    data = await proxy_post("/api/v1/register/face-verify", ALPHAID_URL, body=body)
+    return ok(data, request)
 
 
 @app.post("/v1/register/face-query")
 async def register_face_query(request: Request):
     """Query face verification result → proxy to flow/api."""
     body = await request.json()
-    data = await proxy_post("/api/register/face-query", FLOW_URL, body=body)
-    return ok(unwrap_flow_response(data), request)
+    data = await proxy_post("/api/v1/register/face-query", ALPHAID_URL, body=body)
+    return ok(data, request)
 
 
 @app.post("/v1/register/generate-did")
 async def register_generate_did(request: Request):
     """Generate decentralized identity DID → proxy to flow/api."""
     body = await request.json()
-    data = await proxy_post("/api/register/generate-did", FLOW_URL, body=body)
-    return ok(unwrap_flow_response(data), request)
+    data = await proxy_post("/api/v1/register/generate-did", ALPHAID_URL, body=body)
+    return ok(data, request)
 
 
 @app.post("/v1/register/complete")
 async def register_complete(request: Request):
     """Complete registration → proxy to flow/api."""
     body = await request.json()
-    data = await proxy_post("/api/register/complete-registration", FLOW_URL, body=body)
-    return ok(unwrap_flow_response(data), request)
+    data = await proxy_post("/api/v1/register/complete", ALPHAID_URL, body=body)
+    return ok(data, request)
 
 
 # ============================================================
