@@ -86,6 +86,10 @@ class Settings(BaseSettings):
     redis_url: str = ""
     redis_enabled: bool = False
 
+    # 限流配置
+    rate_limit_window_seconds: int = 60
+    rate_limit_max_per_window: int = 100
+
     # 抖音短剧配置
     douyin_username: str = ""
     douyin_password: str = ""

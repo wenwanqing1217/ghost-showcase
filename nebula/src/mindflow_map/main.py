@@ -122,10 +122,8 @@ app.add_middleware(AuditMiddleware, db=db)
 # 认证中间件（支持 Bearer Token 和 Header 认证）
 app.add_middleware(AuthMiddleware, db=db)
 
-# 限流中间件
-_rate_limit_window = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
-_rate_limit_max = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "100"))
-app.add_middleware(RateLimitMiddleware, window_seconds=_rate_limit_window, max_requests=_rate_limit_max)
+# 限流中间件（limits 库实现）
+app.add_middleware(RateLimitMiddleware)
 
 # Prometheus 指标采集中间件
 app.add_middleware(PrometheusMiddleware)
