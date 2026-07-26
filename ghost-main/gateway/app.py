@@ -340,9 +340,12 @@ async def doubao_page(request: Request):
 
 @app.get("/v1/identity")
 async def get_identity(request: Request, alpha_id: Optional[str] = None):
-    """Get current identity → proxy to Alpha-ID."""
+    """Get current identity → proxy to Alpha-ID API (public overview or user profile)."""
     aid = alpha_id or DEFAULT_ALPHA_ID
-    data = await proxy_get("/identity", ALPHAID_URL, headers={"X-Alpha-ID": aid})
+    # Try authenticated profile first, fall back to public stats
+    data = await proxy_get(f"/api/v1/identity/{aid}", ALPHAID_URL, headers={"Authorization": "Bearer placeholder"})
+    if "_error" in data:
+        data = await proxy_get("/api/v1/identity/stats/overview", ALPHAID_URL)
     return ok(data, request)
 
 
@@ -660,11 +663,9 @@ async def dashboard(request: Request):
     """
     import asyncio
 
-    identity, brain, topology, profile = await asyncio.gather(
-        proxy_get("/identity", ALPHAID_URL, headers={"X-Alpha-ID": DEFAULT_ALPHA_ID}),
-        proxy_get(f"/brain/status?alpha_id={DEFAULT_ALPHA_ID}", ALPHAID_URL),
-        proxy_get("/network/topology", ALPHAID_URL),
-        proxy_get("/api/profile", ALPHAID_URL),
+    identity, profile = await asyncio.gather(
+        proxy_get("/api/v1/identity/stats/overview", ALPHAID_URL),
+        proxy_get(f"/api/v1/identity/{DEFAULT_ALPHA_ID}", ALPHAID_URL),
         return_exceptions=True,
     )
 
@@ -673,18 +674,14 @@ async def dashboard(request: Request):
             return {"_error": str(value)}
         return value
 
-    identity, brain, topology, profile = (
-        _to_result(v) for v in (identity, brain, topology, profile)
-    )
+    identity, profile = (_to_result(v) for v in (identity, profile))
 
     return ok({
         "identity": {
-            "alpha_id": identity.get("alpha_id", DEFAULT_ALPHA_ID),
-            "did": topology.get("my_did", "unknown"),
-            "state": brain.get("state", "unknown"),
+            "alpha_id": identity.get("founder_alpha_id", DEFAULT_ALPHA_ID),
+            "total_users": identity.get("total_users", 0),
+            "state": "ready",
         },
-        "brain": brain,
-        "network": topology,
         "profile": profile,
     }, request)
 
