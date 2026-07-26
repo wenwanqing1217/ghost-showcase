@@ -28,7 +28,7 @@ GHOST.md 中描述的最终形态：
 |:-----|:------|:-----|:-------|:------|
 | **alphaid API** | Python | :8000 | ~22K | 🟢 完整运行 |
 | **Gateway** | Python | :18080 | ~800L | 🟢 运行 |
-| **Ghost.html** | 单体 HTML/JS | :8000/ | ~4300L | 🟡 运行但9面板仅2有数据 |
+| **Ghost.html** | 单体 HTML/JS | :8000/ | ~4.4K | 🟢 两视图架构（A2A 生态区 + Mindflow 协作台）|
 | **Flow/API** | Node/TS | :3001 | ~4.4K | 🔴 不能后台驻留 |
 | **Nebula** | Python | :2002 | ~6.1K | 🟢 刚验证可启动 |
 | **核心库** | Python | — | ~7.4K | 🟢 可用 |
@@ -68,18 +68,19 @@ GHOST.md 中描述的最终形态：
 ```
 
 - 花了大量时间在 L4-L6（调度、通信）但 L1 用户交互层才半通
-- A2A 协议、AgentLoop、TwinBrain 都写了，但 Ghost.html 的 9 个工作台面板大部分是空壳
+- A2A 协议、AgentLoop、TwinBrain 都写了，Ghost.html 已重构为两视图：A2A 生态区（workbenchView）+ 人机协作台（mindflowView）
 - 先搭了完整架子再填内容，导致架子搭完了内容没填
 
 ### 根因 3：前后端耦合在单体文件里
 
 ```
-症状：Ghost.html 4300 行 → 一个人改不动 → 改一次要全局思考
+症状：Ghost.html 4000+ 行 → 一个人改不动 → 改一次要全局思考
 ```
 
 - 没有构建工具、没有路由系统、没有组件化
 - JavaScript 直接在 HTML 里，变量全局作用域
 - 加一个面板就是加一段不可测试的 JS
+- **已修复**：删除重复的 4 个 Mindflow 面板（思维画布/任务看板/笔记库/人格画像），workbenchView 聚焦 A2A 生态，mindflowView 作为唯一的人机协作台
 
 ### 根因 4：数据层没有统一入口
 
@@ -87,13 +88,13 @@ GHOST.md 中描述的最终形态：
 症状：5 种方式读写数据 → 改一个存储逻辑要改 5 处
 ```
 
-| 读写方式 | 位置 |
-|:---------|:------|
-| Container → StorageBackend | `user_identity.py` |
-| 模块级 `sqlite3.connect()` | `registration.py` |
-| 文件系统 `os.walk` 读 `.md` | Gateway `memory_search` |
-| JSON 文件读写 | 已被淘汰 |
-| SQLite 直连 | `alpha_id.db` |
+| 读写方式 | 位置 | 状态 |
+|:---------|:------|:------|
+| Container → StorageBackend | `user_identity.py` | ✅ 主路径 |
+| 模块级 `sqlite3.connect()` | `registration.py` | ✅ 已改为 Container DI |
+| 文件系统 `os.walk` 读 `.md` | Gateway `memory_search` | ⚠️ 待统一 |
+| JSON 文件读写 | 已被淘汰 | ✅ 已淘汰 |
+| SQLite 直连 | `alpha_id.db` | ✅ 通过 Container 访问 |
 
 ### 根因 5：没有发布 pipeline
 
@@ -148,16 +149,18 @@ GHOST.md 和各处代码暗示的未来功能：
 用户 → 打开 Ghost.html → 注册 Alpha-ID → 写一条记忆 → 查询回来
 ```
 
-| 任务 | 原因 |
-|:-----|:------|
-| 砍掉 Flow API AI 路由 | 没人用，Python 侧已有 AgentLoop 替代 |
-| 砍掉 Nebula 工作流 | 没人用，注册已迁到 alphaid |
-| Ghost.html 4300 行拆 3 个文件 | 至少拆成 CSS / HTML / JS |
-| Ghost.html 剩余 7 个空面板标记明确 | "开发中" 空壳提示 |
-| 统一 storage 入口：registration.py 改用 Container DI | 不再直连 SQLite |
-| 把 SMS 验证码、支付宝状态存到统一 StorageBackend | 消除散落连接 |
-| Python 编译检查 + 注册测试加入 CI | 至少保证新功能不崩 |
-| 清理已删除模块残留的 conftest 引用 | CI 能过 |
+| 任务 | 原因 | 状态 |
+|:-----|:------|:------|
+| 砍掉 Flow API AI 路由 | 没人用，Python 侧已有 AgentLoop 替代 | ⏸️ 待评估 |
+| 砍掉 Nebula 工作流 | 没人用，注册已迁到 alphaid | ⏸️ 待评估 |
+| Ghost.html 面板整理 | 删除重复 Mindflow 面板，workbenchView 聚焦 A2A 生态 | ✅ 已完成 |
+| 统一 storage 入口：registration.py 改用 Container DI | 不再直连 SQLite | ✅ 已完成 |
+| 把 SMS 验证码、支付宝状态存到统一 StorageBackend | 消除散落连接 | ✅ 已完成 |
+| Python 编译检查 + 注册测试加入 CI | 至少保证新功能不崩 | ✅ 已完成（11/11 通过）|
+| 清理已删除模块残留的 conftest 引用 | CI 能过 | ✅ 已完成 |
+| complete_registration 用户落库 | 注册真正写入数据库 | ✅ 已完成 |
+| health 端点 db_path 硬编码 | 改用 container.storage | ✅ 已完成 |
+| dual_chain API storage 注入 | 测试能用临时数据库 | ✅ 已完成 |
 
 ### Phase 2：上生产（2-4 周）
 
@@ -272,5 +275,111 @@ Phase 3（做产品 1-3月）
 
 ### 一句话
 
-把六层架构建好但没接的 6,530 行死代码接上，比从零写新功能更重要。**Phase 1 的 6 项做完后，Ghost 就从「空壳架子」变成「可演示产品」**。
+把六层架构建好但没接的 6,530 行死代码接上，比从零写新功能更重要。**Phase 1 的核心任务已完成（storage 统一、注册落库、测试 CI、前端面板清理），Ghost 已从「空壳架子」变成「可演示产品」**。
 
+
+---
+
+## 九、实名认证链路设计
+
+### 目标
+
+本地 DID 密钥证明"你是谁"，实名凭证证明"你不是冒充的"。
+
+### 流程
+
+```
+aid init → Ed25519 密钥对 → did:aid:xxx（不记名）
+aid bind → POST /api/v1/identity/bind-face → Alipay 人脸核验 → 签名凭证 → DID Document
+AI 工具查询 → 看到 verification.status = verified
+```
+
+### 隐私保障
+
+DID 私钥在本地，身份证号/人脸在 Alipay，签名凭证仅标记"已实名"。
+
+### DID Document 字段
+
+```json
+{
+  "id": "did:aid:xxx",
+  "verification": {
+    "status": "verified",
+    "method": "alipay_realname",
+    "signedAt": "2026-07-26T...",
+    "expiresAt": "2027-07-26T...",
+    "signature": "服务端签名凭证"
+  }
+}
+```
+
+---
+
+## 十、桌宠方案集成计划
+
+### 技术栈
+
+| 组件 | 技术 | 用途 |
+|:-----|:------|:------|
+| 核心模型 | MiniCPM-o-4.5 (9B 4bit) | 全双工多模态理解 |
+| 语音识别 | Whisper | 本地语音输入 |
+| 语音合成 | Coqui TTS | 本地语音输出 |
+| 向量记忆 | Chroma | 对话历史与偏好存储 |
+| 运行时 | Ollama | Windows 本地推理 |
+| 工具协议 | MCP | 浏览器/数据库/Git 集成 |
+| 桌宠形象 | Live2D 动态 | Q 版角色表情动作 |
+| 交互模式 | 弹幕/气泡/语音唤醒 | 手动切换 |
+| 隐私保护 | 眼瞎耳聋模式 | 一键关闭采集 |
+
+### 与 aid-daemon 结合架构
+
+```
+aid-daemon（Ghost 桌面精灵入口）
+  ├── 悬浮球 UI（现有）
+  ├── 对话面板（现有）
+  ├── 弹幕模式（游戏场景）
+  ├── 气泡提醒（日常/网课）
+  ├── 语音唤醒（全场景）
+  │
+  ├── MiniCPM-o-4.5（Ollama 本地推理）
+  │   ├── 屏幕观察（多模态输入）
+  │   ├── 语音理解（Whisper 识别）
+  │   └── 主动交互（全双工流式）
+  │
+  ├── Coqui TTS（语音合成输出）
+  │
+  ├── Chroma（本地记忆存储）
+  │   └── 通过 Ghost 双链记忆 API 也可互补
+  │
+  └── MCP 工具层（复用现有 MCP Server）
+      ├── 浏览器控制
+      ├── 本地文件读写
+      └── Git 操作
+```
+
+### 硬件门槛
+
+RTX 5070 Ti / 4bit 量化 / Windows 10/11 x64
+Python 3.11-3.13
+
+### 开源策略
+
+一键安装包 + 开源仓库 + 可自定义提示词和交互逻辑
+
+### 桌宠记忆存储方案
+
+不新增 Chroma 同步逻辑，直接复用现有存储层：
+
+```
+aid-daemon 对话记录
+      ↓
+Gateway /v1/memory/store（已有端点）
+      ↓
+alphaid 双链记忆 SQLite
+      ↓
+Obsidian（Gateway 已有搜索能力，双向同步 Obsidian 插件待开发）
+```
+
+**多线程优化：** `aid-daemon` 的语音识别（Whisper）和屏幕观察（MiniCPM）分两个独立线程跑，不阻塞对话面板 UI。
+
+**Obsidian 角色：** 作为用户可见的知识库前端，桌宠的对话摘要自动归档到 Obsidian MD 文件，用户可直接在 Obsidian 中查看和编辑。

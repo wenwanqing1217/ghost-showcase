@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
 Ghost Gateway — Unified API Gateway
-====================================
-Single entry point for all Ghost services:
-  - Identity & Memory → Alpha-ID
-  - Workflow Engine  → Nebula
-  - Registration     → Flow
+=====================================
+Single entry point for all Ghost services, three-layer routing:
+  - /v1/human/*   → Human user interfaces (consumer/creator/developer roles share, unified permission control)
+  - /v1/agent/*   → Agent ecosystem interfaces (feeds for industry info, A2A interaction)
+  - /v1/internal/*→ Internal operations (Doubao capture, Obsidian, orchestrator, health)
 
 Design principles:
   - Zero-trust defaults (explicit allowlists, no wildcard CORS in prod)
   - Observable (structured logs, correlation IDs, timing)
   - Resilient (timeouts, circuit-aware health, graceful degradation)
+  - Role-agnostic design: users can be consumer/creator/developer at the same time, no fixed role binding
 """
 
 import os
@@ -243,25 +244,21 @@ def fail(msg: str, code: int = 500, request: Request = None) -> JSONResponse:
 
 
 # ============================================================
-# Health Check
+# Health Check (public)
 # ============================================================
 @app.get("/health")
 async def health(request: Request):
-    """Health check - returns component status including Obsidian vault."""
-    # Check Alpha-ID
+    """Public health check - returns component status."""
     alphaid_ok = False
     obsidian_ok = False
     try:
-        async with httpx.AsyncClient(timeout=3) as client:
-            ar = await client.get(f"{ALPHAID_URL}/brain/status")
+        async with httpx.AsyncClient(timeout=3) as hc_client:
+            ar = await hc_client.get(f"{ALPHAID_URL}/brain/status")
             alphaid_ok = ar.status_code < 500
     except:
         pass
-    
-    # Check Obsidian vault
     vault_path = os.environ.get("OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库")
     obsidian_ok = os.path.isdir(vault_path) and len(os.listdir(vault_path)) > 0
-    
     return ok({
         "gateway": "ok",
         "alphaid": "ok" if alphaid_ok else "error",
@@ -283,7 +280,6 @@ def ensure_scanner():
         return
     _scanner_started = True
     
-    import asyncio
     import time
     
     def scan_loop():
@@ -297,7 +293,7 @@ def ensure_scanner():
                     payload = conv.to_dict()
                     try:
                         r = requests.post(
-                            f"http://localhost:{GATEWAY_PORT}/v1/doubao/capture",
+                            f"http://localhost:{GATEWAY_PORT}/v1/internal/doubao/capture",
                             json=payload,
                             timeout=5
                         )
@@ -320,25 +316,14 @@ def ensure_scanner():
     logger.info("Doubao desktop log scanner started")
 
 
-# Doubao Workspace Page
+# ============================================================
+# Human User Layer — /v1/human/*
+# All human-facing interfaces, unified permission control
+# No fixed role binding, users can be consumer/creator/developer at the same time
 # ============================================================
 
-@app.get("/v1/doubao")
-async def doubao_page(request: Request):
-    """Serve the Doubao workspace page."""
-    from fastapi.responses import HTMLResponse
-    html_path = os.path.join(os.path.dirname(__file__), "doubao_page.html")
-    if os.path.exists(html_path):
-        html = open(html_path, "r", encoding="utf-8").read()
-        return HTMLResponse(content=html)
-    return HTMLResponse(content="<h1>Doubao page not found</h1>", status_code=404)
-
-
-# ============================================================
-# Identity & Memory — Proxy to Alpha-ID
-# ============================================================
-
-@app.get("/v1/identity")
+# --- Identity & Profile ---
+@app.get("/v1/human/identity")
 async def get_identity(request: Request, alpha_id: Optional[str] = None):
     """Get current identity → proxy to Alpha-ID API (public overview or user profile)."""
     aid = alpha_id or DEFAULT_ALPHA_ID
@@ -349,14 +334,15 @@ async def get_identity(request: Request, alpha_id: Optional[str] = None):
     return ok(data, request)
 
 
-@app.get("/v1/profile")
+@app.get("/v1/human/profile")
 async def get_profile(request: Request):
     """Get user profile → proxy to Alpha-ID."""
     data = await proxy_get("/api/profile", ALPHAID_URL)
     return ok(data, request)
 
 
-@app.get("/v1/brain/status")
+# --- Brain Status ---
+@app.get("/v1/human/brain/status")
 async def get_brain_status(request: Request, alpha_id: Optional[str] = None):
     """Get brain status → proxy to Alpha-ID."""
     aid = alpha_id or DEFAULT_ALPHA_ID
@@ -364,7 +350,7 @@ async def get_brain_status(request: Request, alpha_id: Optional[str] = None):
     return ok(data, request)
 
 
-@app.post("/v1/brain/awake")
+@app.post("/v1/human/brain/awake")
 async def brain_awake(request: Request):
     """Wake up brain → proxy to Alpha-ID."""
     body = await request.json()
@@ -373,14 +359,8 @@ async def brain_awake(request: Request):
     return ok(data, request)
 
 
-@app.get("/v1/network/topology")
-async def get_network_topology(request: Request):
-    """Get Agent network topology → proxy to Alpha-ID."""
-    data = await proxy_get("/network/topology", ALPHAID_URL)
-    return ok(data, request)
-
-
-@app.post("/v1/chat")
+# --- Chat & Intent ---
+@app.post("/v1/human/chat")
 async def chat(request: Request):
     """Chat with Agent → proxy to Alpha-ID /chat, auto-register unknown users."""
     ip = _client_ip(request)
@@ -408,6 +388,8 @@ async def chat(request: Request):
 
     return ok(data, request)
 
+
+@app.post("/v1/human/intent/parse")
 async def parse_intent(request: Request):
     """
     Intent parsing — gateway-level smart routing.
@@ -440,80 +422,8 @@ async def parse_intent(request: Request):
         }, request)
 
 
-# ============================================================
-
-
-# ============================================================
-# Doubao Capture
-# ============================================================
-
-@app.post("/v1/doubao/capture")
-async def doubao_capture(request: Request):
-    """Accept Doubao conversation data from LogReader or Ghost Capture."""
-    ip = _client_ip(request)
-    if ip not in ("127.0.0.1", "::1", "localhost"):
-        logger.warning("Rejected doubao capture from non-local IP: %s", ip)
-        return fail("Only local requests allowed", 403, request)
-    body = await request.json()
-    session_id = body.get("session_id", "")
-    messages = body.get("messages", [])
-    # Refine: dedup, filter noise, auto-tag
-    if messages:
-        messages = refine_conversation(body.get("metadata", {}), messages)
-    if not session_id or not messages:
-        return fail("session_id and messages required", 400, request)
-    for m in messages:
-        if not all(k in m for k in ("role", "content")):
-            return fail("Each message must have role and content", 400, request)
-    bot_id = body.get("bot_id", "")
-    summary = messages[0].get("content", "")[:100]
-    last = messages[-1].get("content", "")[:200] if len(messages) > 1 else ""
-    memory_payload = {
-        "alpha_id": os.getenv("DEFAULT_ALPHA_ID", "Alpha-001"),
-        "content": "[Doubao] " + summary + (" ... " + last if last else ""),
-        "category": "doubao_chat",
-        "sensitivity": 10,
-        "source": "doubao",
-        "tags": ["doubao", "chat"] + ([bot_id] if bot_id else []),
-        "metadata": {
-            "session_id": session_id,
-            "bot_id": bot_id,
-            "captured_at": body.get("captured_at", 0),
-            "message_count": len(messages),
-            "messages": messages,
-        }
-    }
-    data = await proxy_post("/memory/store", ALPHAID_URL, body=memory_payload)
-    
-    # Also write to Obsidian vault
-    try:
-        import asyncio
-        ow = ObsidianWriter()
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, lambda: ow.write_conversation(
-            metadata=memory_payload.get("metadata", {}),
-            messages=messages,
-            session_id=session_id,
-            bot_id=bot_id,
-        ))
-    except Exception as ow_err:
-        logger.warning("Obsidian write failed (non-fatal): %s", ow_err)
-    
-    if has_error(data):
-        logger.error("Failed to store doubao memory: %s", data.get("_error"))
-        return ok({"status": "stored_with_warning", "session_id": session_id, "error": data.get("_error")}, request)
-    # Trigger Obsidian organization in background
-        try:
-            import threading
-            threading.Thread(target=run_organization, daemon=True).start()
-        except Exception as org_err:
-            logger.debug("Organization trigger error: %s", org_err)
-        
-        logger.info("Doubao conversation %s captured: %d messages", session_id, len(messages))
-    return ok({"status": "stored", "session_id": session_id, "message_count": len(messages)}, request)
-
-
-@app.post("/v1/memory/store")
+# --- Memory ---
+@app.post("/v1/human/memory/store")
 async def memory_store(request: Request):
     """Store memory -> proxy to Alpha-ID /memory/store."""
     body = await request.json()
@@ -521,29 +431,7 @@ async def memory_store(request: Request):
     return ok(data, request)
 
 
-
-
-@app.post("/v1/orchestrator/task/submit")
-async def orch_submit(request: Request):
-    body = await request.json()
-    data = await proxy_post("/v1/task/submit", ORCHESTRATOR_URL, body=body)
-    return ok(data, request)
-
-
-@app.get("/v1/orchestrator/tasks")
-async def orch_tasks(request: Request):
-    data = await proxy_get("/v1/tasks", ORCHESTRATOR_URL)
-    return ok(data, request)
-
-
-@app.get("/v1/orchestrator/task/{task_id}")
-async def orch_task(task_id: str, request: Request):
-    data = await proxy_get(f"/v1/task/{task_id}", ORCHESTRATOR_URL)
-    return ok(data, request)
-
-
-
-@app.get("/v1/memory/graph")
+@app.get("/v1/human/memory/graph")
 async def memory_graph(request: Request):
     """Return memory knowledge graph for d3.js visualization. Free, no LLM."""
     import sqlite3, json as _json
@@ -579,122 +467,7 @@ async def memory_graph(request: Request):
     return ok({"nodes":nodes,"edges":edges,"stats":{"memories":len(nodes),"connections":len(edges)}}, request)
 
 
-# Workflow — Proxy to Nebula
-# ============================================================
-
-@app.get("/v1/workflows")
-async def get_workflows(request: Request):
-    """Get workflow templates → proxy to Nebula."""
-    data = await proxy_get("/api/v1/workflow/templates", NEBULA_URL)
-    return ok(data, request)
-
-
-@app.post("/v1/workflows/execute")
-async def execute_workflow(request: Request):
-    """Execute workflow → proxy to Nebula."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/workflow/execute", NEBULA_URL, body=body)
-    return ok(data, request)
-
-
-# ============================================================
-# Registration — Proxy to Flow
-# ============================================================
-
-@app.post("/v1/register/send-sms")
-async def register_send_sms(request: Request):
-    """Send SMS verification code → proxy to flow/api (rate limited: 5 req/60s/IP)."""
-    ip = _client_ip(request)
-    if not _rate_limit_check(f"sms:{ip}", max_requests=5, window=60):
-        return fail("Too many requests, please try again later", 429, request)
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/send-sms", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.post("/v1/register/verify-sms")
-async def register_verify_sms(request: Request):
-    """Verify SMS code → proxy to flow/api."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/verify-sms", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.post("/v1/register/face-verify")
-async def register_face_verify(request: Request):
-    """Initiate face verification → proxy to flow/api."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/face-verify", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.post("/v1/register/face-query")
-async def register_face_query(request: Request):
-    """Query face verification result → proxy to flow/api."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/face-query", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.post("/v1/register/generate-did")
-async def register_generate_did(request: Request):
-    """Generate decentralized identity DID → proxy to flow/api."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/generate-did", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.post("/v1/register/complete")
-async def register_complete(request: Request):
-    """Complete registration → proxy to flow/api."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/complete", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-# ============================================================
-# Unified Dashboard
-# ============================================================
-@app.get("/v1/dashboard")
-async def dashboard(request: Request):
-    """
-    Unified dashboard — single call returns all data needed.
-    Parallel requests to all backends, aggregated response.
-    """
-    import asyncio
-
-    identity, profile = await asyncio.gather(
-        proxy_get("/api/v1/identity/stats/overview", ALPHAID_URL),
-        proxy_get(f"/api/v1/identity/{DEFAULT_ALPHA_ID}", ALPHAID_URL),
-        return_exceptions=True,
-    )
-
-    def _to_result(value):
-        if isinstance(value, Exception):
-            return {"_error": str(value)}
-        return value
-
-    identity, profile = (_to_result(v) for v in (identity, profile))
-
-    return ok({
-        "identity": {
-            "alpha_id": identity.get("founder_alpha_id", DEFAULT_ALPHA_ID),
-            "total_users": identity.get("total_users", 0),
-            "state": "ready",
-        },
-        "profile": profile,
-    }, request)
-
-
-# ============================================================
-# Startup
-# ============================================================
-
-# ============================================================
-# Memory Search - directly read Obsidian vault (zero token cost)
-# ============================================================
-
-@app.get("/v1/memory/search")
+@app.get("/v1/human/memory/search")
 async def memory_search(keyword: str = "", limit: int = 20, request: Request = None):
     """Search the Obsidian vault for memories matching keyword."""
     vault_path = os.environ.get("OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库")
@@ -758,9 +531,281 @@ async def memory_search(keyword: str = "", limit: int = 20, request: Request = N
     return ok({"results": results, "total": len(results)}, request)
 
 
-@app.get("/v1/obsidian/status")
+# --- Workflows ---
+@app.get("/v1/human/workflows")
+async def get_workflows(request: Request):
+    """Get workflow templates → proxy to Nebula."""
+    data = await proxy_get("/api/v1/workflow/templates", NEBULA_URL)
+    return ok(data, request)
+
+
+@app.post("/v1/human/workflows/execute")
+async def execute_workflow(request: Request):
+    """Execute workflow → proxy to Nebula."""
+    body = await request.json()
+    data = await proxy_post("/api/v1/workflow/execute", NEBULA_URL, body=body)
+    return ok(data, request)
+
+
+# --- Registration ---
+@app.post("/v1/human/register/send-sms")
+async def register_send_sms(request: Request):
+    """Send SMS verification code → proxy to flow/api (rate limited: 5 req/60s/IP)."""
+    ip = _client_ip(request)
+    if not _rate_limit_check(f"sms:{ip}", max_requests=5, window=60):
+        return fail("Too many requests, please try again later", 429, request)
+    body = await request.json()
+    data = await proxy_post("/api/v1/register/send-sms", ALPHAID_URL, body=body)
+    return ok(data, request)
+
+
+@app.post("/v1/human/register/verify-sms")
+async def register_verify_sms(request: Request):
+    """Verify SMS code → proxy to flow/api."""
+    body = await request.json()
+    data = await proxy_post("/api/v1/register/verify-sms", ALPHAID_URL, body=body)
+    return ok(data, request)
+
+
+@app.post("/v1/human/register/face-verify")
+async def register_face_verify(request: Request):
+    """Initiate face verification → proxy to flow/api."""
+    body = await request.json()
+    data = await proxy_post("/api/v1/register/face-verify", ALPHAID_URL, body=body)
+    return ok(data, request)
+
+
+@app.post("/v1/human/register/face-query")
+async def register_face_query(request: Request):
+    """Query face verification result → proxy to flow/api."""
+    body = await request.json()
+    data = await proxy_post("/api/v1/register/face-query", ALPHAID_URL, body=body)
+    return ok(data, request)
+
+
+@app.post("/v1/human/register/generate-did")
+async def register_generate_did(request: Request):
+    """Generate decentralized identity DID → proxy to flow/api."""
+    body = await request.json()
+    data = await proxy_post("/api/v1/register/generate-did", ALPHAID_URL, body=body)
+    return ok(data, request)
+
+
+@app.post("/v1/human/register/complete")
+async def register_complete(request: Request):
+    """Complete registration → proxy to flow/api."""
+    body = await request.json()
+    data = await proxy_post("/api/v1/register/complete", ALPHAID_URL, body=body)
+    return ok(data, request)
+
+
+# --- Dashboard ---
+@app.get("/v1/human/dashboard")
+async def dashboard(request: Request):
+    """
+    Unified dashboard — single call returns all data needed.
+    Parallel requests to all backends, aggregated response.
+    """
+    import asyncio
+
+    identity, profile = await asyncio.gather(
+        proxy_get("/api/v1/identity/stats/overview", ALPHAID_URL),
+        proxy_get(f"/api/v1/identity/{DEFAULT_ALPHA_ID}", ALPHAID_URL),
+        return_exceptions=True,
+    )
+
+    def _to_result(value):
+        if isinstance(value, Exception):
+            return {"_error": str(value)}
+        return value
+
+    identity, profile = (_to_result(v) for v in (identity, profile))
+
+    return ok({
+        "identity": {
+            "alpha_id": identity.get("founder_alpha_id", DEFAULT_ALPHA_ID),
+            "total_users": identity.get("total_users", 0),
+            "state": "ready",
+        },
+        "profile": profile,
+    }, request)
+
+
+# ============================================================
+# Agent Ecosystem Layer — /v1/agent/*
+# All agent-facing interfaces, separate from human traffic
+# ============================================================
+
+# --- A2A Interaction ---
+@app.get("/v1/agent/interact/topology")
+async def get_network_topology(request: Request):
+    """Get Agent network topology → proxy to Alpha-ID."""
+    data = await proxy_get("/network/topology", ALPHAID_URL)
+    return ok(data, request)
+
+
+# --- Agent Information Feeds ---
+@app.get("/v1/agent/feeds/latest")
+async def agent_feeds_latest(request: Request, industry: Optional[str] = None, limit: int = 20):
+    """
+    Get latest industry-curated info captured by platform ops agent.
+    Agents can pull this info for their own vertical use cases.
+    """
+    vault_path = os.environ.get("OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库")
+    feeds_dir = os.path.join(vault_path, "feeds") if vault_path else ""
+    if not os.path.isdir(feeds_dir):
+        return ok({"results": [], "total": 0}, request)
+    
+    feeds = []
+    try:
+        for root, dirs, files in os.walk(feeds_dir):
+            for fname in files:
+                if not fname.endswith(".md"):
+                    continue
+                fpath = os.path.join(root, fname)
+                try:
+                    text = open(fpath, "r", encoding="utf-8").read()
+                except:
+                    continue
+                if industry and industry.lower() not in text.lower():
+                    continue
+                title = fname.replace(".md", "")
+                category = os.path.basename(os.path.dirname(fpath))
+                feeds.append({
+                    "title": title,
+                    "category": category,
+                    "preview": text[:500],
+                    "updated_at": os.path.getmtime(fpath),
+                    "content": text,
+                })
+                if len(feeds) >= limit:
+                    break
+            if len(feeds) >= limit:
+                break
+    except Exception as e:
+        return fail(str(e), 500, request)
+    
+    feeds.sort(key=lambda r: r["updated_at"], reverse=True)
+    return ok({"results": feeds, "total": len(feeds)}, request)
+
+
+@app.post("/v1/agent/feeds/subscribe")
+async def agent_feeds_subscribe(request: Request):
+    """Subscribe to industry feed updates."""
+    body = await request.json()
+    # TODO: implement subscription persistence
+    return ok({"status": "subscribed", "industry": body.get("industry", "all")}, request)
+
+
+# ============================================================
+# Internal Operations Layer — /v1/internal/*
+# Platform internal use only, not exposed to public
+# ============================================================
+
+# --- Doubao Capture ---
+@app.get("/v1/internal/doubao")
+async def doubao_page(request: Request):
+    """Internal: Serve the Doubao workspace page."""
+    from fastapi.responses import HTMLResponse
+    html_path = os.path.join(os.path.dirname(__file__), "doubao_page.html")
+    if os.path.exists(html_path):
+        html = open(html_path, "r", encoding="utf-8").read()
+        return HTMLResponse(content=html)
+    return HTMLResponse(content="<h1>Doubao page not found</h1>", status_code=404)
+
+@app.post("/v1/internal/doubao/capture")
+async def doubao_capture(request: Request):
+    """Internal: Accept Doubao conversation data from local LogReader only."""
+    ip = _client_ip(request)
+    if ip not in ("127.0.0.1", "::1", "localhost"):
+        logger.warning("Rejected doubao capture from non-local IP: %s", ip)
+        return fail("Only local requests allowed", 403, request)
+    body = await request.json()
+    session_id = body.get("session_id", "")
+    messages = body.get("messages", [])
+    # Refine: dedup, filter noise, auto-tag
+    if messages:
+        messages = refine_conversation(body.get("metadata", {}), messages)
+    if not session_id or not messages:
+        return fail("session_id and messages required", 400, request)
+    for m in messages:
+        if not all(k in m for k in ("role", "content")):
+            return fail("Each message must have role and content", 400, request)
+    bot_id = body.get("bot_id", "")
+    summary = messages[0].get("content", "")[:100]
+    last = messages[-1].get("content", "")[:200] if len(messages) > 1 else ""
+    memory_payload = {
+        "alpha_id": os.getenv("DEFAULT_ALPHA_ID", "Alpha-001"),
+        "content": "[Doubao] " + summary + (" ... " + last if last else ""),
+        "category": "doubao_chat",
+        "sensitivity": 10,
+        "source": "doubao",
+        "tags": ["doubao", "chat"] + ([bot_id] if bot_id else []),
+        "metadata": {
+            "session_id": session_id,
+            "bot_id": bot_id,
+            "captured_at": body.get("captured_at", 0),
+            "message_count": len(messages),
+            "messages": messages,
+        }
+    }
+    data = await proxy_post("/memory/store", ALPHAID_URL, body=memory_payload)
+    
+    # Also write to Obsidian vault
+    try:
+        import asyncio
+        ow = ObsidianWriter()
+        loop = asyncio.get_event_loop()
+        loop.run_in_executor(None, lambda: ow.write_conversation(
+            metadata=memory_payload.get("metadata", {}),
+            messages=messages,
+            session_id=session_id,
+            bot_id=bot_id,
+        ))
+    except Exception as ow_err:
+        logger.warning("Obsidian write failed (non-fatal): %s", ow_err)
+    
+    if has_error(data):
+        logger.error("Failed to store doubao memory: %s", data.get("_error"))
+        return ok({"status": "stored_with_warning", "session_id": session_id, "error": data.get("_error")}, request)
+    # Trigger Obsidian organization in background
+    try:
+        import threading
+        threading.Thread(target=run_organization, daemon=True).start()
+    except Exception as org_err:
+        logger.debug("Organization trigger error: %s", org_err)
+    
+    logger.info("Doubao conversation %s captured: %d messages", session_id, len(messages))
+    return ok({"status": "stored", "session_id": session_id, "message_count": len(messages)}, request)
+
+
+# --- Orchestrator ---
+@app.post("/v1/internal/orchestrator/task/submit")
+async def orch_submit(request: Request):
+    """Internal: Submit task to orchestrator."""
+    body = await request.json()
+    data = await proxy_post("/v1/task/submit", ORCHESTRATOR_URL, body=body)
+    return ok(data, request)
+
+
+@app.get("/v1/internal/orchestrator/tasks")
+async def orch_tasks(request: Request):
+    """Internal: Get all orchestrator tasks."""
+    data = await proxy_get("/v1/tasks", ORCHESTRATOR_URL)
+    return ok(data, request)
+
+
+@app.get("/v1/internal/orchestrator/task/{task_id}")
+async def orch_task(task_id: str, request: Request):
+    """Internal: Get task status by ID."""
+    data = await proxy_get(f"/v1/task/{task_id}", ORCHESTRATOR_URL)
+    return ok(data, request)
+
+
+# --- Internal Status Checks ---
+@app.get("/v1/internal/obsidian/status")
 async def obsidian_status(request: Request):
-    """Check Obsidian vault status."""
+    """Internal: Check Obsidian vault status."""
     vault_path = os.environ.get("OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库")
     exists = os.path.isdir(vault_path)
     file_count = 0
@@ -780,6 +825,11 @@ async def obsidian_status(request: Request):
         "file_count": file_count,
         "recent_file": recent_file,
     }, request)
+
+
+# ============================================================
+# Startup
+# ============================================================
 if __name__ == "__main__":
     import uvicorn
     print(f"""

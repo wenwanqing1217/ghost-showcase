@@ -339,8 +339,8 @@
 - 状态: V 已通Gateway，能调全平台能力
 
 #### 板块4: Ghost展示层
-- 文件: alphaid/templates/ghost.html 3507L（不是3799L，别人修正过）
-- UI: TailwindCSS编译 三视图完整
+- 文件: alphaid/templates/ghost.html 2515L（已删除重复 Mindflow 面板）
+- UI: TailwindCSS编译 两视图架构（A2A 生态区 + Mindflow 协作台）
 - 已加: fetchDashboard()调Gateway /v1/dashboard + sendChatMessage()调/v1/chat + 注册UI调Gateway→alphaid
 - 当前: 注册流程（SMS→人脸→DID）已通过Gateway→alphaid打通，浏览器可操作完整注册
 
@@ -504,15 +504,15 @@ P0-4 已修复：飞书不再走旧 workflow 引擎，改为调 Gateway /v1/chat
 
 | 指标 | 值 |
 |:-----|:---:|
-| 行数 | 3799行 |
-| UI | TailwindCSS编译三视图完整 |
-| 真实API调用 | 0次 数据写死在HTML里 |
-| 注册/登录 | 没有 |
-| 对话 | 界面有但mock |
+| 行数 | 2515行 |
+| UI | TailwindCSS编译 两视图架构（A2A 生态区 + Mindflow 协作台） |
+| 真实API调用 | 注册/健康检查/记忆统计 接通 |
+| 注册/登录 | ✅ DID + 短信 + 人脸 + 落库 |
+| 对话 | 界面有 + ChatGPT 记忆导入 |
 
-当前能看不能用 -- 点任何按钮都是假数据。
+注册链路已端到端跑通，工作台统计数据从 Gateway 实时拉取。
 
-> 注：3799行为旧数据，实际当前文件为 3,507 行。
+> 注：已删除重复的 4 个 Mindflow 面板，workbenchView 聚焦 A2A 生态，mindflowView 为唯一人机协作台。
 
 ### 5.2 目标形态
 Ghost.html -> 仪表盘(从Gateway拉真实数据)

@@ -82,7 +82,7 @@ aid-api
 2. 输入手机号 → 获取验证码（演示模式自动填入）
 3. 人脸认证（演示模式自动通过）
 4. 生成 Alpha-ID（格式：`Alpha-XXX-YYY`）
-5. 进入工作台
+5. 进入 A2A 生态区（可切换至 Mindflow 协作台）
 
 ---
 
@@ -133,5 +133,5 @@ python src/mindflow_map/main.py
 |:-----|:------|:------|
 | `aid: command not found` | 未安装或 PATH 未更新 | `pip install alpha-id-zix` |
 | `AUTH_MASTER_KEY 未配置` | 启动 Web 服务前未设置环境变量 | `export AUTH_MASTER_KEY=...` |
-| 注册时验证码一直转圈 | Flow API 未启动 | `cd flow && npm install && npx tsx apps/api/src/index.ts` |
+| 注册时验证码一直转圈 | alphaid API 未启动 | `cd D:/MW/alphaid/projects && PYTHONPATH=src python -m uvicorn main:app --port 8000` |
 | 飞书机器人收不到消息 | Event Subscription 未配置 | 在飞书开放平台 App → 事件订阅 → 添加 `im.message.receive_v1` |
