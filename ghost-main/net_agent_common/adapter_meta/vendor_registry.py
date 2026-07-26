@@ -7,9 +7,6 @@ Central place to register new router brands. Adding a brand is two steps:
 """
 
 from net_agent_common.adapters.base import BaseRouterAdapter
-from net_agent_common.adapters.openwrt import OpenWrtAdapter
-from net_agent_common.adapters.xiaomi import XiaomiAdapter
-from net_agent_common.adapters.tplink import TPLinkWebAdapter
 
 # ── registry: vendor string → adapter class ──────────────────
 _REGISTRY: dict[str, type[BaseRouterAdapter]] = {}
@@ -38,10 +35,17 @@ def list_vendors() -> list[str]:
 
 
 # ── built-in registrations ───────────────────────────────────
-# (decorator-based auto-registration is used inside each adapter file)
+# NOTE: adapter imports are placed AFTER register() is defined.
+# Each adapter class uses @register(vendor) as a decorator,
+# which runs at class-definition time (i.e. during import).
+# If we imported them above, Python would try to resolve
+# 'register' before it exists → circular import error.
 
-# Ensure all adapters run their @register decorator
-# (these imports trigger decorator execution)
+from net_agent_common.adapters.openwrt import OpenWrtAdapter  # noqa: E402
+from net_agent_common.adapters.xiaomi import XiaomiAdapter  # noqa: E402
+from net_agent_common.adapters.tplink import TPLinkWebAdapter  # noqa: E402
+
+# Verify decorators fired correctly
 assert OpenWrtAdapter.vendor == "openwrt"
 assert XiaomiAdapter.vendor == "xiaomi"
 assert TPLinkWebAdapter.vendor == "tplink"
