@@ -7,7 +7,7 @@ from threading import Thread
 from typing import Any, Dict, Optional
 
 from mindflow_map.config import settings
-from mindflow_map.workflows.engine import WorkflowEngine
+import httpx  # replaced WorkflowEngine with Gateway call
 from mindflow_map.api.feishu_sender import FeishuSender
 
 
@@ -17,19 +17,19 @@ logger = logging.getLogger(__name__)
 class FeishuLongPollingClient:
     """飞书长连接客户端（后台线程 + 独立事件循环 + PONG 自动回复）"""
 
-    def __init__(self, workflow_engine: Optional[WorkflowEngine] = None) -> None:
+    def __init__(self, workflow_engine=None) -> None:
         self.app_id = settings.feishu_app_id
         self.app_secret = settings.feishu_app_secret
         self.verification_token = getattr(settings, "feishu_verification_token", None)
         self.encrypt_key = getattr(settings, "feishu_encrypt_key", None)
-        self.workflow_engine = workflow_engine
+        self.gateway_url = "http://localhost:18080"
         self._ws_client = None
         self._sender = FeishuSender()
         self._thread: Optional[Thread] = None
         self._running = False
 
-    def set_workflow_engine(self, engine: WorkflowEngine) -> None:
-        self.workflow_engine = engine
+    def set_gateway_url(self, url: str) -> None:
+        self.gateway_url = url
 
     def _build_event_handler(self):
         """构建事件处理器（延迟导入，避免主线程 event loop 污染）"""
@@ -43,14 +43,19 @@ class FeishuLongPollingClient:
         async def _process_message(user_id: str, content_text: str) -> None:
             """异步处理消息并回复（在 WS 事件循环中运行）"""
             try:
-                if self.workflow_engine is None:
-                    logger.error("workflow_engine 未注入")
-                    return
-
-                result = await self.workflow_engine.execute(
-                    content_text, user_id=user_id or "feishu_user"
-                )
-                reply_text = result.get("text", str(result))
+                async with httpx.AsyncClient() as client:
+                    try:
+                        resp = await client.post(
+                            f"{self.gateway_url}/v1/chat",
+                            json={"alpha_id": user_id or "feishu_user", "message": content_text},
+                            timeout=30.0
+                        )
+                        resp.raise_for_status()
+                        data = resp.json()
+                        reply_text = data.get("data", {}).get("reply", "") or str(data)
+                    except Exception as e:
+                        logger.error("Gateway 调用失败: %s", e)
+                        reply_text = "抱歉我暂时无法处理你的消息（系统错误）"
 
                 if user_id:
                     await self._sender.send_text(user_id, reply_text)

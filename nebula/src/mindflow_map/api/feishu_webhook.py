@@ -1,20 +1,21 @@
-"""飞书 Webhook 回调端点（替代 WS 长连接方案）"""
+"""飞书 Webhook 回调端点 — 统一走 Gateway → Alpha-ID TwinBrain + AgentLoop"""
 
 import hashlib
 import json
 import logging
 from typing import Dict, Any
 
+import httpx
 from fastapi import APIRouter, Request, HTTPException
 
 from mindflow_map.config import settings
-from mindflow_map.core.engine_registry import get_workflow_engine
 from mindflow_map.api.feishu_sender import FeishuSender
 
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+_gateway_url = "http://localhost:18080"
 _sender = FeishuSender()
 
 
@@ -65,7 +66,7 @@ async def feishu_webhook(request: Request):
 
 
 async def _handle_im_message(event: Dict[str, Any]):
-    """处理 im.message.receive_v1 事件"""
+    """处理 im.message.receive_v1 事件 — 统一走 Gateway → Alpha-ID TwinBrain"""
     message = event.get("message", {})
     msg_type = message.get("message_type", "")
 
@@ -92,12 +93,20 @@ async def _handle_im_message(event: Dict[str, Any]):
     logger.info("飞书消息 from=%s: %s", user_id, text)
 
     try:
-        engine = get_workflow_engine()
-        result = await engine.execute(text, user_id=user_id or "feishu_user")
-        reply = result.get("text", str(result))
+        # 统一走 Gateway → Alpha-ID TwinBrain + AgentLoop
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            resp = await client.post(
+                f"{_gateway_url}/v1/chat",
+                json={"alpha_id": user_id or "feishu_user", "message": text},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            reply = data.get("data", {}).get("reply", "") or ""
+            if not reply:
+                reply = "嗯？"
     except Exception as e:
-        logger.error("工作流引擎执行失败: %s", e)
-        reply = "抱歉，处理消息时出错了"
+        logger.error("Gateway 调用失败: %s", e, exc_info=True)
+        reply = "抱歉我暂时无法处理你的消息（系统错误）"
 
     # 回复消息
     if user_id:
@@ -106,3 +115,4 @@ async def _handle_im_message(event: Dict[str, Any]):
             logger.info("已回复飞书消息 to=%s", user_id)
         except Exception as e:
             logger.error("回复飞书消息失败: %s", e)
+

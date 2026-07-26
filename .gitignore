@@ -19,6 +19,7 @@ out/
 *.tmp
 __pycache__/
 .pytest_cache/
+.pytest_tmp_fresh/
 .ruff_cache/
 *.coverage
 .coverage*
@@ -98,3 +99,56 @@ AUDIT.md
 AUDIT_FIXES.md
 AGENT_PLAYBOOK.md
 PROJECT_BRAIN.md
+
+# ── 调试/开发临时文件 ──
+# 调试输出
+_*.txt
+_*.json
+_script
+_*/**
+
+# 补丁脚本（一次性使用）
+patch_*.py
+patch_*.js
+patch_*.txt
+
+# 修复脚本（一次性使用）
+fix_*.py
+fix_*.js
+
+# 调试/测试脚本（非正式测试）
+test_cdp*.py
+test_connect.py
+test_final.py
+check_*.py
+read_db_*.js
+redesign_*.js
+replace_css.js
+improve_purple.js
+gradient_text.js
+find_tags.js
+fix_final.js
+
+# 其他开发临时脚本
+add_doubao_iframe.py
+audit_css.py
+gen_content.py
+show_full.py
+write_content.py
+list_tabs.py
+fix_apppy.py
+fix_login.py
+fix_singleshot.py
+start_alpha.py
+revert_bot.py
+new_reg_css.txt
+keep-alive.ps1
+read_doubao_*.js
+
+# 启动脚本副本（主入口在 scripts/ 下）
+/start-all.bat
+/start-all.ps1
+/start-all.vbs
+
+# 归档/快照
+/archive/

@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from mindflow_map.config import settings
 from mindflow_map.config_validator import check_all
-from mindflow_map.api import approvals, automation, events, health, map, shortdramas, streaming, wechat, workflow, feishu_webhook
+from mindflow_map.api import approvals, automation, events, health, map, streaming, workflow, feishu_webhook
 from mindflow_map.api.openapi_config import custom_openapi
 from mindflow_map.core.metrics import get_metrics
 from mindflow_map.logging_config import setup_logging
@@ -63,7 +63,7 @@ async def lifespan(app: FastAPI):
     # 启动飞书长连接机器人（后台线程）
     try:
         from mindflow_map.api import feishu as feishu_module
-        feishu_module.feishu_client.set_workflow_engine(engine)
+        feishu_module.feishu_client.set_gateway_url("http://localhost:18080")
         feishu_module.feishu_client.start()
         _feishu_client = feishu_module.feishu_client
         logger.info("飞书机器人长连接已启动")
@@ -77,9 +77,9 @@ async def lifespan(app: FastAPI):
         _feishu_client.stop()
     # 关闭共享 httpx 客户端
     from mindflow_map.api.feishu_sender import FeishuSender
-    from mindflow_map.api.wechat import close_wechat_client
+    
     await FeishuSender.close_shared_client()
-    await close_wechat_client()
+    
     await engine.shutdown()
     try:
         await engine.alpha_id_client.close()
@@ -150,9 +150,9 @@ if editor_dir.exists():
 app.include_router(health.router, prefix="/health", tags=["健康检查"])
 app.include_router(map.router, prefix="/api/v1/map", tags=["地图"])
 app.include_router(workflow.router, prefix="/api/v1/workflow", tags=["工作流"])
-app.include_router(wechat.router, prefix="/api/v1/wechat", tags=["微信"])
+# wechat router not available
 app.include_router(automation.router, prefix="/api/v1/automation", tags=["自动化"])
-app.include_router(shortdramas.router, prefix="/api/v1/shortdramas", tags=["短剧预审"])
+# app.include_router(shortdramas... commented out
 app.include_router(streaming.router, prefix="/api/v1/streaming", tags=["streaming"])
 app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["approvals"])
 app.include_router(events.router, prefix="/api/v1/events", tags=["events"])
@@ -185,3 +185,7 @@ async def metrics():
     """Prometheus metrics 端点。"""
     registry = get_metrics()
     return PlainTextResponse(content=registry.render(), media_type="text/plain; version=0.0.4")
+
+
+
+
