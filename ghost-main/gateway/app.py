@@ -2,10 +2,11 @@
 """
 Ghost Gateway — Unified API Gateway
 =====================================
-Single entry point for all Ghost services, three-layer routing:
+Single entry point for all Ghost services, four-layer routing:
   - /v1/human/*   → Human user interfaces (consumer/creator/developer roles share, unified permission control)
   - /v1/agent/*   → Agent ecosystem interfaces (feeds for industry info, A2A interaction)
   - /v1/internal/*→ Internal operations (Doubao capture, Obsidian, orchestrator, health)
+  - /v1/net/*     → Network operations (router management, Net-Agent proxy)
 
 Design principles:
   - Zero-trust defaults (explicit allowlists, no wildcard CORS in prod)
@@ -49,6 +50,7 @@ ALPHAID_URL = os.getenv("ALPHAID_URL", "http://localhost:8000")
 NEBULA_URL = os.getenv("NEBULA_URL", "http://localhost:2002")
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://localhost:19090")
 FLOW_URL = os.getenv("FLOW_URL", "http://localhost:3001")
+NETAGENT_URL = os.getenv("NETAGENT_URL", "http://localhost:18180")
 DEFAULT_ALPHA_ID = os.getenv("DEFAULT_ALPHA_ID", "")
 GATEWAY_PORT = int(os.getenv("GATEWAY_PORT", "18080"))
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
@@ -110,7 +112,7 @@ async def lifespan(app: FastAPI):
         timeout=30.0,
         limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
     )
-    logger.info("Gateway started — Alpha-ID=%s Nebula=%s Flow=%s", ALPHAID_URL, NEBULA_URL, FLOW_URL)
+    logger.info("Gateway started — Alpha-ID=%s Nebula=%s Flow=%s Net-Agent=%s", ALPHAID_URL, NEBULA_URL, FLOW_URL, NETAGENT_URL)
     yield
     await client.aclose()
     logger.info("Gateway shutdown complete")
@@ -251,10 +253,17 @@ async def health(request: Request):
     """Public health check - returns component status."""
     alphaid_ok = False
     obsidian_ok = False
+    netagent_ok = False
     try:
         async with httpx.AsyncClient(timeout=3) as hc_client:
             ar = await hc_client.get(f"{ALPHAID_URL}/brain/status")
             alphaid_ok = ar.status_code < 500
+    except:
+        pass
+    try:
+        async with httpx.AsyncClient(timeout=3) as hc_client:
+            nr = await hc_client.get(f"{NETAGENT_URL}/health")
+            netagent_ok = nr.status_code < 500
     except:
         pass
     vault_path = os.environ.get("OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库")
@@ -263,6 +272,7 @@ async def health(request: Request):
         "gateway": "ok",
         "alphaid": "ok" if alphaid_ok else "error",
         "obsidian": "ok" if obsidian_ok else "not_found",
+        "netagent": "ok" if netagent_ok else "error",
     }, request)
 
 
@@ -828,6 +838,24 @@ async def obsidian_status(request: Request):
 
 
 # ============================================================
+# Network Operations — /v1/net/* → proxy to Net-Agent Server
+# ============================================================
+# All JWT-authenticated requests are forwarded with their Authorization header.
+# The Net-Agent server handles its own permission checks.
+
+@app.api_route("/v1/net/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
+async def net_proxy(request: Request, path: str):
+    """Proxy /v1/net/* to Net-Agent server (router management)."""
+    target = f"/v1/net/{path}"
+    if request.method == "GET":
+        data = await proxy_get(target, NETAGENT_URL, headers=dict(request.headers))
+    else:
+        body = await request.json()
+        data = await proxy_post(target, NETAGENT_URL, body=body, headers=dict(request.headers))
+    return ok(data, request)
+
+
+# ============================================================
 # Startup
 # ============================================================
 if __name__ == "__main__":
@@ -841,6 +869,7 @@ if __name__ == "__main__":
 ║   Alpha-ID: {ALPHAID_URL}    ║
 ║   Nebula:   {NEBULA_URL}       ║
 ║   Flow:     {FLOW_URL}       ║
+║   NetAgent: {NETAGENT_URL}      ║
 ╚══════════════════════════════════════════════════╝
     """)
     uvicorn.run(app, host="0.0.0.0", port=GATEWAY_PORT)
