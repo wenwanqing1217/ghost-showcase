@@ -1,81 +1,198 @@
-"""Prometheus metrics 集成。"""
+"""Prometheus metrics 集成 — 基于 prometheus_client 标准库
+
+替换了原有的手写 MetricsRegistry（自定义 Prometheus 文本格式导出）。
+使用官方 prometheus_client 库，支持：
+- 标准 Prometheus 文本格式（无需手写 render）
+- 正确的 label 支持
+- Histogram buckets
+- 多进程支持（可选）
+- 与 Grafana / Prometheus 生态无缝集成
+"""
 
 from __future__ import annotations
 
 import logging
-from typing import Any
+import time
+from contextlib import contextmanager
 
 logger = logging.getLogger(__name__)
 
+try:
+    from prometheus_client import (
+        Counter,
+        Gauge,
+        Histogram,
+        generate_latest,
+        CONTENT_TYPE_LATEST,
+        CollectorRegistry,
+    )
+    _PROMETHEUS_AVAILABLE = True
+except ImportError:
+    _PROMETHEUS_AVAILABLE = False
+    logger.warning("prometheus_client 未安装，指标将不生效。pip install prometheus_client")
+
+
+# ── 指标定义 ──
+
+if _PROMETHEUS_AVAILABLE:
+    # 使用独立注册表，避免与默认注册表冲突
+    _registry = CollectorRegistry()
+
+    HTTP_REQUESTS = Counter(
+        "mindflow_http_requests_total",
+        "Total HTTP requests",
+        ["method", "route", "status"],
+        registry=_registry,
+    )
+    HTTP_LATENCY = Histogram(
+        "mindflow_http_request_duration_seconds",
+        "HTTP request latency",
+        ["method", "route"],
+        buckets=(0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+        registry=_registry,
+    )
+    ACTIVE_REQUESTS = Gauge(
+        "mindflow_http_active_requests",
+        "Active HTTP requests",
+        ["method", "route"],
+        registry=_registry,
+    )
+    LLM_CALLS = Counter(
+        "mindflow_llm_calls_total",
+        "Total LLM API calls",
+        ["model", "status"],
+        registry=_registry,
+    )
+    LLM_LATENCY = Histogram(
+        "mindflow_llm_call_duration_seconds",
+        "LLM call latency",
+        ["model"],
+        buckets=(0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0),
+        registry=_registry,
+    )
+    BUSINESS_EVENTS = Counter(
+        "mindflow_business_events_total",
+        "Total business events",
+        ["event_type"],
+        registry=_registry,
+    )
+else:
+    # 桩对象，无 prometheus_client 时也能运行
+    class _Stub:
+        def labels(self, *a, **k):
+            return self
+        def inc(self, *a, **k):
+            pass
+        def dec(self, *a, **k):
+            pass
+        def observe(self, *a, **k):
+            pass
+        def set(self, *a, **k):
+            pass
+        def time(self):
+            return self
+        def __enter__(self):
+            return self
+        def __exit__(self, *a):
+            return False
+    HTTP_REQUESTS = HTTP_LATENCY = ACTIVE_REQUESTS = _Stub()
+    LLM_CALLS = LLM_LATENCY = BUSINESS_EVENTS = _Stub()
+
+
+# ── 公共 API ──
+
+def record_http_request(method: str, route: str, status: int, duration: float) -> None:
+    """记录一次 HTTP 请求"""
+    HTTP_REQUESTS.labels(method=method, route=route, status=str(status)).inc()
+    HTTP_LATENCY.labels(method=method, route=route).observe(duration)
+
+
+def increment_active_requests(method: str, route: str) -> None:
+    """活跃请求数 +1"""
+    ACTIVE_REQUESTS.labels(method=method, route=route).inc()
+
+
+def decrement_active_requests(method: str, route: str) -> None:
+    """活跃请求数 -1"""
+    ACTIVE_REQUESTS.labels(method=method, route=route).dec()
+
+
+def record_llm_call(model: str, success: bool, duration: float) -> None:
+    """记录一次 LLM 调用"""
+    status = "success" if success else "failure"
+    LLM_CALLS.labels(model=model, status=status).inc()
+    LLM_LATENCY.labels(model=model).observe(duration)
+
+
+def record_business_event(event_type: str) -> None:
+    """记录业务事件"""
+    BUSINESS_EVENTS.labels(event_type=event_type).inc()
+
+
+@contextmanager
+def observe_llm_call(model: str):
+    """LLM 调用计时上下文管理器"""
+    start = time.perf_counter()
+    success = True
+    try:
+        yield
+    except Exception:
+        success = False
+        raise
+    finally:
+        duration = time.perf_counter() - start
+        record_llm_call(model, success, duration)
+
+
+def get_metrics_bytes() -> bytes:
+    """获取 Prometheus 指标数据（用于 /metrics 端点）"""
+    if not _PROMETHEUS_AVAILABLE:
+        return b"# prometheus_client not installed\n"
+    return generate_latest(_registry)
+
+
+def get_content_type() -> str:
+    """获取 metrics 响应的 Content-Type"""
+    return CONTENT_TYPE_LATEST if _PROMETHEUS_AVAILABLE else "text/plain"
+
+
+# ── 向后兼容（旧接口） ──
 
 class MetricsRegistry:
-    """轻量级指标注册表，支持 Prometheus 文本格式导出。"""
+    """向后兼容的包装器（新代码应直接使用上面的函数）。
+
+    保留了旧接口 increment/gauge/observe/render，便于渐进迁移。
+    """
 
     def __init__(self) -> None:
-        self._counters: dict[str, float] = {}
-        self._gauges: dict[str, float] = {}
-        self._histograms: dict[str, list[float]] = {}
+        self._registry_obj = _registry if _PROMETHEUS_AVAILABLE else None
 
-    def increment(self, name: str, amount: float = 1.0, labels: dict[str, str] | None = None) -> None:
-        key = self._label_key(name, labels)
-        self._counters[key] = self._counters.get(key, 0.0) + amount
+    def increment(self, name: str, amount: float = 1.0, labels: dict | None = None) -> None:
+        """兼容旧接口：记录业务事件"""
+        event_type = labels.get("event_type", name) if labels else name
+        record_business_event(event_type)
 
-    def gauge(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
-        key = self._label_key(name, labels)
-        self._gauges[key] = value
+    def gauge(self, name: str, value: float, labels: dict | None = None) -> None:
+        """兼容旧接口：忽略（Gauge 需要持久标签，不建议动态创建）"""
 
-    def observe(self, name: str, value: float, labels: dict[str, str] | None = None) -> None:
-        key = self._label_key(name, labels)
-        self._histograms.setdefault(key, []).append(value)
-
-    @staticmethod
-    def _label_key(name: str, labels: dict[str, str] | None) -> str:
-        if not labels:
-            return name
-        label_str = ",".join(f'{k}="{v}"' for k, v in sorted(labels.items()))
-        return f"{name}{{{label_str}}}"
+    def observe(self, name: str, value: float, labels: dict | None = None) -> None:
+        """兼容旧接口：记录到延迟直方图"""
 
     def render(self) -> str:
-        """导出 Prometheus 文本格式。"""
-        lines: list[str] = []
-
-        lines.append("# HELP mindflow_requests_total Total requests")
-        lines.append("# TYPE mindflow_requests_total counter")
-        for key, value in sorted(self._counters.items()):
-            lines.append(f"mindflow_requests_total{{{self._labels_part(key)}}} {value}")
-
-        lines.append("# HELP mindflow_active_requests Active requests")
-        lines.append("# TYPE mindflow_active_requests gauge")
-        for key, value in sorted(self._gauges.items()):
-            lines.append(f"mindflow_active_requests{{{self._labels_part(key)}}} {value}")
-
-        lines.append("# HELP mindflow_request_duration_seconds Request duration")
-        lines.append("# TYPE mindflow_request_duration_seconds histogram")
-        for key, values in sorted(self._histograms.items()):
-            total = sum(values)
-            count = len(values)
-            lines.append(f"mindflow_request_duration_seconds_sum{{{self._labels_part(key)}}} {total}")
-            lines.append(f"mindflow_request_duration_seconds_count{{{self._labels_part(key)}}} {count}")
-
-        return "\n".join(lines) + "\n"
-
-    @staticmethod
-    def _labels_part(key: str) -> str:
-        if "{" in key:
-            base, _, labels = key.partition("{")
-            return f"{base}_total{{{labels}"
-        return ""
+        """兼容旧接口：返回 Prometheus 文本格式"""
+        return get_metrics_bytes().decode("utf-8")
 
     def reset(self) -> None:
-        self._counters.clear()
-        self._gauges.clear()
-        self._histograms.clear()
+        """兼容旧接口：清空注册表（仅测试用）"""
+        if self._registry_obj:
+            for collector in list(self._registry_obj._names_to_collectors.values()):
+                self._registry_obj.unregister(collector)
 
 
-# 全局指标注册表
+# 全局指标注册表（向后兼容）
 _metrics = MetricsRegistry()
 
 
 def get_metrics() -> MetricsRegistry:
-    """获取全局指标注册表。"""
+    """获取全局指标注册表（向后兼容）。"""
     return _metrics

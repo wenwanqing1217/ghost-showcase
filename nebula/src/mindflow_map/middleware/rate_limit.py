@@ -38,11 +38,31 @@ _rps = max(1, settings.rate_limit_max_per_window // max(1, settings.rate_limit_w
 _rate_limit = RateLimitItemPerSecond(_rps)
 
 
+def _extract_client_ip(request: Request) -> str:
+    """提取客户端真实 IP（支持反向代理场景）
+
+    优先级：
+    1. X-Forwarded-For（取第一个，即客户端原始 IP）
+    2. X-Real-IP（Nginx 等常用）
+    3. 直连 IP（request.client.host）
+    """
+    xff = request.headers.get("x-forwarded-for")
+    if xff:
+        # X-Forwarded-For: client, proxy1, proxy2
+        return xff.split(",")[0].strip()
+
+    x_real_ip = request.headers.get("x-real-ip")
+    if x_real_ip:
+        return x_real_ip.strip()
+
+    return request.client.host or "unknown"
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """全局限流中间件（基于 limits 库 FixedWindow 策略）"""
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        client_id = request.client.host or "unknown"
+        client_id = _extract_client_ip(request)
 
         try:
             if not _limiter.hit(_rate_limit, client_id):

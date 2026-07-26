@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     alpha_id_api_url: str = "http://localhost:8000"
     alpha_id_api_key: str = ""
 
+    # Gateway 配置（飞书/微信等第三方回调统一走 Gateway 路由）
+    gateway_url: str = "http://localhost:18080"
+
     # 数据库配置（路径固定到项目 data/ 目录，避免从不同目录启动时散落）
     database_url: str = f"sqlite+aiosqlite:///{BASE_DIR / 'data' / 'mindflow_map.db'}"
 

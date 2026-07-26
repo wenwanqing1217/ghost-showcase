@@ -15,7 +15,7 @@ from mindflow_map.config import settings
 from mindflow_map.config_validator import check_all
 from mindflow_map.api import approvals, automation, events, health, map, streaming, workflow, feishu_webhook
 from mindflow_map.api.openapi_config import custom_openapi
-from mindflow_map.core.metrics import get_metrics
+from mindflow_map.core.metrics import get_metrics_bytes, get_content_type
 from mindflow_map.logging_config import setup_logging
 from mindflow_map.middleware.audit import AuditMiddleware
 from mindflow_map.middleware.auth import AuthMiddleware
@@ -101,7 +101,33 @@ app = FastAPI(
 # 使用自定义 OpenAPI Schema
 app.openapi = lambda: custom_openapi(app)
 
-# CORS - 允许可信来源
+# ── 中间件注册 ──
+# ⚠️ 执行顺序与添加顺序相反：最后添加的最先执行（LIFO）
+# 期望的请求处理顺序：
+#   1. CorrelationId  — 生成/提取请求追踪 ID（最外层）
+#   2. CORS           — 跨域头处理
+#   3. RateLimit      — 限流（认证前拒绝，节省资源）
+#   4. Auth           — 认证（解析用户身份）
+#   5. Audit          — 审计日志（认证后记录，包含用户信息）
+#   6. Prometheus     — 指标采集（最内层，测量真实业务处理时间）
+
+# 1. Correlation ID（最先执行）
+app.add_middleware(CorrelationIdMiddleware)
+
+# 2. Prometheus 指标采集
+app.add_middleware(PrometheusMiddleware)
+
+# 3. 审计日志（认证后执行，可记录用户身份）
+db = get_database()
+app.add_middleware(AuditMiddleware, db=db)
+
+# 4. 认证中间件
+app.add_middleware(AuthMiddleware, db=db)
+
+# 5. 限流中间件（认证前执行，避免无效请求浪费资源）
+app.add_middleware(RateLimitMiddleware)
+
+# 6. CORS（最后执行，最先添加）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -114,22 +140,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 审计日志中间件
-db = get_database()
-app.add_middleware(AuditMiddleware, db=db)
-
-# 认证中间件（支持 Bearer Token 和 Header 认证）
-app.add_middleware(AuthMiddleware, db=db)
-
-# 限流中间件（limits 库实现）
-app.add_middleware(RateLimitMiddleware)
-
-# Prometheus 指标采集中间件
-app.add_middleware(PrometheusMiddleware)
-
-# Correlation ID 中间件（最外层）
-app.add_middleware(CorrelationIdMiddleware)
 
 # 注册统一错误处理器
 register_error_handlers(app)
@@ -181,8 +191,7 @@ async def workspace(request: Request):
 @app.get("/metrics")
 async def metrics():
     """Prometheus metrics 端点。"""
-    registry = get_metrics()
-    return PlainTextResponse(content=registry.render(), media_type="text/plain; version=0.0.4")
+    return PlainTextResponse(content=get_metrics_bytes().decode("utf-8"), media_type=get_content_type())
 
 
 

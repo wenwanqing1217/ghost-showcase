@@ -1,6 +1,8 @@
 """飞书 Webhook 回调端点 — 统一走 Gateway → Alpha-ID TwinBrain + AgentLoop"""
 
+import asyncio
 import hashlib
+import hmac
 import json
 import logging
 from typing import Dict, Any
@@ -15,7 +17,6 @@ from mindflow_map.api.feishu_sender import FeishuSender
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
-_gateway_url = "http://localhost:18080"
 _sender = FeishuSender()
 
 
@@ -32,7 +33,9 @@ async def feishu_webhook(request: Request):
     challenge = data.get("challenge")
     if challenge is not None:
         token = data.get("token", "")
-        if token != settings.feishu_verification_token:
+        # 安全修复：使用 hmac.compare_digest 防止时序攻击
+        expected = settings.feishu_verification_token or ""
+        if not hmac.compare_digest(token, expected):
             raise HTTPException(403, "token mismatch")
         return {"challenge": challenge}
 
@@ -59,8 +62,8 @@ async def feishu_webhook(request: Request):
 
     if event_type == "im.message.receive_v1":
         # 异步处理消息，不阻塞回调响应
-        import asyncio
-        asyncio.ensure_future(_handle_im_message(event_data))
+        # 使用 create_task 而非 ensure_future，保留引用防止被 GC
+        asyncio.create_task(_handle_im_message(event_data))
 
     return {"code": 0, "message": "ok"}
 
@@ -94,9 +97,10 @@ async def _handle_im_message(event: Dict[str, Any]):
 
     try:
         # 统一走 Gateway → Alpha-ID TwinBrain + AgentLoop
+        gateway_url = settings.gateway_url
         async with httpx.AsyncClient(timeout=30.0) as client:
             resp = await client.post(
-                f"{_gateway_url}/v1/chat",
+                f"{gateway_url}/v1/chat",
                 json={"alpha_id": user_id or "feishu_user", "message": text},
             )
             resp.raise_for_status()

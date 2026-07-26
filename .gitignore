@@ -84,6 +84,9 @@ ExportKey.*
 alipay_*
 ghost_*
 
+# 密钥集中存放目录（原根目录的 alipay_*.pem 已迁移至此）
+secrets/
+
 # ── 非核心项目（独立仓库，不在此 monorepo 中跟踪） ──
 DS/
 obsidian-plugin/
