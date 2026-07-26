@@ -213,9 +213,9 @@
 | 层 | 名称 | 代码量 | 核心组件 | 状态 |
 |:--:|:-----|:------:|:---------|:----:|
 | L6 | 底层通信层 | 0 | AI Mesh libp2p | ❌ 未开发 |
-| L5 | 网关管控层 | 638L / 5文件 | Gateway :18080 14路由 + CORS + 限流 + 统一信封 | ⚠️ 注册路由不通 |
+| L5 | 网关管控层 | 650L / 5文件 | Gateway :18080 14路由 + CORS + 限流 + 统一信封 | ✅ 注册路由已通 |
 | L4 | Agent调度层 | ~7.4K / 32文件 | AgentLoop, Orchestrator, Tenant, Risk, Recovery, Observability, A2A | ⚠️ 基本完整 |
-| L3 | 记忆知识库层 | ~1.6K | 双链记忆, TwinBrain, Coala记忆, 记忆防御, 双后端存储 | ⚠️ 缺知识引擎 |
+| L3 | 记忆知识库层 | ~1.6K | 双链记忆(统一SQLite), TwinBrain, Coala记忆, 记忆防御 | ⚠️ 缺知识引擎 |
 | L2 | 身份管理层 | ~8.2K / 41文件 | DID, 签名, Agent网络, JWT, Profile, 挖矿采集, CLI | ✅ 最完整 |
 | L1 | 用户交互层 | ~5.6K | Ghost.html, 飞书WS, 微信适配器, MindFlow代理, 官网 | ⚠️ 半通 |
 
@@ -326,7 +326,7 @@
 - 路由: 14条已配（10通/4不通）
 - 已通: identity/chat/memory/workflow/health/brain/network/register(部分已通)
 - 不通: /v1/intent/parse（框架有但未完整实现）/ 内容审核/限流（未实现）
-- flow/api注册路由6条在:3001已启动，Gateway侧代理完成，前端注册UI还没接
+- flow/api注册路由6条已于2026-07-26迁移至alphaid :8000，Gateway代理已更新。Flow/API不再承载注册职责。
 - 状态: V 基本骨架完整，LLM分流和审核限流待补
 
 #### 板块3: 飞书总对话助理
@@ -341,9 +341,8 @@
 #### 板块4: Ghost展示层
 - 文件: alphaid/templates/ghost.html 3507L（不是3799L，别人修正过）
 - UI: TailwindCSS编译 三视图完整
-- P0-3已加: fetchDashboard()调Gateway /v1/dashboard + sendChatMessage()调/v1/chat
-- 缺: 注册页面UI（手机号->短信->人脸->DID展示）/ 聊天面板联调/ 知识浏览（P2）
-- 当前: W 0次fetch已改为有fetch，但注册和聊天联调还没做
+- 已加: fetchDashboard()调Gateway /v1/dashboard + sendChatMessage()调/v1/chat + 注册UI调Gateway→alphaid
+- 当前: 注册流程（SMS→人脸→DID）已通过Gateway→alphaid打通，浏览器可操作完整注册
 
 #### 板块5: 豆包知识沉淀（整块新建）
 - 现状: 完全未接入。豆包内容和Ghost系统隔离
@@ -398,7 +397,7 @@
 
 | 服务 | 端口 | 行数 | 说明 |
 |:-----|:----:|:----:|:------|
-| flow/api | 3001 | ~4.4K TS | 注册链路（短信->人脸->DID）代码有但从未启动 |
+| flow/api | 3001 | ~4.4K TS | AI 路由/Computer Use（注册已迁至alphaid :8000） |
 
 ### 2.3 核心问题一句话
 
@@ -439,7 +438,7 @@ P0-4 已修复：飞书不再走旧 workflow 引擎，改为调 Gateway /v1/chat
 你对话飞书
   -> feishu.py (WS长连接)
     -> Gateway :18080 /v1/chat
-      -> alphaid :8000 (身份/记忆/AgentLoop)
+      -> alphaid :8000 (身份/记忆/AgentLoop/注册)
       -> nebula :2002 (工作流/地图)
       -> flow/api :3001 (注册链路)
     <- 返回结果
@@ -568,7 +567,7 @@ Ghost.html -> Gateway :18080 -> alphaid :8000 / flow/api :3001
 |:
 ### 6.4 衔接关系
 
-Alpha-ID是**身份根基**，所有入口（豆包/飞书/Ghost）最终都要通过它。飞书通过Gateway查身份，Ghost通过Gateway注册身份。flow/api提供注册链路的短信验证和人脸识别。
+Alpha-ID是**身份根基**，所有入口（豆包/飞书/Ghost）最终都要通过它。飞书通过Gateway查身份，Ghost通过Gateway注册身份。注册链路的短信验证和人脸识别已由alphaid（Python）接管，不再依赖flow/api。
 
 飞书/Ghost -> Gateway -> alphaid DID (身份查询/注册)
 
@@ -596,7 +595,7 @@ Alpha-ID是**身份根基**，所有入口（豆包/飞书/Ghost）最终都要�
 | POST /v1/chat (限流10/60s) | alphaid :8000 | ✅ |
 | POST /v1/intent/parse (关键词分流) | alphaid :8000 | ✅ 已实现 |
 | GET /v1/workflows + POST /v1/workflows/execute | nebula :2002 | ✅ |
-| /v1/register/* | flow/api :3001 | ❌ 未启动 |
+| /v1/register/* | alphaid :8000（原 flow/api :3001） | ✅ 已迁移并打通 |
 
 基础设施: CORS白名单 / Correlation ID / 滑动窗口限流(5/60s) / 统一信封 {success,data,ts,request_id}
 
