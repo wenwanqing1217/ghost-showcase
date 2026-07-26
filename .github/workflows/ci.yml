@@ -46,11 +46,29 @@ jobs:
       test-command: 'pytest tests/ -v --tb=short --cov=mindflow_map --cov-report=xml'
 
   # ---------------------------------------------------------
-  # 3. AID (Python — Alpha-ID Identity)
+  # 3. Registration tests (must pass first)
+  # ---------------------------------------------------------
+  registration:
+    name: Registration CI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: alphaid/projects
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: pip install pytest httpx
+      - run: python -m pytest tests/test_registration.py -v --noconftest
+
+  # ---------------------------------------------------------
+  # 4. AID (Python — Alpha-ID Identity)
   # ---------------------------------------------------------
   aid:
     name: AID CI
-    needs: changes
+    needs: [changes, registration]
     if: ${{ needs.changes.outputs.aid == 'true' }}
     uses: ./.github/workflows/reusable-python-ci.yml
     with:
