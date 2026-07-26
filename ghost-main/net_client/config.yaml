@@ -1,0 +1,18 @@
+# Net-Client Local Configuration
+# ⚠️  This file should stay on the user's machine — never upload to server.
+
+# Your Alpha-ID user id
+user_id: ""
+
+# Server URL (your Ghost Gateway public address)
+server_url: "http://localhost:18180"
+
+# JWT token (obtained from Alpha-ID login)
+jwt_token: ""
+
+# Router config (encrypted fields populated by setup wizard)
+vendor: ""          # openwrt / xiaomi / tplink
+lan_address: ""     # e.g. 192.168.1.1
+salt: ""            # unique per user, generated during setup
+encrypted_username: {}
+encrypted_password: {}
