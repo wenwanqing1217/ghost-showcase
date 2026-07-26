@@ -1,0 +1,3 @@
+[submodule "alphaid/projects"]
+	path = alphaid/projects
+	url = https://github.com/wenwanqing1217/alpha-id.git
