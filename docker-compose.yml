@@ -21,7 +21,7 @@ services:
     shm_size: 256mb
     environment:
       POSTGRES_USER: ${DB_USER:-ghost}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-ghost_secret}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD required}
       POSTGRES_DB: ${DB_NAME:-ghost}
     ports:
       - "${DB_PORT:-5432}:5432"
@@ -43,7 +43,7 @@ services:
     ports:
       - "2002:2002"
     environment:
-      DATABASE_URL: postgresql+asyncpg://${DB_USER:-ghost}:${DB_PASSWORD:-ghost_secret}@db:5432/nebula
+      DATABASE_URL: postgresql+asyncpg://${DB_USER:?DB_USER required}:${DB_PASSWORD:?DB_PASSWORD required}@db:5432/nebula
     env_file:
       - ./nebula/.env
     depends_on:
@@ -65,7 +65,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      DATABASE_URL: postgresql://${DB_USER:-ghost}:${DB_PASSWORD:-ghost_secret}@db:5432/alpha_id
+      DATABASE_URL: postgresql://${DB_USER:?DB_USER required}:${DB_PASSWORD:?DB_PASSWORD required}@db:5432/alpha_id
     env_file:
       - ./alphaid/projects/.env
     depends_on:
