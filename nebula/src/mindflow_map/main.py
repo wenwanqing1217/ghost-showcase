@@ -13,7 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from mindflow_map.config import settings
 from mindflow_map.config_validator import check_all
-from mindflow_map.api import approvals, automation, events, health, map, streaming, workflow, feishu_webhook
+from mindflow_map.api import approvals, automation, events, health, map, shortdramas, streaming, workflow, feishu_webhook, wechat
 from mindflow_map.api.openapi_config import custom_openapi
 from mindflow_map.core.metrics import get_metrics_bytes, get_content_type
 from mindflow_map.logging_config import setup_logging
@@ -126,7 +126,15 @@ app.add_middleware(AuditMiddleware, db=db)
 app.add_middleware(AuthMiddleware, db=db)
 
 # 4. RateLimit（认证前限流，拒绝 flood 请求）
-app.add_middleware(RateLimitMiddleware)
+# Webhook 回调路径豁免（外部平台推送无法控制请求频率）
+_rate_limit_exempt = {
+    "/api/v1/wechat",
+    "/api/v1/webhook/feishu",
+    "/api/v1/webhook/wechat",
+    "/v1/internal/webhook/feishu",
+    "/v1/internal/webhook/wechat",
+}
+app.add_middleware(RateLimitMiddleware, exempt_paths=_rate_limit_exempt)
 
 # 4.5 CSRF 防护（RateLimit 内层，CORS 外层）
 # 执行顺序：CorrelationId → CORS → CSRF → RateLimit → Auth → Audit → Prometheus
@@ -142,6 +150,7 @@ _csrf_exempt = {
     "/api/v1/webhook/wechat",
     "/v1/internal/webhook/feishu",
     "/v1/internal/webhook/wechat",
+    "/api/v1/wechat",
 }
 app.add_middleware(
     CSRFMiddleware,
@@ -184,8 +193,8 @@ if editor_dir.exists():
 app.include_router(health.router, prefix="/health", tags=["健康检查"])
 app.include_router(map.router, prefix="/api/v1/map", tags=["地图"])
 app.include_router(workflow.router, prefix="/api/v1/workflow", tags=["工作流"])
-# wechat router not available
 app.include_router(automation.router, prefix="/api/v1/automation", tags=["自动化"])
+app.include_router(shortdramas.router, prefix="/api/v1/shortdramas", tags=["短剧预审"])
 # app.include_router(shortdramas... commented out
 app.include_router(streaming.router, prefix="/api/v1/streaming", tags=["streaming"])
 app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["approvals"])
@@ -218,6 +227,56 @@ async def workspace(request: Request):
 async def metrics():
     """Prometheus metrics 端点。"""
     return PlainTextResponse(content=get_metrics_bytes().decode("utf-8"), media_type=get_content_type())
+
+
+# ---------------------------------------------------------------------------
+# 微信公众平台回调
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/v1/wechat")
+async def wechat_verify(request: Request):
+    """微信服务器验证
+
+    GET 请求用于首次配置回调地址时的验证。
+    验证成功后返回 echostr 字符串。
+    """
+    signature = request.query_params.get("signature", "")
+    timestamp = request.query_params.get("timestamp", "")
+    nonce = request.query_params.get("nonce", "")
+    echostr = request.query_params.get("echostr", "")
+
+    if wechat._check_signature(signature, timestamp, nonce):
+        return PlainTextResponse(content=echostr)
+    raise HTTPException(status_code=403, detail="Invalid signature")
+
+
+@app.post("/api/v1/wechat")
+async def wechat_message(request: Request):
+    """微信消息接收
+
+    POST 请求用于接收用户发送的消息。
+    解析 XML 后生成被动回复。
+    """
+    signature = request.query_params.get("signature", "")
+    timestamp = request.query_params.get("timestamp", "")
+    nonce = request.query_params.get("nonce", "")
+
+    if not wechat._check_signature(signature, timestamp, nonce):
+        raise HTTPException(status_code=403, detail="Invalid signature")
+
+    body = await request.body()
+    msg = wechat._parse_xml(body)
+
+    if msg.msg_type == "text" and msg.content:
+        # 文本消息：简单 echo 回复（实际场景可接入 AI 对话）
+        reply = f"收到：{msg.content}"
+    else:
+        # 非文本消息：返回提示
+        reply = "只支持文字消息"
+
+    xml = wechat._build_xml(msg.to_user, msg.from_user, reply)
+    return PlainTextResponse(content=xml, media_type="application/xml")
 
 
 

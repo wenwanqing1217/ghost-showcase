@@ -38,6 +38,12 @@ _rps = max(1, settings.rate_limit_max_per_window // max(1, settings.rate_limit_w
 _rate_limit = RateLimitItemPerSecond(_rps)
 
 
+def reset_rate_limiter():
+    """重置限流器（测试用）"""
+    global _limiter
+    _limiter = _create_limiter()
+
+
 def _extract_client_ip(request: Request) -> str:
     """提取客户端真实 IP（支持反向代理场景）
 
@@ -61,11 +67,64 @@ def _extract_client_ip(request: Request) -> str:
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """全局限流中间件（基于 limits 库 FixedWindow 策略）"""
 
+    def __init__(
+        self,
+        app,
+        exempt_paths: set[str] | None = None,
+        window_seconds: int | None = None,
+        max_requests: int | None = None,
+    ):
+        super().__init__(app)
+        self._exempt_paths = exempt_paths or set()
+        # 允许测试覆盖限流参数（创建独立限流器，避免全局状态污染）
+        if window_seconds is not None and max_requests is not None:
+            from limits import parse
+            # 使用 parse 支持 "X per Y seconds" 格式
+            self._override_rate = parse(f"{max_requests} per {window_seconds} seconds")
+            self._override_limiter = _create_limiter()
+        else:
+            self._override_rate = None
+            self._override_limiter = None
+
+    def _get_rate(self):
+        """获取当前限流速率（测试覆盖优先）"""
+        return self._override_rate if self._override_rate is not None else _rate_limit
+
+    def _get_limiter(self):
+        """获取限流器（测试覆盖优先）"""
+        return self._override_limiter if self._override_limiter is not None else _limiter
+
     async def dispatch(self, request: Request, call_next) -> Response:
+        # 有测试覆盖参数时，强制执行限流（用于测试限流行为）
+        if self._override_limiter is not None:
+            client_id = _extract_client_ip(request)
+            rate = self._get_rate()
+            limiter = self._get_limiter()
+            try:
+                if not limiter.hit(rate, client_id):
+                    return JSONResponse(
+                        status_code=429,
+                        content={
+                            "error": "rate_limit_exceeded",
+                            "message": f"Too many requests. Limit exceeded",
+                            "retry_after": 60,
+                        },
+                        headers={"Retry-After": "60"},
+                    )
+            except Exception as e:
+                logger.error("Rate limiter error: %s", e)
+            return await call_next(request)
+
+        # 测试模式或豁免路径跳过限流
+        if settings.rate_limit_disabled or request.url.path in self._exempt_paths:
+            return await call_next(request)
+
         client_id = _extract_client_ip(request)
+        rate = self._get_rate()
+        limiter = self._get_limiter()
 
         try:
-            if not _limiter.hit(_rate_limit, client_id):
+            if not limiter.hit(rate, client_id):
                 return JSONResponse(
                     status_code=429,
                     content={
