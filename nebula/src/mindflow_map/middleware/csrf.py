@@ -21,6 +21,8 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.types import ASGIApp
 
+from mindflow_map.config import settings
+
 logger = logging.getLogger(__name__)
 
 # 安全方法 — 不要求 CSRF 检查
@@ -47,6 +49,10 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         self._enforce_custom_header = enforce_custom_header
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        # 测试模式跳过 CSRF
+        if settings.csrf_disabled:
+            return await call_next(request)
+
         # 安全方法直接放行
         if request.method in _SAFE_METHODS:
             return await call_next(request)

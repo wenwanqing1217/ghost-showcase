@@ -92,6 +92,13 @@ class Settings(BaseSettings):
     # 限流配置
     rate_limit_window_seconds: int = 60
     rate_limit_max_per_window: int = 100
+    rate_limit_disabled: bool = False  # 测试环境可禁用
+
+    # CSRF 配置
+    csrf_disabled: bool = False  # 测试环境可禁用
+
+    # 认证配置
+    allow_header_auth: bool = False  # 仅开发/测试环境允许 header 认证
 
     # 抖音短剧配置
     douyin_username: str = ""

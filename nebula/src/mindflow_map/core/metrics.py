@@ -162,31 +162,72 @@ class MetricsRegistry:
     """向后兼容的包装器（新代码应直接使用上面的函数）。
 
     保留了旧接口 increment/gauge/observe/render，便于渐进迁移。
+    每个实例使用独立的 CollectorRegistry，避免测试间相互污染。
     """
 
     def __init__(self) -> None:
-        self._registry_obj = _registry if _PROMETHEUS_AVAILABLE else None
+        if not _PROMETHEUS_AVAILABLE:
+            self._registry_obj = None
+            return
+        # 每个实例独立注册表，避免全局状态污染
+        self._registry_obj = CollectorRegistry()
+        self._counters: dict[str, Counter] = {}
+        self._gauges: dict[str, Gauge] = {}
+        self._histograms: dict[str, Histogram] = {}
+
+    def _counter(self, name: str) -> Counter:
+        if name not in self._counters:
+            self._counters[name] = Counter(
+                f"mindflow_{name}", f"Metric {name}", [],
+                registry=self._registry_obj,
+            )
+        return self._counters[name]
+
+    def _gauge(self, name: str) -> Gauge:
+        if name not in self._gauges:
+            self._gauges[name] = Gauge(
+                f"mindflow_{name}", f"Metric {name}", [],
+                registry=self._registry_obj,
+            )
+        return self._gauges[name]
+
+    def _histogram(self, name: str) -> Histogram:
+        if name not in self._histograms:
+            self._histograms[name] = Histogram(
+                f"mindflow_{name}", f"Metric {name}", [],
+                registry=self._registry_obj,
+            )
+        return self._histograms[name]
 
     def increment(self, name: str, amount: float = 1.0, labels: dict | None = None) -> None:
-        """兼容旧接口：记录业务事件"""
-        event_type = labels.get("event_type", name) if labels else name
-        record_business_event(event_type)
+        """兼容旧接口：计数器 +1"""
+        self._counter(name).inc(amount)
 
     def gauge(self, name: str, value: float, labels: dict | None = None) -> None:
-        """兼容旧接口：忽略（Gauge 需要持久标签，不建议动态创建）"""
+        """兼容旧接口：设置 Gauge 值"""
+        self._gauge(name).set(value)
 
     def observe(self, name: str, value: float, labels: dict | None = None) -> None:
-        """兼容旧接口：记录到延迟直方图"""
+        """兼容旧接口：记录到直方图"""
+        self._histogram(name).observe(value)
 
     def render(self) -> str:
         """兼容旧接口：返回 Prometheus 文本格式"""
-        return get_metrics_bytes().decode("utf-8")
+        if not _PROMETHEUS_AVAILABLE or not self._registry_obj:
+            return ""
+        return generate_latest(self._registry_obj).decode("utf-8")
 
     def reset(self) -> None:
         """兼容旧接口：清空注册表（仅测试用）"""
         if self._registry_obj:
             for collector in list(self._registry_obj._names_to_collectors.values()):
-                self._registry_obj.unregister(collector)
+                try:
+                    self._registry_obj.unregister(collector)
+                except KeyError:
+                    pass  # 已被其他实例注销
+            self._counters.clear()
+            self._gauges.clear()
+            self._histograms.clear()
 
 
 # 全局指标注册表（向后兼容）
