@@ -1,6 +1,6 @@
 ﻿# Ghost 项目 -- 完整框架与现状实录
 
-> **版本 2.0** | **2026-07-25**
+> **版本 4.0** | **2026-07-27**
 > **项目宪法：** 不做单点AI工具、不做工作流编排、不局限于技能市场。打造**国内合规、以人为核心的Web4.0人机共生基础设施**。
 > **核心载体：** Alpha-ID（个人终身DID身份）
 > **总纲：** 身份->记忆->调度->网关->通信，五层地基打通后才是业务和商业。
@@ -32,21 +32,21 @@
 
 你平时的工作流是这样的：
 
-`
+```
                     [你]
                       |
-         +------------+-------------+
-         |            |              |
-      [豆包]        [飞书]       [Ghost.html]
-     日常聊天      总对话助理       Web展示
-     知识输出      & 平台对接
-         |            |              |
-         v            v              v
-  +-----------+/+-----------+\  +----------+
-  | Obsidian  ||  整个平台   |  | 仪表盘   |
-  | 知识沉淀   || 身份/记忆  |  | 注册/聊天|
-  | (P1)      || 业务/查询  |  | 知识浏览 |
-  +-----------+| 调用任何能力|  +----------+
+         +------------+-------------+-------------+
+         |            |              |             |
+      [豆包]        [飞书]       [Ghost.html]   [NURO]
+     日常聊天      总对话助理      Web展示       桌面精灵
+     知识输出      & 平台对接     注册/聊天      本地AI
+         |            |              |             |
+         v            v              v             v
+  +-----------+/+-----------+\  +----------+  +---------+
+  | Obsidian  ||  整个平台   |  | 仪表盘   |  | 本地Ollama
+  | 知识沉淀   || 身份/记忆  |  | 注册/聊天|  | 双链记忆
+  |           || 业务/查询  |  | 知识浏览 |  | MCP工具  |
+  +-----------+| 调用任何能力|  +----------+  +---------+
                +-------------+
                      |
           +----------+----------+
@@ -55,29 +55,32 @@
       [alphaid]  [nebula]   [flow/api]
       身份/记忆   工作流     注册链路
       AgentLoop  飞书对接
-`
+```
 
 ### 每个入口做什么
 
 | 入口 | 本质 | 你的使用方式 |
 |:----:|:-----|:------------|
-| **豆包** | 知识输入 | 日常聊天输出思想、碎片知识 -> 豆包自身LLM整理 -> Obsidian知识卡片 |
+| **豆包** | 知识输入 | 日常聊天 -> LevelDB自动扫描 -> 精炼 -> Obsidian知识卡片 |
 | **飞书** | 总对话助理 | 自然语言对话 -> Gateway -> 调整个平台能力（身份/记忆/业务/聊天/查询） |
-| Ghost.html | Web展示 | 浏览器打开看仪表盘、注册Alpha-ID、对话聊天、浏览知识库 |
+| **Ghost.html** | Web展示 | 浏览器打开看仪表盘、注册Alpha-ID、对话聊天、浏览知识库 |
+| **NURO** | 桌面精灵 | Windows悬浮精灵，本地AI贾维斯，语音/视觉/观察/每日总结 |
 
 ### 关键理解
 
 **飞书不只是工作指令。** 它是你的总助理，你平时想查什么、想做什么、想去哪里，直接跟飞书机器人说就行。它背后对接的是整个 Ghost 平台——身份、记忆、业务、工具，全部通过对话调用。
 
-**豆包不只是聊天。** 它是你的知识入口。你跟豆包聊过的内容、输出的思考、碎片信息，豆包自己整理后写到 Obsidian，变成可查询的知识卡片。
+**豆包不只是聊天。** 它是你的知识入口。你跟豆包聊过的内容通过LevelDB自动扫描捕获，精炼后写入Obsidian，变成可查询的知识卡片。
 
 **Ghost.html 不是主入口。** 它是 Web 展示界面，方便你在电脑上操作注册、看数据、浏览知识。
 
-> 三个入口各司其职：豆包管进（知识沉淀），飞书调用（平台能力），Ghost管看（统一展示）。数据全部通过 Gateway 路由到后端。
+**NURO是纯本地AI。** 不依赖Gateway，直接调用本地Ollama+双链记忆+MCP工具。断网也能用。
+
+> 四个入口各司其职：豆包管进（知识沉淀），飞书调用（平台能力），Ghost管看（统一展示），NURO陪伴（本地AI）。数据通过 Gateway 路由到后端（NURO除外，纯本地）。
 
 ---
 
-## 目录## 目录
+## 目录
 
 1. [架构全景](#1-架构全景)
 2. [项目整体状态速览](#2-项目整体状态速览)
@@ -86,17 +89,19 @@
 5. [Ghost.html 官网 -- 现状->目标->路径](#5-ghosthtml-官网)
 6. [Alpha-ID 身份层 -- 现状->目标->路径](#6-alpha-id-身份层)
 7. [Gateway 网关 -- 现状->目标->路径](#7-gateway-网关)
-8. [Nebula 工作流 -- 现状->目标->路径](#8-nebula-工作流)
-9. [Flow/API 注册链路 -- 现状->目标->路径](#9-flowapi-注册链路)
-10. [六层架构代码映射（完整版）](#10-六层架构代码映射完整版)
-11. [架构审查 -- 做对的 vs 做错的](#11-架构审查)
-12. [P0 任务清单（立即执行）](#12-p0-任务清单)
-13. [P1 任务清单（本周执行）](#13-p1-任务清单)
-14. [P2 任务清单（两周内）](#14-p2-任务清单)
-15. [根目录清理计划](#15-根目录清理计划)
-16. [已确认决策（不反复问）](#16-已确认决策)
-17. [启动指南](#17-启动指南)
-18. [参考文档 & 旧档说明](#18-参考文档)
+8. [NURO 桌面精灵 -- 现状->目标->路径](#8-nuro-桌面精灵)
+9. [豆包知识管道 -- 现状->目标->路径](#9-豆包知识管道)
+10. [Nebula 工作流 -- 现状->目标->路径](#10-nebula-工作流)
+11. [Flow/API 注册链路 -- 现状->目标->路径](#11-flowapi-注册链路)
+12. [六层架构代码映射（完整版）](#12-六层架构代码映射完整版)
+13. [架构审查 -- 做对的 vs 做错的](#13-架构审查)
+14. [P0 任务清单（立即执行）](#14-p0-任务清单)
+15. [P1 任务清单（本周执行）](#15-p1-任务清单)
+16. [P2 任务清单（两周内）](#16-p2-任务清单)
+17. [根目录清理计划](#17-根目录清理计划)
+18. [已确认决策（不反复问）](#18-已确认决策)
+19. [启动指南](#19-启动指南)
+20. [参考文档 & 旧档说明](#20-参考文档)
 
 ---
 ## 1. 架构全景
@@ -105,17 +110,17 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│  🖥️  L1  用户交互层                                     ~5.6K 行               │
+│  🖥️  L1  用户交互层                                     ~7.3K 行 / 9文件        │
 │  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐  │
-│  │ Ghost.html  3.5K     │  │ 飞书 WS长连接        │  │ 微信适配器  483L     │  │
-│  │ ⚠️ 0次fetch 假数据   │  │ ⚠️ 只能地图导航      │  │ ⚠️ 代码有 未接入     │  │
+│  │ Ghost.html  2.5K     │  │ 飞书 WS长连接        │  │ NURO 桌宠  1.7K      │  │
+│  │ ✅ 注册+仪表盘+聊天  │  │ ✅ 全平台能力        │  │ ✅ 本地AI贾维斯      │  │
 │  └──────────────────────┘  └──────────────────────┘  └──────────────────────┘  │
-│  ┌──────────────────────┐  ┌──────────────────────┐                           │
-│  │ 豆包入口             │  │ MindFlow代理 1.8K    │                           │
-│  │ ❌ 完全未接入         │  │ ⚠️ 路径未通          │                           │
-│  └──────────────────────┘  └──────────────────────┘                           │
+│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐  │
+│  │ 豆包阅读器 1.1K      │  │ MindFlow代理 1.8K    │  │ 微信适配器  483L     │  │
+│  │ ✅ LevelDB→Obsidian  │  │ ⚠️ 路径未通          │  │ ⚠️ 代码有 未接入     │  │
+│  └──────────────────────┘  └──────────────────────┘  └──────────────────────┘  │
 ├────────────────────────────────┬────────────────────────────────────────────────┤
-│  🆔  L2  身份管理层 — Alpha-ID │  ~8.2K 行 / 41文件                            │
+│  🆔  L2  身份管理层 — Alpha-ID │  ~32.6K 行 / 141文件                          │
 │  ┌──────────────────────────┐  │  ┌──────────────────────────────────────────┐  │
 │  │ DID核心 + 签名  ~2.1K    │  │  │ JWT认证  295L  ✅                         │  │
 │  │ ✅ 完整可用              │  │  │ 采集器×9  ~1.2K  ⚠️                      │  │
@@ -126,7 +131,7 @@
 │  └──────────────────────────┘  │                                               │
 │  ┌──────────────────────────┐  │  ┌──────────────────────────────────────────┐  │
 │  │ 支付宝人脸+短信          │  │  │ Agent SDK入口  ~500L  ✅                  │  │
-│  │ ⚠️ 代码完整 未启动       │  │  └──────────────────────────────────────────┘  │
+│  │ ✅ 已迁移至alphaid :8000 │  │  └──────────────────────────────────────────┘  │
 │  └──────────────────────────┘  │                                               │
 ├────────────────────────────────┴────────────────────────────────────────────────┤
 │  🧠  L3  记忆知识库层                                   ~1.6K 行               │
@@ -138,7 +143,7 @@
 │                                                  └─────────────────────────────┘│
 │  ┌─────────────────────┐ ┌─────────────────────┐                               │
 │  │ 知识整理引擎        │ │ Obsidian写入        │                               │
-│  │ ❌ 未开发           │ │ ❌ 未开发           │                               │
+│  │ ✅ Gateway内已实现  │ │ ✅ Gateway+豆包     │                               │
 │  └─────────────────────┘ └─────────────────────┘                               │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │  ⚙️  L4  Agent调度层                                    ~7.4K 行 / 32文件       │
@@ -156,19 +161,19 @@
 │  │  ~1.1K  ✅   console+微信        │  │  skill_signer      ⚠️               │  │
 │  └───────────────────────────────────┘  └─────────────────────────────────────┘  │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│  🚪  L5  网关管控层 — Gateway :18080                    638 行 / 5文件          │
+│  🚪  L5  网关管控层 — Gateway :18080                    1,857 行 / 17文件       │
 │  ┌──────────────────────────────────────────────────────────────────────────┐   │
-│  │  /v1/identity  ✅   /v1/chat  ✅(限流)   /v1/brain/*  ✅   /v1/network  ✅ │   │
-│  │  /v1/workflow  ✅   /v1/intent/parse  ✅(关键词)   /v1/register  ❌未启动  │   │
+│  │  /v1/human/*  ✅   /v1/agent/*  ✅   /v1/internal/*  ✅   /v1/net/*  ✅  │   │
+│  │  四层路由: human(用户) agent(生态) internal(内部) net(网络)               │   │
 │  └──────────────────────────────────────────────────────────────────────────┘   │
 │  ┌──────────────────────────────────────────────────────────────────────────┐   │
-│  │  基础设施: CORS白名单 | Correlation ID | 滑动窗口限流 | 统一信封           │   │
+│  │  基础设施: CORS白名单 | Correlation ID | 滑动窗口限流 | 统一信封 | 指标  │   │
 │  └──────────────────────────────────────────────────────────────────────────┘   │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │  📡  L6  底层通信层                                                             │
 │  ┌──────────────────────────────────────────────────────────────────────────┐   │
 │  │  AI Mesh libp2p  ❌ 未开发 — 先不碰                                       │   │
-│  └──────────────────────────────────────────────────────────────────────────┐   │
+│  └──────────────────────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -177,31 +182,37 @@
 ```
     [你]
      │
-     ├──── 日常对话 ──→ 豆包 ──────────────────────────→ ❌ 未接入
+     ├──── 日常对话 ──→ 豆包 ──→ LevelDB扫描 ──→ 豆包阅读器 ──→ ✅ Gateway /v1/internal/doubao/capture
+     │                                                                            │
+     │                                                                            ▼
+     │                                                         Alpha-ID 双链记忆(知链) + Obsidian
      │
-     ├──── 消息 ────→ 飞书 ──→ nebula工作流(地图) ──────→ ⚠️ 只走旧引擎
-     │                         │
-     │                         └── 应改走 ──→ ✅ Gateway :18080
+     ├──── 消息 ────→ 飞书 ──→ feishu.py ──→ ✅ Gateway :18080 /v1/human/chat
+     │                                             │
+     │                                             ▼
+     │                                     alphaid TwinBrain + AgentLoop
      │
-     ├──── 浏览器 ──→ Ghost.html ──(P0待加fetch)───────→ ⚠️ 假数据
+     ├──── 浏览器 ──→ Ghost.html ──→ ✅ Gateway /v1/human/dashboard + /v1/human/chat
+     │
+     ├──── 桌面 ──→ NURO 桌宠 ──→ ✅ 本地 Ollama + 双链记忆 + MCP 后台
      │
      └──── 微信 ──→ 微信适配器 ──(未接入)───────────────→ ⚠️ 代码有
 
 
                               ┌─────────────────────────────────────┐
                               │     Gateway :18080                   │
-                              │     14路由 + 限流 + CORS             │
+                              │     四层路由 + 限流 + CORS + 指标    │
                               └───┬─────────────┬─────────────┬─────┘
                                   │             │             │
                     ┌─────────────┘             │             └─────────────┐
                     ▼                           ▼                           ▼
         ┌───────────────────┐     ┌───────────────────┐     ┌───────────────────┐
-        │  alphaid :8000    │     │  nebula :2002     │     │  flow/api :3001   │
-        │  ~22K 行          │     │  ~6.1K 行         │     │  ~4.4K TS         │
+        │  alphaid :8000    │     │  nebula :2002     │     │  flow/api :3036   │
+        │  ~32.6K 行        │     │  ~7.7K 行         │     │  ~4.4K TS         │
         │                   │     │                   │     │                   │
-        │  ✅ 身份(DID)     │     │  ✅ 工作流引擎    │     │  ❌ 未启动        │
-        │  ✅ 双链记忆      │     │  ✅ 百度地图      │     │  注册:手机→短信   │
-        │  ✅ TwinBrain     │     │  ✅ AI网关        │     │  →人脸→DID       │
+        │  ✅ 身份(DID)     │     │  ✅ 工作流引擎    │     │  ✅ 注册链路      │
+        │  ✅ 双链记忆      │     │  ✅ 百度地图      │     │  手机→短信→人脸   │
+        │  ✅ TwinBrain     │     │  ✅ AI网关        │     │  →DID            │
         │  ✅ AgentLoop     │     │  ✅ 中间件×6     │     │  支付宝人脸       │
         │  ✅ 风控/恢复     │     │  ✅ 插件SDK      │     │  阿里云短信       │
         │  ⚠️ 多租户(已写)  │     │  ⚠️ 自动化       │     │                   │
@@ -213,23 +224,24 @@
 | 层 | 名称 | 代码量 | 核心组件 | 状态 |
 |:--:|:-----|:------:|:---------|:----:|
 | L6 | 底层通信层 | 0 | AI Mesh libp2p | ❌ 未开发 |
-| L5 | 网关管控层 | 650L / 5文件 | Gateway :18080 14路由 + CORS + 限流 + 统一信封 | ✅ 注册路由已通 |
+| L5 | 网关管控层 | 1,857L / 17文件 | Gateway :18080 四层路由(human/agent/internal/net) + CORS + 限流 + 统一信封 + 指标 | ✅ 全路由可用 |
 | L4 | Agent调度层 | ~7.4K / 32文件 | AgentLoop, Orchestrator, Tenant, Risk, Recovery, Observability, A2A | ⚠️ 基本完整 |
-| L3 | 记忆知识库层 | ~1.6K | 双链记忆(统一SQLite), TwinBrain, Coala记忆, 记忆防御 | ⚠️ 缺知识引擎 |
-| L2 | 身份管理层 | ~8.2K / 41文件 | DID, 签名, Agent网络, JWT, Profile, 挖矿采集, CLI | ✅ 最完整 |
-| L1 | 用户交互层 | ~5.6K | Ghost.html, 飞书WS, 微信适配器, MindFlow代理, 官网 | ⚠️ 半通 |
+| L3 | 记忆知识库层 | ~1.6K | 双链记忆(统一SQLite), TwinBrain, Coala记忆, 记忆防御 | ⚠️ 知识引擎已迁入Gateway |
+| L2 | 身份管理层 | ~32.6K / 141文件 | DID, 签名, Agent网络, JWT, Profile, 挖矿采集, CLI, NURO桌宠 | ✅ 最完整 |
+| L1 | 用户交互层 | ~7.3K / 9文件 | Ghost.html, 飞书WS, NURO桌宠, 豆包阅读器, 微信适配器, MindFlow代理 | ⚠️ 半通 |
 
-### 1.4 三条对话路径
+### 1.4 四条对话路径
 
 | 路径 | 入口 | 调用链路 | 工具数 | 能做什么 | 缺什么 |
 |:----:|:-----|:---------|:------:|:---------|:-------|
-| A | Ghost.html | TwinBrain → AgentLoop | 14 | 有记忆/身份/业务能力 | 0次fetch全是mock |
-| B | 飞书 | feishu.py → _llm_decide_and_act | 3 | 只能地图导航 | 没接身份/记忆/AgentLoop |
-| C | 豆包 | 无路径 | 0 | 无 | 完全没入口 |
+| A | Ghost.html | Gateway /v1/human/* → TwinBrain → AgentLoop | 14 | 注册/仪表盘/聊天/身份/记忆 | 知识浏览(P2) |
+| B | 飞书 | feishu.py → Gateway /v1/human/chat → AgentLoop | 14 | 全平台能力(身份/记忆/地图/对话) | 知识查询(P2) |
+| C | 豆包 | LevelDB → 豆包阅读器 → Gateway /v1/internal/doubao/capture | 5 | 知识自动沉淀到Obsidian | 知识查询接口(P2) |
+| D | NURO | 本地 Ollama + 双链记忆 + MCP | 7+ | 桌面悬浮精灵/语音/视觉/观察 | 多模态调优 |
 
 ### 1.5 完整组件清单（按模块分）
 
-#### alphaid/projects/src/core/ — 7,403 行 / 32 文件
+#### alphaid/projects/src/core/ — 8,741 行 / 38 文件
 
 | 文件 | 行数 | 职责 | 状态 |
 |:-----|:----:|:-----|:----:|
@@ -255,7 +267,7 @@
 | storage.py / storage_sqlite.py / storage_postgres.py | 601 | 存储后端 — JSON+SQLite+Postgres | ✅ 三后端 |
 | action_engine/ (7文件) | ~1,128 | 行动引擎 — approval+engine+adapters | ✅ 已写 |
 
-#### alphaid/projects/src/alpha_id/ — 8,164 行 / 41 文件
+#### alphaid/projects/src/alpha_id/ — ~11.3K 行 / 44 文件
 
 | 文件 | 行数 | 职责 | 状态 |
 |:-----|:----:|:-----|:----:|
@@ -271,19 +283,18 @@
 | mining/ (3文件) | ~400 | 挖矿 — 扫描+提取+推断 | ⚠️ |
 | identity_cli.py / network_cli.py / brain_cli.py / social_cli.py / repo_cli.py / scaffold_cli.py / suggest_cli.py | ~1,500 | 各类 CLI 工具 | ✅ 可用 |
 
-#### alphaid/projects/src/auth/ + entrypoints/ + api/ + tools/ + mindflow/ + feishu_bot/
+#### alphaid/projects/src/auth/ + entrypoints/ + api/ + tools/ + mindflow/
 
 | 模块 | 文件数 | 行数 | 职责 | 状态 |
 |:-----|:------:|:----:|:-----|:----:|
-| auth/ | 4 | 295 | JWT + 中间件 + Token存储 | ✅ 已写 |
-| entrypoints/api.py + daemon.py + aid_mcp_server.py + shortdrama_service.py | 5 | 2,229 | 入口 — API/守护进程/MCP/短剧 | ⚠️ daemon待删 |
-| api/ (REST路由) | 7 | 540 | 路由 — identity/risk/shortdrama/social | ⚠️ |
-| tools/ | 8 | 1,698 | 工具 — OCR/截屏/安全/窗口/身份 | ⚠️ 已写 |
-| mindflow/ | 12 | 1,822 | 工作流 — engine/intent/onboarding/agents | ⚠️ 路径未通 |
-| feishu_bot/ | 2 | 304 | 飞书 — bot.py (重复) | ⚠️ 待删 |
-| templates/ghost.html | 1 | 3,507 | Ghost.html 官网前端 | ⚠️ 0次fetch |
+| auth/ | 5 | 443 | JWT + 中间件 + Token存储 | ✅ 已写 |
+| entrypoints/ | 9 | 2,716 | NURO桌宠(1.7K) + API(217) + MCP(3,109) | ✅ NURO运行中 |
+| api/ (REST路由) | 10 | 1,304 | 路由 — identity/risk/shortdrama/social | ⚠️ |
+| tools/ | 7 | 1,479 | 工具 — OCR/截屏/安全/窗口/身份 | ⚠️ 已写 |
+| mindflow/ | 10 | 2,478 | 工作流 — engine/intent/onboarding/agents | ⚠️ 路径未通 |
+| templates/ghost.html | 1 | 2,515 | Ghost.html 官网前端 | ✅ 注册+仪表盘+聊天 |
 
-#### nebula/src/mindflow_map/ — 6,108 行 / 64 文件
+#### nebula/src/mindflow_map/ — 7,708 行 / 67 文件
 
 | 子模块 | 文件数 | 行数 | 职责 | 状态 |
 |:------|:------:|:----:|:-----|:----:|
@@ -299,12 +310,24 @@
 | workflows/engine.py | 1 | ~300 | 工作流引擎 — Tool基类+MapNav | ⚠️ 仅地图 |
 | automation/ (3文件) | 3 | ~400 | 自动化 — 抖音/Shopify/脚本生成 | ⚠️ |
 
-#### ghost-main/gateway/ — 638 行 / 5 文件
+#### ghost-main/gateway/ — 1,857 行 / 17 文件 (不含测试)
 
 | 文件 | 行数 | 职责 | 状态 |
 |:-----|:----:|:-----|:----:|
-| app.py | ~400 | FastAPI 网关 — 14路由+CORS+限流+统一信封 | ✅ 结构好 |
-| tests/ (4文件) | ~238 | 测试 — health/rate_limit | ✅ |
+| app.py | 426 | FastAPI 网关主入口 — 四层路由+生命周期+豆包扫描器 | ✅ 结构好 |
+| config.py | 57 | 集中配置 — 服务URL/端口/限流/CORS | ✅ |
+| routes/human.py | 294 | /v1/human/* — 用户接口(identity/profile/brain/chat/memory/obsidian) | ✅ |
+| routes/agent.py | 52 | /v1/agent/* — A2A拓扑+信息订阅 | ✅ |
+| routes/flow.py | 235 | /v1/agent/flow/* — 工作流模板+AID会话+地图+Computer Use | ✅ |
+| routes/internal.py | 152 | /v1/internal/* — 豆包捕获+Obsidian+健康检查 | ✅ |
+| routes/net.py | 36 | /v1/net/* — Net-Agent 代理 | ✅ |
+| services/proxy.py | 111 | HTTP代理 — 连接池+统一信封+错误处理 | ✅ |
+| services/obsidian.py | 184 | Obsidian 服务 — 写入+搜索+整理触发 | ✅ |
+| services/memory_graph.py | 119 | 记忆图谱 — 双链记忆查询 | ✅ |
+| services/metrics.py | 107 | 指标收集 — 请求计数+后端健康 | ✅ |
+| middleware/correlation.py | 30 | Correlation ID 中间件 | ✅ |
+| middleware/rate_limit.py | 41 | 滑动窗口限流中间件 | ✅ |
+| tests/ (6文件) | 938 | 测试 — health/rate_limit/integration_routing/e2e | ✅ |
 ## 项目全景版图（六大板块 + 三条主线）
 
 ### 六大板块现状
@@ -322,12 +345,12 @@
 - 状态: V 核心完整，A2A和Agent网络待升级
 
 #### 板块2: Gateway网关
-- 文件: ghost-main/gateway/app.py 638L/5文件
-- 路由: 14条已配（10通/4不通）
-- 已通: identity/chat/memory/workflow/health/brain/network/register(部分已通)
-- 不通: /v1/intent/parse（框架有但未完整实现）/ 内容审核/限流（未实现）
-- flow/api注册路由6条已于2026-07-26迁移至alphaid :8000，Gateway代理已更新。Flow/API不再承载注册职责。
-- 状态: V 基本骨架完整，LLM分流和审核限流待补
+- 文件: ghost-main/gateway/ 1,857L/17文件 (不含测试)
+- 路由: 四层架构 — /v1/human/* /v1/agent/* /v1/internal/* /v1/net/*
+- 已通: human(identity/profile/brain/chat/memory/obsidian) + agent(A2A/feeds/flow) + internal(doubao/obsidian/health) + net(代理)
+- 基础设施: CORS白名单 / Correlation ID / 滑动窗口限流 / 统一信封 / 指标收集
+- 豆包扫描器: Gateway启动时自动启用，扫描豆包桌面LevelDB
+- 状态: V 四层路由全通，生产级基础设施完整
 
 #### 板块3: 飞书总对话助理
 - 文件: nebula/mindflow_map/api/feishu.py 234L WS长连接（心跳已修复）
@@ -339,29 +362,45 @@
 - 状态: V 已通Gateway，能调全平台能力
 
 #### 板块4: Ghost展示层
-- 文件: alphaid/templates/ghost.html 2515L（已删除重复 Mindflow 面板）
+- 文件: alphaid/templates/ghost.html 2,515L（已删除重复 Mindflow 面板）
 - UI: TailwindCSS编译 两视图架构（A2A 生态区 + Mindflow 协作台）
-- 已加: fetchDashboard()调Gateway /v1/dashboard + sendChatMessage()调/v1/chat + 注册UI调Gateway→alphaid
+- 已加: fetchDashboard()调Gateway /v1/human/dashboard + sendChatMessage()调/v1/human/chat + 注册UI调Gateway→alphaid
 - 当前: 注册流程（SMS→人脸→DID）已通过Gateway→alphaid打通，浏览器可操作完整注册
+- 状态: V 注册+仪表盘+聊天全通
 
-#### 板块5: 豆包知识沉淀（整块新建）
-- 现状: 完全未接入。豆包内容和Ghost系统隔离
-- 方案（用户确认）: 豆包自身LLM做拆分/分类/摘要/链接 -> 直接输出结构化知识卡片 -> Obsidian
-- 明确不做: 不在中间写知识整理引擎，豆包就是引擎
-- 待调研: 豆包导出/API接入方案（P1）
-- 状态: X 未开发
+#### 板块5: 豆包知识管道（已开发）
+- 文件: ghost-main/doubao_reader/ 1,055L/5文件
+- 现状: 已开发完成。LevelDB扫描→精炼→Obsidian写入全自动
+- 模块: log_reader(239L) + knowledge_refiner(204L) + obsidian_writer(208L) + obsidian_organizer(306L) + reader_daemon(98L)
+- 数据流: 豆包桌面LevelDB → LogReader解析 → KnowledgeRefiner精炼 → Gateway /v1/internal/doubao/capture → Alpha-ID双链记忆 + Obsidian
+- 守护进程: reader_daemon 60秒间隔自动扫描
+- 状态: V 已开发，Gateway集成完成
 
-#### 板块6: Obsidian知识库（整块新建）
-- 现状: 不存在
-- 方案: 接收豆包输出的结构化知识 -> 生成MD文件 -> 按主题分类 -> 带标签/链接/时间戳
-- 查询: Ghost.html和飞书可搜索查询（P2）
-- 状态: X 不存在
+#### 板块6: Obsidian知识库（已接入）
+- 现状: Gateway services/obsidian.py(184L) + doubao_reader/obsidian_writer.py(208L) + obsidian_organizer.py(306L)
+- 方案: 接收豆包精炼后的结构化知识 -> 生成MD文件 -> 按主题分类 -> 带YAML frontmatter(标签/链接/时间戳)
+- 自动整理: wiki-links生成 + 日报 + 标签索引
+- 查询: Gateway /v1/human/obsidian/search 已可用
+- 状态: V 写入+整理+查询全通
 
-### 三条使用主线
+#### 板块7: NURO 桌面精灵（已开发）
+- 文件: alphaid/projects/src/entrypoints/ 1,719L/7文件
+- 定位: 纯本地 AI 贾维斯，Windows 桌面悬浮精灵
+- 模块: app.py(1,047L主类) + cli.py(190L入口) + feature_flags.py(171L) + daily_summary.py(95L) + acrylic.py(56L) + palette.py(24L) + daemon.py(136L兼容层)
+- 语音链路: Whisper STT → Ollama LLM → Coqui TTS
+- 视觉: MiniCPM-o-4.5 多模态
+- VRAM预算: RTX 5070 Ti 16GB 实测 ~10.3GB
+- MCP后台服务器: 提供外部工具调用接口
+- 隐私模式: blind(不截图)/deaf(不监听)
+- 安装: install_deskpet.bat 一键安装
+- 状态: V 已开发完成
 
-主线A（知识进）: 豆包聊天 -> 豆包自身LLM做拆分/分类/摘要 -> Obsidian卡片
+### 四条使用主线
+
+主线A（知识进）: 豆包聊天 -> LevelDB扫描 -> 豆包阅读器 -> Gateway -> Alpha-ID双链记忆 + Obsidian卡片
 主线B（能力用）: 对话飞书 -> feishu.py -> Gateway :18080 -> alphaid/nebula/flow
 主线C（统一看）: 打开Ghost.html -> fetchDashboard/sendChatMessage -> Gateway -> 后端
+主线D（桌面伴）: NURO桌宠 -> 本地Ollama + 双链记忆 + MCP -> 语音/视觉/观察
 
 ### 已解决的方向错误
 
@@ -389,9 +428,9 @@
 
 | 服务 | 端口 | 状态 | 行数 | 本质 |
 |:-----|:----:|:----:|:----:|:------|
-| alphaid | 8000 | Demo模式 | ~22K Python + 3.5K HTML | 身份+记忆+双脑+AgentLoop+采集+CLI 全栈核心 |
-| nebula | 2002 | 运行中 | ~6.1K Python / 64文件 | 工作流引擎+飞书WS+AI网关+中间件+插件SDK |
-| gateway | 18080 | 运行中 | 638 Python / 5文件 | 统一网关 14路由+CORS+限流+统一信封 |
+| alphaid | 8000 | 运行中 | ~32.6K Python / 141文件 + 2.5K HTML | 身份+记忆+双脑+AgentLoop+采集+CLI+NURO 全栈核心 |
+| nebula | 2002 | 运行中 | ~7.7K Python / 67文件 | 工作流引擎+飞书WS+AI网关+中间件+插件SDK |
+| gateway | 18080 | 运行中 | 1,857 Python / 17文件 | 统一网关 四层路由+CORS+限流+统一信封+指标 |
 
 ### 2.2 写完了但没启动的
 
@@ -401,7 +440,7 @@
 
 ### 2.3 核心问题一句话
 
-代码很多（~32K行）但关键路径断了 -- 飞书只认地图、Ghost是假官网、豆包进不来、注册链路没启动、大量已写能力（Orchestrator/多租户/风控/恢复）未被任何入口调用。需要的是打通而不是加功能。
+代码很多（~45K行）且关键路径已打通 -- 飞书走Gateway全平台可用、Ghost注册+仪表盘+聊天全通、豆包LevelDB自动沉淀、NURO桌宠独立运行。当前短板：知识查询接口(P2)、多租户隔离、A2A真实通信。需要的是打磨而不是加功能。
 
 ---
 ## 3. 飞书机器人（总对话助理） -- 现状->目标->路径
@@ -515,33 +554,32 @@ P0-4 已修复：飞书不再走旧 workflow 引擎，改为调 Gateway /v1/chat
 > 注：已删除重复的 4 个 Mindflow 面板，workbenchView 聚焦 A2A 生态，mindflowView 为唯一人机协作台。
 
 ### 5.2 目标形态
-Ghost.html -> 仪表盘(从Gateway拉真实数据)
-           -> 注册/登录(手机号->短信->人脸->DID)
-           -> 聊天面板(POST /v1/chat + SSE流式)
+Ghost.html -> 仪表盘(从Gateway拉真实数据) ✅
+           -> 注册/登录(手机号->短信->人脸->DID) ✅
+           -> 聊天面板(POST /v1/human/chat) ✅
            -> 知识浏览(P2)
 
 ### 5.3 中间步骤
-| 步骤 | 做什么 | 优先级 |
-|:
+| 步骤 | 做什么 | 优先级 | 状态 |
+|:-----|:-------|:------:|:----:|
+| 1 | 加fetchDashboard调Gateway | P0 | ✅ DONE |
+| 2 | 加注册页面 | P0 | ✅ DONE |
+| 3 | 加聊天面板 | P0 | ✅ DONE |
+| 4 | 知识浏览 | P2 | ⚠️ 待做 |
+
 ### 5.4 衔接关系
 
 Ghost.html是**Web展示层**，不是主入口。它通过Gateway调后端接口。页面已加入fetchDashboard()和sendChatMessage()，启动后可看到真实数据。
 
-Ghost.html -> Gateway :18080 -> alphaid :8000 / flow/api :3001
-
------|:-------|:------:|
-| 1 | 加fetchDashboard调Gateway | P0 |
-| 2 | 加注册页面 | P0 |
-| 3 | 加聊天面板 | P0 |
-| 4 | 统一命名去掉Web4.0 | P1 |
+Ghost.html -> Gateway :18080 -> alphaid :8000 / flow/api :3036
 
 ---
 ## 6. Alpha-ID 身份层 -- 现状->目标->路径
 
 ### 6.1 现状
-这是项目中最完整的部分。分两个大目录：
+这是项目中最完整的部分。总分三个大目录 + 入口模块：
 
-**alpha_id/** (8,164行/41文件) — 身份+社交+采集+CLI
+**alpha_id/** (~11.3K行/44文件) — 身份+社交+采集+CLI
 
 | 模块 | 文件 | 行数 | 状态 |
 |:-----|:-----|:----:|:----:|
@@ -555,97 +593,236 @@ Ghost.html -> Gateway :18080 -> alphaid :8000 / flow/api :3001
 | 挖矿 | mining/ (扫描+提取+推断) | ~400 | ⚠️ |
 | CLI工具 (7个) | identity/network/brain/social/repo/scaffold/suggest | ~1,500 | ✅ 可用 |
 
-**core/** (7,403行/32文件) — 核心引擎层（见§1.5完整表）
+**core/** (8,741行/38文件) — 核心引擎层（见§1.5完整表）
 
-**入口混乱问题：** 4个入口（api.py / daemon.py / aid_mcp_server.py / shortdrama_service.py）+ alphaid/feishu_bot 重复
+**entrypoints/** (2,716行/9文件) — NURO桌宠 + API + MCP
+
+**入口已清理：** 短剧已删，feishu_bot已删，daemon.py改为兼容shim
 
 ### 6.2 目标
-核心层保持干净(身份+记忆+AgentLoop+事件总线) 删冗余 只留api.py + aid_mcp_server.py
+核心层保持干净(身份+记忆+AgentLoop+事件总线) 删冗余 只留api.py + aid_mcp_server.py + NURO模块
 
 ### 6.3 中间步骤
-| 步骤 | 做什么 | 优先级 |
-|:
+| 步骤 | 做什么 | 优先级 | 状态 |
+|:-----|:-------|:------:|:----:|
+| 1 | 删短剧 shortdrama_service.py | P0 | ✅ DONE |
+| 2 | 删 alphaid/feishu_bot/ | P0 | ✅ DONE |
+| 3 | 清理 main.py入口 | P0 | ✅ DONE |
+| 4 | 统一入口只留 api.py + aid_mcp_server.py | P0 | ✅ DONE |
+
 ### 6.4 衔接关系
 
-Alpha-ID是**身份根基**，所有入口（豆包/飞书/Ghost）最终都要通过它。飞书通过Gateway查身份，Ghost通过Gateway注册身份。注册链路的短信验证和人脸识别已由alphaid（Python）接管，不再依赖flow/api。
+Alpha-ID是**身份根基**，所有入口（豆包/飞书/Ghost/NURO）最终都要通过它。飞书通过Gateway查身份，Ghost通过Gateway注册身份，NURO本地调用身份API。注册链路的短信验证和人脸识别已由alphaid（Python）接管，不再依赖flow/api。
 
 飞书/Ghost -> Gateway -> alphaid DID (身份查询/注册)
-
------|:-------|:------:|
-| 1 | 删短剧 shortdrama_service.py | P0 |
-| 2 | 删桌面精灵 daemon.py | P0 |
-| 3 | 删 alphaid/feishu_bot/ (与 nebula 重复) | P0 |
-| 4 | 清理 main.py入口 | P0 |
-| 5 | 统一入口只留 api.py + aid_mcp_server.py | P0 |
+NURO -> alphaid (本地身份/记忆)
 
 ---
 ## 7. Gateway 网关 -- 现状->目标->路径
 
-路径: `D:\MW\ghost-main\gateway\app.py`
-行数: ~400 (总638含测试) 路由数: 14条
+路径: `D:\MW\ghost-main\gateway/` 1,857行 / 17文件
+入口: `gateway/app.py` (426行)
+架构: 四层路由 — human / agent / internal / net
 
 当前路由:
-| 路由 | 后端 | 状态 |
-|:-----|:-----|:----:|
-| GET /health | 本地 三后端健康检查 | ✅ |
-| GET /v1/identity | alphaid :8000 | ✅ |
-| GET /v1/profile | alphaid :8000 | ✅ |
-| GET /v1/brain/status + POST /v1/brain/awake | alphaid :8000 | ✅ |
-| GET /v1/network/topology | alphaid :8000 | ✅ |
-| POST /v1/chat (限流10/60s) | alphaid :8000 | ✅ |
-| POST /v1/intent/parse (关键词分流) | alphaid :8000 | ✅ 已实现 |
-| GET /v1/workflows + POST /v1/workflows/execute | nebula :2002 | ✅ |
-| /v1/register/* | alphaid :8000（原 flow/api :3001） | ✅ 已迁移并打通 |
+| 层级 | 路由 | 后端 | 状态 |
+|:-----|:-----|:-----|:----:|
+| human | GET /v1/human/identity | alphaid :8000 | ✅ |
+| human | GET /v1/human/profile | alphaid :8000 | ✅ |
+| human | GET /v1/human/brain/status + POST /v1/human/brain/awake | alphaid :8000 | ✅ |
+| human | POST /v1/human/chat (限流5/60s) | alphaid :8000 | ✅ |
+| human | GET /v1/human/memory/graph | alphaid :8000 | ✅ |
+| human | GET /v1/human/obsidian/search | 本地Obsidian | ✅ |
+| agent | GET /v1/agent/interact/topology | alphaid :8000 | ✅ |
+| agent | GET /v1/agent/feeds/latest | 本地 | ✅ |
+| agent | /v1/agent/flow/* | flow :3036 | ✅ |
+| internal | POST /v1/internal/doubao/capture | alphaid :8000 | ✅ |
+| internal | GET /v1/internal/obsidian/status | 本地 | ✅ |
+| internal | GET /v1/internal/health | 本地 | ✅ |
+| net | /v1/net/* | net-agent :18180 | ✅ |
 
-基础设施: CORS白名单 / Correlation ID / 滑动窗口限流(5/60s) / 统一信封 {success,data,ts,request_id}
+基础设施: CORS白名单 / Correlation ID / 滑动窗口限流(5/60s) / 统一信封 {success,data,ts,request_id} / 指标收集
 
-目标: 全部14条路由可用 + LLM智能分流(现仅关键词) + 内容审核
+目标: 四层路由全通(已完成) + 内容审核(P2) + 监控Trace(P2)
+
+### 7.4 衔接关系
+
+Gateway是**统一入口**，所有外部请求（飞书/Ghost/NURO）都经过它路由到后端服务。飞书调/v1/human/chat，Ghost调/v1/human/dashboard和/v1/human/chat，注册流程调/v1/human/*，豆包调/v1/internal/doubao/capture。
+
+飞书 -> Gateway -> alphaid/nebula/flow
+Ghost -> Gateway -> alphaid/flow
+NURO -> Gateway -> alphaid(身份/记忆)
 
 ---
-## 8. Nebula 工作流 -- 现状->目标->路径
+## 8. NURO 桌面精灵 -- 现状->目标->路径
 
-路径: `D:\MW\nebula\src\mindflow_map\` 64文件 / 6,108行
+### 8.1 现状
+路径: `D:\MW\alphaid\projects\src/entrypoints/` (NURO模块 1,719行 / 7文件，不含api.py和aid_mcp_server.py)
+
+| 模块 | 行数 | 职责 | 状态 |
+|:-----|:----:|:-----|:----:|
+| app.py | 1,047 | AidNuro 主类 — 14步启动序列 | ✅ 可运行 |
+| cli.py | 190 | CLI 入口 — 参数解析+环境检测+启动 | ✅ |
+| feature_flags.py | 171 | 功能标志 — 所有 _HAS_* 能力检测 | ✅ |
+| daily_summary.py | 95 | 每日总结调度 — 22:00自动+手动触发 | ✅ |
+| acrylic.py | 56 | DWM 亚克力效果 — Win10/11 窗口模糊 | ✅ |
+| palette.py | 24 | UI 调色板 — 深色主题配色 | ✅ |
+| daemon.py | 136 | 向后兼容 re-export shim | ✅ |
+
+### 8.2 核心能力
+
+**14步启动序列:**
+1. 身份初始化（FOUNDER → NURO DID）
+2. 记忆接入（双链记忆）
+3. 大脑（MiniCPM-o + Ollama）
+4. 语音（Whisper + Coqui TTS）
+5. 通知气泡
+6. 主动观察器
+7. 每日总结
+8. Tkinter 角色窗口
+9. 2D 角色（FairyCharacter 或降级为 emoji）
+10. 右键菜单
+11. 语音唤醒监听
+12. MCP 后台服务器
+13. 启动观察循环
+14. 气泡绑定 + 呼吸动画 + 每日总结定时器
+
+**语音链路:** Whisper STT → Ollama LLM → Coqui TTS
+**视觉:** MiniCPM-o-4.5 多模态
+**VRAM预算（RTX 5070 Ti 16GB）:**
+- MiniCPM-o Q4_K_M: ~5.5GB
+- Whisper tiny: ~0.5GB（CPU模式）
+- Coqui TTS: ~1.5GB
+- CUDA + 系统: ~2.5GB
+- Tkinter + 角色: ~0.3GB
+- 总计: ~10.3GB（剩余 5.7GB）
+
+**隐私模式:** blind(不截图) / deaf(不监听)
+**安装:** `install_deskpet.bat` 一键安装
+
+### 8.3 目标
+NURO成为完整的本地AI助手：语音对话、视觉理解、主动观察、每日总结、MCP工具调用全部可用。
+
+### 8.4 衔接关系
+NURO是**纯本地AI贾维斯**，不依赖Gateway。它直接调用Ollama(本地LLM)、双链记忆(本地SQLite)、MCP工具。可选通过Gateway与Alpha-ID同步身份和记忆。
+
+你 -> 语音/文字 -> NURO -> Ollama LLM -> 双链记忆
+                  -> MiniCPM-o(视觉)
+                  -> MCP工具(截屏/窗口/OCR)
+
+### 8.5 中间步骤
+| 步骤 | 做什么 | 优先级 |
+|:-----|:-------|:------:|
+| 1 | 完成14步启动序列 | P0 DONE |
+| 2 | Whisper+Ollama+Coqui语音链路 | P0 DONE |
+| 3 | MiniCPM-o多模态接入 | P1 |
+| 4 | MCP后台服务器 | P1 |
+| 5 | 主动观察循环优化 | P2 |
+
+---
+## 9. 豆包知识管道 -- 现状->目标->路径
+
+### 9.1 现状
+路径: `D:\MW\ghost-main\doubao_reader\` 1,055行 / 5文件
+
+| 模块 | 行数 | 职责 | 状态 |
+|:-----|:----:|:-----|:----:|
+| log_reader.py | 239 | LevelDB解析 — 读取豆包桌面IndexedDB | ✅ 可用 |
+| knowledge_refiner.py | 204 | 知识精炼 — 去噪/去重/自动标签 | ✅ 可用 |
+| obsidian_writer.py | 208 | Obsidian写入 — YAML frontmatter+MD | ✅ 可用 |
+| obsidian_organizer.py | 306 | 自动整理 — wiki-links+日报+索引 | ✅ 可用 |
+| reader_daemon.py | 98 | 守护进程 — 60秒间隔自动扫描 | ✅ 可用 |
+
+### 9.2 数据流
+```
+豆包桌面App (IndexedDB LevelDB)
+    → LogReader.parse_log_file() 解析会话
+    → 去重+结构化处理
+    → KnowledgeRefiner 精炼(去噪/去重/自动标签)
+    → Gateway /v1/internal/doubao/capture (仅本地IP)
+    → Alpha-ID /memory/store → 双链记忆(知链)
+    → ObsidianWriter 写入 D:\Obsidian\Ghost知识库
+    → ObsidianOrganizer 自动整理(wiki-links+日报+索引)
+```
+
+### 9.3 目标
+豆包对话全自动沉淀到Obsidian知识库，零人工干预，飞书/Ghost可查询。
+
+### 9.4 衔接关系
+豆包是**知识入口**。日常对话通过LevelDB扫描自动捕获，精炼后写入Obsidian。沉淀的知识可通过Gateway查询。
+
+豆包 -> LevelDB -> 豆包阅读器 -> Gateway -> Alpha-ID双链记忆 + Obsidian
+Ghost/飞书 -> Gateway /v1/human/obsidian/search -> 查询知识
+
+### 9.5 中间步骤
+| 步骤 | 做什么 | 优先级 |
+|:-----|:-------|:------:|
+| 1 | LevelDB解析器 | P0 DONE |
+| 2 | 知识精炼引擎 | P0 DONE |
+| 3 | Gateway /v1/internal/doubao/capture 集成 | P0 DONE |
+| 4 | Obsidian写入+整理 | P0 DONE |
+| 5 | 守护进程自动扫描 | P0 DONE |
+| 6 | 飞书/Ghost知识查询接口 | P2 |
+
+---
+## 10. Nebula 工作流 -- 现状->目标->路径
+
+路径: `D:\MW\nebula\src\mindflow_map\` 67文件 / 7,708行
 入口: `mindflow_map/main.py`
 核心: 工作流引擎 + AI网关(intent/llm/circuit_breaker) + 中间件(rate_limit/auth/audit/prometheus) + 插件SDK(@tool装饰器) + 自动化(抖音/Shopify)
-飞书绑在上面 未来应走Gateway
-目标: 飞书走Gateway Nebula退回纯工作流引擎
+飞书已改走Gateway Nebula退回纯工作流引擎
+目标: 飞书走Gateway Nebula专注工作流/地图/自动化
 
 | 步骤 | 做什么 | 优先级 |
 |:-----|:-------|:------:|
-| 1 | feishu.py改调Gateway | P0 |
+| 1 | feishu.py改调Gateway | P0 DONE |
 | 2 | 修正ci.yml | P1 |
 
+### 10.3 衔接关系
+
+Nebula是**工作流引擎**，负责飞书WS长连接和地图导航等业务。它通过Gateway与alphaid对接，不直接调用后端。
+
+飞书 -> feishu.py -> Gateway -> nebula（工作流/地图）
+
 ---
-## 9. Flow/API 注册链路 -- 现状->目标->路径
+## 11. Flow/API 注册链路 -- 现状->目标->路径
 
 路径: D:\MW\flow\apps\api\ TS+Fastify ~4.4K行
 注册路由完整(手机号->短信->人脸->DID)
 支付宝人脸代码已写 短信验证有真实阿里云Key
-.env有真实配置 但从未启动过
+注册路由已迁移至alphaid :8000
 
-目标: npm install -> 启动 -> 接入Gateway
+目标: 注册由alphaid承接，Flow/API专注工作流/地图/Computer Use
 
 | 步骤 | 做什么 | 优先级 |
 |:-----|:-------|:------:|
-| 1 | npm install | P0 |
-| 2 | npx tsx src/index.ts | P0 |
-| 3 | 验证:3001/api/health | P0 |
+| 1 | npm install | P0 DONE |
+| 2 | 注册路由迁移至alphaid | P0 DONE |
+| 3 | Gateway /v1/agent/flow/* 代理 | P0 DONE |
+
+### 11.4 衔接关系
+
+Flow/API提供**工作流/地图/Computer Use**服务（原注册职责已迁至alphaid）。Gateway的/v1/agent/flow/*路由代理到它。
+
+Ghost/飞书 -> Gateway /v1/agent/flow/* -> flow/api :3036
 
 ---
-## 10. 六层架构代码映射（完整版）
+## 12. 六层架构代码映射（完整版）
 
 > 详细到文件级别的映射见 §1.5 完整组件清单。本节为精简速查版。
 
-### L1 用户交互层 (~5,600行)
+### L1 用户交互层 (~7,300行)
 | 文件 | 真实路径 | 行数 | 状态 |
 |:-----|:---------|:----:|:----:|
-| Ghost.html | `alphaid/projects/src/templates/ghost.html` | 3,507 | ⚠️ 0次fetch |
-| 飞书机器人 | `nebula/src/mindflow_map/api/feishu.py` | ~200 | ⚠️ 只能地图 |
+| Ghost.html | `alphaid/projects/src/alpha_id/templates/ghost.html` | 2,515 | ✅ 注册+仪表盘+聊天 |
+| 飞书机器人 | `nebula/src/mindflow_map/api/feishu.py` | ~200 | ✅ 全平台能力 |
 | 飞书Webhook | `nebula/src/mindflow_map/api/feishu_webhook.py` | ~150 | ⚠️ 备选 |
+| NURO桌宠 | `alphaid/projects/src/entrypoints/` | 1,719 | ✅ 本地AI贾维斯 |
+| 豆包阅读器 | `ghost-main/doubao_reader/` | 1,055 | ✅ LevelDB→Obsidian |
 | 微信适配器 | `alphaid/projects/src/core/action_engine/adapters/wechat.py` | 483 | ⚠️ 已写未接 |
 | MindFlow代理 | `nebula/src/mindflow_map/api/` | ~1,800 | ⚠️ 路径未通 |
 
-### L2 身份管理层 (~8,200行)
+### L2 身份管理层 (~32,600行)
 | 文件 | 真实路径 | 行数 | 状态 |
 |:-----|:---------|:----:|:----:|
 | DID核心 | `alphaid/projects/src/alpha_id/did.py` | ~1,200 | ✅ 完整 |
@@ -655,7 +832,7 @@ Alpha-ID是**身份根基**，所有入口（豆包/飞书/Ghost）最终都要�
 | JWT认证 | `alphaid/projects/src/auth/` | 295 | ✅ 已写 |
 | 采集器(9个) | `alphaid/projects/src/alpha_id/collectors/` | ~1,200 | ⚠️ 部分可用 |
 | CLI(7个) | `alphaid/projects/src/alpha_id/*_cli.py` | ~1,500 | ✅ 可用 |
-| 注册路由TS | `flow/apps/api/src/routes/register.ts` | 311 | ❌ 未启动 |
+| 注册路由 | `alphaid/projects/src/alpha_id/web.py` | ~600 | ✅ 已迁移至alphaid |
 
 ### L3 记忆知识库层 (~1,600行)
 | 文件 | 真实路径 | 行数 | 状态 |
@@ -680,11 +857,15 @@ Alpha-ID是**身份根基**，所有入口（豆包/飞书/Ghost）最终都要�
 | 可观测性 | `alphaid/projects/src/core/observability.py` | 553 | ✅ 已写 |
 | 行动引擎 | `alphaid/projects/src/core/action_engine/` | ~1,128 | ✅ 已写 |
 
-### L5 网关管控层 (638行)
+### L5 网关管控层 (1,857行)
 | 文件 | 真实路径 | 行数 | 状态 |
 |:-----|:---------|:----:|:----:|
-| Gateway | `ghost-main/gateway/app.py` | ~400 | ✅ 14路由+限流+信封 |
-| 测试 | `ghost-main/gateway/tests/` | ~238 | ✅ |
+| Gateway | `ghost-main/gateway/app.py` | 426 | ✅ 四层路由+限流+信封+指标 |
+| 路由 | `ghost-main/gateway/routes/` | 777 | ✅ human/agent/flow/internal/net |
+| 服务 | `ghost-main/gateway/services/` | 525 | ✅ proxy/obsidian/memory/metrics |
+| 中间件 | `ghost-main/gateway/middleware/` | 72 | ✅ correlation/rate_limit |
+| 配置 | `ghost-main/gateway/config.py` | 57 | ✅ 集中配置 |
+| 测试 | `ghost-main/gateway/tests/` | 938 | ✅ health/rate_limit/integration/e2e |
 
 ### L6 底层通信层 (0行)
 | 模块 | 路径 | 状态 |
@@ -692,7 +873,7 @@ Alpha-ID是**身份根基**，所有入口（豆包/飞书/Ghost）最终都要�
 | AI Mesh libp2p | 未开发 | ❌ 先不碰 |
 
 ---
-## 11. 架构审查 -- 做对的 vs 做错的
+## 13. 架构审查 -- 做对的 vs 做错的
 
 ### 11.1 做对了的
 | # | 决策 | 为什么对 |
@@ -708,73 +889,74 @@ Alpha-ID是**身份根基**，所有入口（豆包/飞书/Ghost）最终都要�
 | 9 | 故障恢复(recovery.py)+可观测性(observability.py) | 生产级稳定性 |
 | 10 | 行动引擎(action_engine) | approval+adapter模式解耦 |
 
-### 11.2 做错了的(必须改)
-| # | 错误 | 表现 | 正确做法 |
-|---|------|------|---------|
-| 1 | 飞书走错路 | feishu.py→workflows/engine只地图 | 飞书→Gateway→LLM分流 |
-| 2 | alphaid入口混乱 | 4入口(api/daemon/mcp/shortdrama)+feishu_bot重复 | 只留api.py+aid_mcp_server.py |
-| 3 | Ghost假官网 | 3507行0次fetch | 加fetch调Gateway |
-| 4 | 豆包无入口 | 核心输入进不了Ghost | 豆包→知识引擎→Obsidian |
-| 5 | 飞书两套重复代码 | nebula/feishu+alphaid/feishu_bot | 只保留nebula |
-| 6 | flow/api从未启动 | 注册链路代码完整但6条路由不通 | npm install→启动 |
-| 7 | 微信适配器写了没接 | wechat.py 483L在action_engine里 | 接入Gateway或删除 |
+### 13.2 做错了的(已修正)
+| # | 错误 | 表现 | 纠正 | 状态 |
+|---|------|------|------|:----:|
+| 1 | 飞书走错路 | feishu.py→workflows/engine只地图 | 飞书→Gateway→LLM分流 | ✅ 已修正 |
+| 2 | alphaid入口混乱 | 4入口(api/daemon/mcp/shortdrama)+feishu_bot重复 | 只留api.py+aid_mcp_server.py | ✅ 已修正 |
+| 3 | Ghost假官网 | 3507行0次fetch | 加fetch调Gateway | ✅ 已修正 |
+| 4 | 豆包无入口 | 核心输入进不了Ghost | 豆包→LevelDB→阅读器→Gateway→Obsidian | ✅ 已修正 |
+| 5 | 飞书两套重复代码 | nebula/feishu+alphaid/feishu_bot | 只保留nebula | ✅ 已修正 |
+| 6 | flow/api注册未启动 | 注册链路代码完整但路由不通 | 注册迁移至alphaid :8000 | ✅ 已修正 |
+| 7 | 微信适配器写了没接 | wechat.py 483L在action_engine里 | 接入Gateway或删除 | ⚠️ 待处理 |
 
-### 11.3 冗余待删
-| 项 | 位置 | 大小 | 原因 |
-|:---|:-----|:----:|:-----|
-| 短剧服务 | entrypoints/shortdrama_service.py | ~800L | 无关 |
-| 桌面精灵 | entrypoints/daemon.py | ~700L | 空壳 |
-| feishu_bot重复 | feishu_bot/ | 304L | nebula已有 |
-| flow双链记忆TS版 | flow/.../dual-chain.ts | ~5K | 有Python版 |
-| flow旧路由 | workflow.ts+map.ts | ~3K | 不再用 |
-
----
-## 12. P0 任务清单(立即执行)
-
-### P0-1 删冗余代码
-删除: shortdrama_service.py + daemon.py + alphaid/feishu_bot/ + flow重复模块(dual-chain.ts/workflow.ts/map.ts)
-然后在main.py删掉shortdrama_router import 重启alphaid
-
-### P0-2 启动flow/api注册链路
-cd D:\MW\flow\apps\api && npm install && npx tsx src/index.ts
-验证 http://localhost:3001/api/health
-
-### P0-3 Ghost.html加真实API
-加fetchDashboard调GET /v1/dashboard
-加注册页面UI(手机号->短信->人脸->DID)
-加聊天面板(输入->POST /v1/chat->SSE流式)
-
-### P0-4 飞书改走Gateway+LLM分流
-Gateway加/v1/intent/parse路由
-feishu.py改调Gateway
-删alphaid/feishu_bot/
+### 13.3 冗余待删
+| 项 | 位置 | 大小 | 原因 | 状态 |
+|:---|:-----|:----:|:-----|:----:|
+| 短剧服务 | entrypoints/shortdrama_service.py | ~800L | 无关 | ✅ 已删 |
+| 桌面精灵 | entrypoints/daemon.py | ~700L | 空壳 | ✅ 改为兼容shim |
+| feishu_bot重复 | feishu_bot/ | 304L | nebula已有 | ✅ 已删 |
+| flow双链记忆TS版 | flow/.../dual-chain.ts | ~5K | 有Python版 | ✅ 已删 |
+| flow旧路由 | workflow.ts+map.ts | ~3K | 不再用 | ✅ 已删 |
 
 ---
-## 13. P1 任务清单(本周)
-| # | 任务 | 工作量 |
-|---|------|:------:|
-| 1 | 飞书凭证移入环境变量 | 0.5h |
-| 2 | FOUNDER身份移入环境变量 | 0.5h |
-| 3 | 修正CI路径 | 0.5h |
-| 4 | 调研豆包直连Obsidian方案（豆包自身做知识整理） | 3h |
-| 5 | 豆包知识自动同步到Obsidian | 4h |
-| 6 | Obsidian知识卡片查询接口 | 3h |
-| 7 | alphaid目录重构 | 2h |
+## 14. P0 任务清单(立即执行)
+
+### P0-1 删冗余代码 ✅ DONE (2026-07-25)
+删除: shortdrama_service.py + alphaid/feishu_bot/ + flow重复模块(dual-chain.ts/workflow.ts/map.ts)
+daemon.py 保留为向后兼容 re-export shim
+
+### P0-2 启动flow/api注册链路 ✅ DONE (2026-07-26)
+注册路由6条已迁移至alphaid :8000，Gateway代理已更新。
+Flow/API不再承载注册职责，转为工作流/地图/Computer Use服务。
+
+### P0-3 Ghost.html加真实API ✅ DONE (2026-07-26)
+已加: fetchDashboard()调Gateway /v1/human/dashboard
+已加: 注册页面UI(手机号->短信->人脸->DID) 通过Gateway→alphaid打通
+已加: 聊天面板(输入->POST /v1/human/chat)
+
+### P0-4 飞书改走Gateway+LLM分流 ✅ DONE (2026-07-26)
+Gateway已加四层路由(含/v1/human/chat)
+feishu.py已改调Gateway /v1/human/chat
+alphaid/feishu_bot/已删
 
 ---
-## 14. P2 任务清单(两周内)
+## 15. P1 任务清单(本周)
+| # | 任务 | 工作量 | 状态 |
+|---|------|:------:|:----:|
+| 1 | 飞书凭证移入环境变量 | 0.5h | ⚠️ 待做 |
+| 2 | FOUNDER身份移入环境变量 | 0.5h | ⚠️ 待做 |
+| 3 | 修正CI路径 | 0.5h | ⚠️ 待做 |
+| 4 | 调研豆包直连Obsidian方案 | 3h | ✅ 已做(LevelDB方案) |
+| 5 | 豆包知识自动同步到Obsidian | 4h | ✅ 已做 |
+| 6 | Obsidian知识卡片查询接口 | 3h | ⚠️ 待做 |
+| 7 | alphaid目录重构 | 2h | ⚠️ 待做 |
+
+---
+## 16. P2 任务清单(两周内)
 | # | 任务 | 说明 |
 |---|------|------|
 | 1 | Ghost知识搜索 | 搜索浏览卡片 |
 | 2 | 飞书知识查询 | 查记忆/卡片 |
 | 3 | 内容审核中间件 | Gateway做 |
-| 4 | 限流中间件 | Token Bucket |
+| 4 | 限流中间件升级 | Token Bucket |
 | 5 | 监控Trace | 链路追踪 |
 | 6 | 多租户隔离 | 多用户准备 |
 | 7 | A2A真实通信 | HTTP/WS升级 |
+| 8 | NURO多模态优化 | MiniCPM-o调优 |
 
 ---
-## 15. 根目录清理计划
+## 17. 根目录清理计划
 | 文件 | 处理 |
 |:-----|:-----|
 | GHOST.md | 保留 |
@@ -786,7 +968,7 @@ feishu.py改调Gateway
 | archive/md_old/ | 保留不动 |
 
 ---
-## 16. 已确认决策（项目宪法）
+## 18. 已确认决策（项目宪法）
 
 以下决策是项目基石，后续所有开发必须遵循，不反复确认：
 
@@ -794,50 +976,74 @@ feishu.py改调Gateway
 |:-----|:------|:-----|
 | 唯一官网 = Ghost.html（不是其他任何页面） | 用户明确 | 所有用户界面统一走Ghost |
 | 豆包 = 知识输入主入口 + 自己就是整理引擎 | 用户明确 | 不做中间层，豆包直连Obsidian |
-| 飞书 = 工作指令辅助入口 | 用户明确 | 指令走Gateway查身份/记忆/业务 |
+| 飞书 = 总对话助理 | 用户明确 | 自然语言对话走Gateway调全平台能力 |
 | 不用微信、不用Claude Code | 用户明确 | 删除相关代码 |
 | 飞书不走工作流引擎，走Gateway+LLM分流 | 默认同意 | feishu.py已改 |
 | 文档只留GHOST.md + archive/md_old/ | 已执行 | 根目录只保留3项 |
-| 已删：短剧/daemon/微信/feishu_bot/DS/flow重复 | P0已执行 | 13项冗余已清理 |
+| 已删：短剧/feishu_bot/DS/flow重复 | P0已执行 | 冗余已清理 |
+| 豆包 = LevelDB扫描方案（非API） | 技术决策 | 零API依赖，离线工作 |
+| NURO = 纯本地AI（不依赖Gateway） | 架构决策 | 本地Ollama+双链记忆 |
 | 对话中没反驳的 = 默认同意 | 用户明确 | 不需要反复确认 |
-| 不要做的：AI Mesh libp2p / Skill自进化 / A2A真实网络通信 | 架构审查 | L6和部分L4功能先不碰 |## 17. 启动指南
-
-``已清理。``
-
-验证: :8000 → Ghost.html | :18080/health → 网关状态 | 飞书发消息 → 只能地图(P0前)
+| 不要做的：AI Mesh libp2p / Skill自进化 / A2A真实网络通信 | 架构审查 | L6和部分L4功能先不碰 |
 
 ---
-## 18. 参考文档&旧档说明
+## 19. 启动指南
+
+### 三个核心服务
+
+```bash
+# 1. Alpha-ID (身份+记忆+AgentLoop+NURO)
+cd D:\MW\alphaid\projects
+python -m uvicorn entrypoints.api:app --host 0.0.0.0 --port 8000
+
+# 2. Nebula (工作流+飞书WS)
+cd D:\MW\nebula
+python -m uvicorn src.mindflow_map.main:app --host 0.0.0.0 --port 2002
+
+# 3. Gateway (统一网关)
+cd D:\MW\ghost-main\gateway
+python -m uvicorn app:app --host 0.0.0.0 --port 18080
+```
+
+### 验证
+
+| 验证项 | 命令/URL | 期望 |
+|:-------|:---------|:-----|
+| Alpha-ID | http://localhost:8000/api/health | ✅ 200 |
+| Nebula | http://localhost:2002/health | ✅ 200 |
+| Gateway | http://localhost:18080/v1/internal/health | ✅ 200 |
+| Ghost.html | 浏览器打开 alphaid/projects/src/alpha_id/templates/ghost.html | 注册/仪表盘/聊天 |
+| 飞书 | 发消息给飞书机器人 | 全平台能力响应 |
+| NURO | `python -m entrypoints.cli` 或 `aid-daemon` | 桌面精灵启动 |
+| 豆包 | 自动扫描（Gateway启动后自动启用） | LevelDB→Obsidian |
+
+### NURO 桌宠单独启动
+
+```bash
+cd D:\MW\alphaid\projects
+python -m entrypoints.cli          # 正常启动
+python -m entrypoints.cli --check  # 环境检测
+install_deskpet.bat                # 一键安装
+```
+
+---
+## 20. 参考文档&旧档说明
 旧文档在archive/md_old/保留不动: ARCHITECTURE.md ECOSYSTEM_ARCHITECTURE.md ROOT_AUDIT.md PLATFORM_VISION.md PROJECT_AUDIT.md AID_FULL_INTEGRATION.md 繁星计划申请材料.md
 
 根目录只保留: GHOST.md + README.md + archive/
+
+详细组件文档:
+- NURO桌宠: `alphaid/projects/docs/nuro-desktop-pet.md`
+- Ghost.html前端: `alphaid/projects/docs/ghost-frontend.md`
+- 豆包阅读器: `ghost-main/docs/doubao-reader.md`
 
 ---
 ## 变更记录
 | 日期 | 版本 | 变更 |
 |:-----|:----|:------|
+| 2026-07-27 | 4.0 | 全面大修:版本升至4.0 修正全部行数(Gateway 1,857L/17F, Alpha-ID 32.6K/141F, Nebula 7.7K/67F) P0-1~P0-4标记DONE 新增§8 NURO桌面精灵(1,719L/7F) 新增§9豆包知识管道(1,055L/5F) 架构图加入NURO+豆包 启动指南更新为实际命令 |
 | 2026-07-25 | 3.0 | 全面审计:修正全部行数/路径/状态标记 新增§1.5完整组件清单 修复Mermaid→ASCII框图 统一✅⚠️❌ |
 | 2026-07-25 | 2.0 | 完整重写:整合5份旧文档+全部审计+今日决策 每组件写现状→目标→路径 |
 | 2026-07-25 | 1.0 | 初始整合版 |
-### 7.4 衔接关系
-
-Gateway是**统一入口**，所有外部请求（飞书/Ghost）都经过它路由到后端服务。飞书调/v1/chat，Ghost调/v1/dashboard和/v1/chat，注册流程调/v1/register/*。
-
-飞书 -> Gateway -> alphaid/nebula/flow
-Ghost -> Gateway -> alphaid/flow
-
-
-### 8.3 衔接关系
-
-Nebula是**工作流引擎**，负责飞书WS长连接和地图导航等业务。它通过Gateway与alphaid对接，不直接调用后端。
-
-飞书 -> feishu.py -> Gateway -> nebula（工作流/地图）
-
-
-### 9.4 衔接关系
-
-Flow/API提供**注册链路**（短信->人脸->DID），是Alpha-ID身份注册的后端服务。Gateway的/v1/register/*路由代理到它。已在:3001运行。
-
-Ghost注册页 -> Gateway /v1/register/* -> flow/api :3001
 
 
