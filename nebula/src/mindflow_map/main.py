@@ -22,6 +22,7 @@ from mindflow_map.middleware.auth import AuthMiddleware
 from mindflow_map.middleware.correlation_id import CorrelationIdMiddleware
 from mindflow_map.middleware.error_handler import register_error_handlers
 from mindflow_map.middleware.prometheus import PrometheusMiddleware
+from mindflow_map.middleware.csrf import CSRFMiddleware
 from mindflow_map.middleware.rate_limit import RateLimitMiddleware
 from mindflow_map.models.session import init_db, close_db, get_database
 from mindflow_map.workflows.engine import WorkflowEngine
@@ -126,6 +127,28 @@ app.add_middleware(AuthMiddleware, db=db)
 
 # 4. RateLimit（认证前限流，拒绝 flood 请求）
 app.add_middleware(RateLimitMiddleware)
+
+# 4.5 CSRF 防护（RateLimit 内层，CORS 外层）
+# 执行顺序：CorrelationId → CORS → CSRF → RateLimit → Auth → Audit → Prometheus
+# Webhook 回调路径豁免（外部平台推送无法设置自定义头）
+_csrf_origins = {
+    "http://localhost:2002",
+    "http://localhost:3000",
+    "http://127.0.0.1:2002",
+    "http://127.0.0.1:3000",
+}
+_csrf_exempt = {
+    "/api/v1/webhook/feishu",
+    "/api/v1/webhook/wechat",
+    "/v1/internal/webhook/feishu",
+    "/v1/internal/webhook/wechat",
+}
+app.add_middleware(
+    CSRFMiddleware,
+    allowed_origins=_csrf_origins,
+    exempt_paths=_csrf_exempt,
+    enforce_custom_header=True,
+)
 
 # 5. CORS（处理跨域，拒绝非法来源 preflight）
 app.add_middleware(
