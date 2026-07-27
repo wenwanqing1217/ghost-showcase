@@ -19,9 +19,24 @@ NET_AGENT_HOST = os.getenv("NET_AGENT_HOST", "0.0.0.0")
 # AES master key for encrypting router credentials (32 bytes hex)
 AES_MASTER_KEY = os.getenv("NET_AGENT_AES_KEY", "")
 # JWT secret — should match Alpha-ID's secret for token compatibility
-JWT_SECRET = os.getenv("NET_AGENT_JWT_SECRET", "change-me-in-production")
+# ⚠️ 必须设置环境变量，不提供默认值（防止 token 伪造）
+JWT_SECRET = os.getenv("NET_AGENT_JWT_SECRET", "")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_HOURS = int(os.getenv("NET_AGENT_JWT_EXPIRE", "24"))
+
+
+def validate_security_settings():
+    """启动时校验安全配置，不满足则拒绝启动"""
+    if not JWT_SECRET:
+        raise RuntimeError(
+            "NET_AGENT_JWT_SECRET is required. "
+            "Set it in environment before starting the server."
+        )
+    if len(JWT_SECRET) < 32:
+        raise RuntimeError(
+            "NET_AGENT_JWT_SECRET must be at least 32 characters. "
+            "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+        )
 
 # ── scanner ──────────────────────────────────────────────────
 SCAN_INTERVAL_SECONDS = int(os.getenv("NET_AGENT_SCAN_INTERVAL", "3600"))  # hourly

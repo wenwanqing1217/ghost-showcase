@@ -32,11 +32,15 @@ class CredentialCrypto:
     def derive_key(self, salt: str) -> bytes:
         """
         Derive a 32-byte AES key from master key + user salt using PBKDF2.
-        Falls back to SHA-256 if master key is empty (dev mode — do not use in prod).
+        
+        Raises:
+            RuntimeError: If master key is empty (encryption must be explicitly configured).
         """
         if not self._master_key:
-            # Dev fallback — deterministic but insecure
-            return hashlib.sha256(salt.encode()).digest()
+            raise RuntimeError(
+                "AES master key is empty. Set AES_MASTER_KEY in environment. "
+                "No insecure fallback is provided."
+            )
         return hashlib.pbkdf2_hmac(
             "sha256",
             self._master_key,
@@ -48,45 +52,55 @@ class CredentialCrypto:
     def encrypt(self, plaintext: str, salt: str) -> dict:
         """
         Encrypt a string, return {ciphertext, nonce, tag} as base64 strings.
+        
+        Raises:
+            RuntimeError: If cryptography library is not installed.
         """
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-            key = self.derive_key(salt)
-            nonce = os.urandom(12)
-            aesgcm = AESGCM(key)
-            ciphertext = aesgcm.encrypt(nonce, plaintext.encode(), None)
-            # ciphertext includes the 16-byte auth tag at the end
-            ct = ciphertext[:-16]
-            tag = ciphertext[-16:]
-            return {
-                "ciphertext": base64.b64encode(ct).decode(),
-                "tag": base64.b64encode(tag).decode(),
-                "nonce": base64.b64encode(nonce).decode(),
-            }
         except ImportError:
-            # Dev fallback — NOT secure, only for local testing
-            return {
-                "ciphertext": base64.b64encode(plaintext.encode()).decode(),
-                "tag": "",
-                "nonce": "",
-            }
+            raise RuntimeError(
+                "cryptography library is required for encryption. "
+                "Install with: pip install cryptography"
+            )
+        
+        key = self.derive_key(salt)
+        nonce = os.urandom(12)
+        aesgcm = AESGCM(key)
+        ciphertext = aesgcm.encrypt(nonce, plaintext.encode(), None)
+        # ciphertext includes the 16-byte auth tag at the end
+        ct = ciphertext[:-16]
+        tag = ciphertext[-16:]
+        return {
+            "ciphertext": base64.b64encode(ct).decode(),
+            "tag": base64.b64encode(tag).decode(),
+            "nonce": base64.b64encode(nonce).decode(),
+        }
 
     def decrypt(self, crypto_dict: dict, salt: str) -> str:
         """
         Decrypt a {ciphertext, nonce, tag} dict back to plaintext.
+        
+        Raises:
+            RuntimeError: If cryptography library is not installed.
+            ValueError: If decryption fails (wrong key or corrupted data).
         """
         try:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-            key = self.derive_key(salt)
-            ct = base64.b64decode(crypto_dict["ciphertext"])
-            tag = base64.b64decode(crypto_dict["tag"])
-            nonce = base64.b64decode(crypto_dict["nonce"])
-            aesgcm = AESGCM(key)
+        except ImportError:
+            raise RuntimeError(
+                "cryptography library is required for decryption. "
+                "Install with: pip install cryptography"
+            )
+        
+        key = self.derive_key(salt)
+        ct = base64.b64decode(crypto_dict["ciphertext"])
+        tag = base64.b64decode(crypto_dict["tag"])
+        nonce = base64.b64decode(crypto_dict["nonce"])
+        aesgcm = AESGCM(key)
+        try:
             plaintext = aesgcm.decrypt(nonce, ct + tag, None)
             return plaintext.decode()
-        except ImportError:
-            # Dev fallback
-            return base64.b64decode(crypto_dict["ciphertext"]).decode()
         except Exception as e:
             raise ValueError(f"Decryption failed — wrong key or corrupted data: {e}")
 
