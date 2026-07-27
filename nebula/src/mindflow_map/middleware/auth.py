@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request
@@ -13,6 +14,9 @@ from mindflow_map.models.session import Database
 from mindflow_map.schemas.auth import PermissionType, RoleType, TenantContext
 
 logger = logging.getLogger(__name__)
+
+# 安全：仅当显式设置时才允许 header 认证（开发环境）
+_ALLOW_HEADER_AUTH = os.getenv("NEBULA_ALLOW_HEADER_AUTH", "false").lower() in ("1", "true", "yes")
 
 
 # ---------------------------------------------------------------------------
@@ -51,7 +55,12 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 user_id = token_payload.user_id
                 role = token_payload.role
                 permissions = token_payload.scope or provider.get_permissions(role)
-            elif tenant_id and user_id:
+            elif _ALLOW_HEADER_AUTH and tenant_id and user_id:
+                # ⚠️ 仅开发环境：允许 header 认证（需显式设置 NEBULA_ALLOW_HEADER_AUTH=true）
+                logger.warning(
+                    "Header-based auth used for tenant=%s user=%s (dev mode)",
+                    tenant_id, user_id,
+                )
                 role = await provider.get_role(user_id, tenant_id)
                 permissions = provider.get_permissions(role)
             else:
