@@ -1,0 +1,23 @@
+{
+  "version": 2,
+  "name": "ghost-alpha-id",
+  "framework": "static",
+  "buildCommand": "echo 'Static site, no build needed'",
+  "outputDirectory": "alphaid/projects/src/alpha_id/templates",
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/ghost.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }
+      ]
+    }
+  ]
+}
