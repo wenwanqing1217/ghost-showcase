@@ -199,3 +199,95 @@ docs/architecture/ARCHITECTURE_REDESIGN.md
 docs/architecture/GLOBAL_MINDMAP.md
 docs/guides/STARTUP.md
 docs/guides/USER_GUIDE.md
+
+# ── 面试前清理：以下文件保留本地但不提交到 GitHub ──
+
+# 简历/求职（含PII）
+resume_output_v7/
+resume_output_v4/
+resume_output_v5/
+resume_output_v6/
+photo.png
+
+# 根目录临时测试脚本
+test_atomcode.py
+test_atomcode2.py
+test_chat.py
+test_deepseek_tools.py
+test_feishu_reply.py
+test_full_flow.py
+test_navigate.py
+test_nearby.py
+test_new_user_chat.py
+test_quick_register.py
+test_atomcode_reply.txt
+test_navigate_reply.txt
+test_output.txt
+test_reply.txt
+test_switch_back.py
+deepseek_test_result.json
+
+# 个人临时文件
+_check_eval.py
+_flow.log
+_gateway.log
+_nebula.log
+_netagent.log
+_orchestrator.log
+_v.txt
+
+# 日志和运行时
+*.log
+gateway_18080.log
+gateway_restart.log
+nebula_restart.log
+alphaid_restart.log
+logs/
+
+# 个人配置
+pii_config.py
+
+# 启动脚本
+start-all.bat
+start-all.ps1
+start-all.vbs
+keep-alive.ps1
+install_deskpet.bat
+nebula/start_nebula_2002.bat
+ghost-main/gateway/start_gateway_18080.bat
+
+# 个人测试脚本
+resume_ai_dev.py
+resume_biz.py
+resume_ecom_ops.py
+resume_final.py
+resume_fullstack.py
+resume_output/
+resume_pm.py
+resume_presales.py
+resume_support.py
+resume_trainee.py
+resume_v7.py
+
+# 临时SQL和脚本
+_check_eval.py
+scripts/
+
+# 个人文档
+GHOST.md
+ARCHITECTURE.md
+PORTS.md
+
+# assets（如果是个人素材）
+assets/
+
+# 个人学习/实验
+alphaid/read_agent_loop.py
+alphaid/read_bat.py
+alphaid/read_chat.py
+alphaid/read_settings_aid.py
+nebula/test_feishu.py
+nebula/test_lark_event.py
+
+# 子模块（不应在此仓库追踪）
+alphaid/projects
