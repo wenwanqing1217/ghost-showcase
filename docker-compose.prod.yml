@@ -76,6 +76,8 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER}:${DB_PASSWORD}@db:5432/nebula
       UVICORN_WORKERS: 4
+    env_file:
+      - ./nebula/.env
     depends_on:
       db:
         condition: service_healthy
@@ -101,6 +103,8 @@ services:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/alpha_id
       AID_ENV: production
       LOG_LEVEL: ${AID_LOG_LEVEL:-info}
+    env_file:
+      - ./alphaid/projects/.env
     depends_on:
       db:
         condition: service_healthy
@@ -110,6 +114,29 @@ services:
       - "8000"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Flow (Workflow Engine — Fastify) ──
+  flow:
+    build:
+      context: ./flow
+      dockerfile: Dockerfile
+    container_name: ghost-flow
+    restart: unless-stopped
+    environment:
+      PORT: "3036"
+      HOST: "0.0.0.0"
+      NODE_ENV: production
+      LOG_LEVEL: info
+    networks:
+      - ghost-net
+    expose:
+      - "3036"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3036/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -125,11 +152,16 @@ services:
     environment:
       ALPHAID_URL: http://alphaid:8000
       NEBULA_URL: http://nebula:2002
+      FLOW_URL: http://flow:3036
+      NETAGENT_URL: http://netagent:18180
+      ORCHESTRATOR_URL: http://orchestrator:19090
       GATEWAY_PORT: "18080"
     depends_on:
       alphaid:
         condition: service_healthy
       nebula:
+        condition: service_healthy
+      flow:
         condition: service_healthy
     networks:
       - ghost-net
@@ -141,6 +173,88 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  # ── Net-Agent (Network Operations) ──
+  netagent:
+    build:
+      context: ./ghost-main
+      dockerfile: net_agent_server/Dockerfile
+    container_name: ghost-netagent
+    restart: unless-stopped
+    environment:
+      NET_AGENT_HOST: "0.0.0.0"
+      NET_AGENT_PORT: "18180"
+      GATEWAY_URL: http://gateway:18080
+      ALPHAID_URL: http://alphaid:8000
+      NEBULA_URL: http://nebula:2002
+    env_file:
+      - ./ghost-main/net_agent_server/.env
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - ghost-net
+    expose:
+      - "18180"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:18180/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Orchestrator (Dual-Tool Coordination) ──
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    container_name: ghost-orchestrator
+    restart: unless-stopped
+    environment:
+      ORCHESTRATOR_HOST: "0.0.0.0"
+      ORCHESTRATOR_PORT: "19090"
+      GATEWAY_URL: http://gateway:18080
+    env_file:
+      - ./orchestrator/.env
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - ghost-net
+    expose:
+      - "19090"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:19090/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Feishu Bot (飞书 WebSocket Bot) ──
+  feishu-bot:
+    build:
+      context: ./ghost-main/feishu-bot
+      dockerfile: Dockerfile
+    container_name: ghost-feishu-bot
+    restart: unless-stopped
+    environment:
+      FEISHU_APP_ID: ${FEISHU_APP_ID:?FEISHU_APP_ID required}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:?FEISHU_APP_SECRET required}
+      CODEX_MAX_CONCURRENT: ${CODEX_MAX_CONCURRENT:-3}
+      CODE_RUNNER_DIR: ${CODE_RUNNER_DIR:-/app/workspace}
+    env_file:
+      - ./ghost-main/feishu-bot/.env
+    depends_on:
+      gateway:
+        condition: service_healthy
+    networks:
+      - ghost-net
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python bot.py' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 volumes:
   pgdata:
