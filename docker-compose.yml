@@ -183,5 +183,28 @@ services:
       retries: 3
       start_period: 15s
 
+  # ── Feishu Bot (飞书 WebSocket Bot) ──
+  feishu-bot:
+    build:
+      context: ./ghost-main/feishu-bot
+      dockerfile: Dockerfile
+    environment:
+      FEISHU_APP_ID: ${FEISHU_APP_ID:?FEISHU_APP_ID required}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:?FEISHU_APP_SECRET required}
+      CODEX_MAX_CONCURRENT: ${CODEX_MAX_CONCURRENT:-3}
+      CODE_RUNNER_DIR: ${CODE_RUNNER_DIR:-/app/workspace}
+    env_file:
+      - ./ghost-main/feishu-bot/.env
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python bot.py' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   pgdata:

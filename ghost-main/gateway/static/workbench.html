@@ -130,7 +130,7 @@ header h1 .icon{font-size:22px;}
 <header>
   <h1><span class="icon">💬</span> 豆包记忆桥 <span class="badge">Ghost Capture</span></h1>
   <div class="status-bar">
-    <a href="http://localhost:8000" target="_blank" style="color:#7dd3fc;text-decoration:none;font-size:12px;">🏠 Ghost Platform</a>
+    <a href="" id="platform-link" target="_blank" style="color:#7dd3fc;text-decoration:none;font-size:12px;">🏠 Ghost Platform</a>
     <span id="gwStatus"><span class="dot red"></span>检查中</span>
     <span id="msgCount">0 条消息</span>
   </div>
@@ -163,6 +163,16 @@ header h1 .icon{font-size:22px;}
   </div>
 </div>
 <script>
+// ============ 平台配置 ============
+// 部署时修改 PLATFORM_URL 为实际地址
+var PLATFORM_CONFIG = {
+  platform: 'http://localhost:8000',
+};
+(function() {
+  var link = document.getElementById('platform-link');
+  if (link) link.href = PLATFORM_CONFIG.platform;
+})();
+
 const GATEWAY = '';
 async function checkStatus() {
   try {

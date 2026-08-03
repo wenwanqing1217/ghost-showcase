@@ -206,6 +206,25 @@ async def memory_search(keyword: str = "", limit: int = 20, request: Request = N
         return fail(str(e), 500, request)
 
 
+@router.get("/memory/search")
+async def memory_search_public(keyword: str = "", limit: int = 20, request: Request = None):
+    """Public alias: /v1/memory/search → same as /v1/human/memory/search."""
+    return await memory_search(keyword=keyword, limit=limit, request=request)
+
+
+@router.get("/memory/graph")
+async def memory_graph_public(request: Request):
+    """Public alias: /v1/memory/graph → same as /v1/human/memory/graph."""
+    return await memory_graph(request)
+
+
+@router.get("/dual-chain/stats")
+async def dual_chain_stats(request: Request):
+    """Proxy dual-chain memory stats to Alpha-ID."""
+    data = await proxy_get("/api/v1/dual-chain/stats", config.ALPHAID_URL)
+    return ok(data, request)
+
+
 # ── Workflows ──
 
 

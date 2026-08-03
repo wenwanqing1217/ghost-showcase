@@ -30,6 +30,9 @@ const NAV_GROUPS = [
   },
 ];
 
+// 平台首页链接：优先使用环境变量，否则回退到默认值
+const PLATFORM_URL = process.env.NEXT_PUBLIC_PLATFORM_URL || 'http://localhost:8000';
+
 export default function Sidebar() {
   const pathname = usePathname();
 
@@ -45,7 +48,7 @@ export default function Sidebar() {
         <span>统一平台</span>
       </div>
       <div style={{ padding: '0 16px 12px' }}>
-        <a href="http://localhost:8000" target="_blank" rel="noopener noreferrer" style={{ color: '#7dd3fc', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+        <a href={PLATFORM_URL} target="_blank" rel="noopener noreferrer" style={{ color: '#7dd3fc', fontSize: 12, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
           🏠 平台首页
         </a>
       </div>

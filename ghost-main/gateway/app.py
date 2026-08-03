@@ -186,6 +186,13 @@ async def proxy_legacy_register(action: str, request: Request):
             return JSONResponse(content={"success": False, "error": str(e)}, status_code=502)
 
 
+@app.get("/v1/doubao")
+async def proxy_doubao(request: Request):
+    """前端 iframe 使用 /v1/doubao，实际页面在 /v1/internal/doubao"""
+    from starlette.responses import RedirectResponse
+    return RedirectResponse(url="/v1/internal/doubao", status_code=307)
+
+
 # ============================================================
 # API Documentation Landing Page
 # ============================================================
