@@ -40,10 +40,13 @@ function verifySignature(body: string, signature: string | null): boolean {
     .update(body)
     .digest('hex');
 
-  return crypto.timingSafeEqual(
-    Buffer.from(signature),
-    Buffer.from(expected)
-  );
+  // 安全: timingSafeEqual 要求两个 Buffer 长度一致，否则抛异常
+  // 长度不等时直接返回 false（不可能相等）
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expected);
+  if (sigBuf.length !== expBuf.length) return false;
+
+  return crypto.timingSafeEqual(sigBuf, expBuf);
 }
 
 export async function POST(req: NextRequest) {

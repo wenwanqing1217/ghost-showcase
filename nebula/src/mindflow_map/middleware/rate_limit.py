@@ -7,6 +7,7 @@ slowapi 已引入作为附加依赖，未来可用于路由级 @limiter.limit() 
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 
 from limits import RateLimitItemPerSecond, storage
@@ -18,6 +19,24 @@ from starlette.responses import JSONResponse, Response
 from mindflow_map.config import settings
 
 logger = logging.getLogger(__name__)
+
+# 受信任的反向代理 CIDR（与 auth.py 保持一致）
+_TRUSTED_PROXY_CIDRS = [
+    "127.0.0.1/32",
+    "::1/128",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+]
+
+
+def _is_trusted_proxy(host: str) -> bool:
+    """检查 IP 是否为受信任的反向代理"""
+    try:
+        addr = ipaddress.ip_address(host)
+        return any(addr in ipaddress.ip_network(cidr, strict=False) for cidr in _TRUSTED_PROXY_CIDRS)
+    except ValueError:
+        return False
 
 
 def _create_limiter() -> FixedWindowRateLimiter:
@@ -47,21 +66,28 @@ def reset_rate_limiter():
 def _extract_client_ip(request: Request) -> str:
     """提取客户端真实 IP（支持反向代理场景）
 
+    安全: 仅当请求来自受信任的反向代理（私有 IP）时才信任 X-Forwarded-For/X-Real-IP，
+    防止外部攻击者通过伪造这些头部绕过限流。
+
     优先级：
-    1. X-Forwarded-For（取第一个，即客户端原始 IP）
-    2. X-Real-IP（Nginx 等常用）
+    1. 受信任代理 + X-Forwarded-For（取第一个，即客户端原始 IP）
+    2. 受信任代理 + X-Real-IP
     3. 直连 IP（request.client.host）
     """
-    xff = request.headers.get("x-forwarded-for")
-    if xff:
-        # X-Forwarded-For: client, proxy1, proxy2
-        return xff.split(",")[0].strip()
+    direct_host = request.client.host if request.client else "unknown"
 
-    x_real_ip = request.headers.get("x-real-ip")
-    if x_real_ip:
-        return x_real_ip.strip()
+    # 仅当直连 IP 是受信任代理时才使用头部中的 IP
+    if _is_trusted_proxy(direct_host):
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            # X-Forwarded-For: client, proxy1, proxy2
+            return xff.split(",")[0].strip()
 
-    return request.client.host or "unknown"
+        x_real_ip = request.headers.get("x-real-ip")
+        if x_real_ip:
+            return x_real_ip.strip()
+
+    return direct_host
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):

@@ -16,44 +16,36 @@ Design principles:
 """
 
 import os
-import json
-import time
-import uuid
-import logging
-import requests
-import httpx
-from collections import defaultdict
-from contextlib import asynccontextmanager
-from typing import Optional
-
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 import sys
+import logging
+import threading
+import time
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+# Ensure parent directory (ghost-main/) is on path for doubao_reader imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+import httpx
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
+
 from dotenv import load_dotenv
-from doubao_reader.obsidian_writer import ObsidianWriter
-from doubao_reader.knowledge_refiner import refine_conversation, refine_memory
-from doubao_reader.obsidian_organizer import run_organization, batch_link_related
-from doubao_reader.log_reader import LogReader
-import os as _os
-ORCHESTRATOR_URL = _os.getenv("ORCHESTRATOR_URL", "http://localhost:19090")
 
 load_dotenv()
 
-
-# ============================================================
-# Configuration
-# ============================================================
-ALPHAID_URL = os.getenv("ALPHAID_URL", "http://localhost:8000")
-NEBULA_URL = os.getenv("NEBULA_URL", "http://localhost:2002")
-ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://localhost:19090")
-FLOW_URL = os.getenv("FLOW_URL", "http://localhost:3001")
-NETAGENT_URL = os.getenv("NETAGENT_URL", "http://localhost:18180")
-DEFAULT_ALPHA_ID = os.getenv("DEFAULT_ALPHA_ID", "")
-GATEWAY_PORT = int(os.getenv("GATEWAY_PORT", "18080"))
-ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+import config  # noqa: E402
+import services.proxy as _proxy  # noqa: E402
+from services.proxy import ok  # noqa: E402
+from services.metrics import record_request, set_backend_health, get_metrics_response  # noqa: E402
+from middleware.correlation import correlation_id_middleware  # noqa: E402
+from routes.human import router as human_router  # noqa: E402
+from routes.agent import router as agent_router  # noqa: E402
+from routes.internal import router as internal_router  # noqa: E402
+from routes.net import router as net_router  # noqa: E402
+from routes.flow import router as flow_router  # noqa: E402
 
 # ============================================================
 # Structured Logger
@@ -67,182 +59,489 @@ logger = logging.getLogger("ghost-gateway")
 
 
 # ============================================================
-# Rate Limiting (in-memory sliding window)
-# ============================================================
-_rate_buckets: dict = defaultdict(list)
-_RATE_LIMIT_MAX = int(os.getenv("RATE_LIMIT_MAX", "5"))
-_RATE_LIMIT_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW", "60"))
-
-
-def _rate_limit_check(key: str, max_requests: int = None, window: int = None) -> bool:
-    """Check rate limit. Returns True if allowed, False if exceeded."""
-    now = time.time()
-    max_req = max_requests or _RATE_LIMIT_MAX
-    win = window or _RATE_LIMIT_WINDOW
-
-    bucket = _rate_buckets[key]
-    cutoff = now - win
-    _rate_buckets[key] = [t for t in bucket if t > cutoff]
-
-    if len(_rate_buckets[key]) >= max_req:
-        return False
-    _rate_buckets[key].append(now)
-    return True
-
-
-def _client_ip(request: Request) -> str:
-    """Get client real IP (proxy-aware)."""
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
-
-
-# ============================================================
 # HTTP client (connection pool) — managed in lifespan
 # ============================================================
-client: httpx.AsyncClient = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle — create client on startup, cleanup on shutdown."""
-    global client
-    client = httpx.AsyncClient(
+    _proxy.client = httpx.AsyncClient(
         timeout=30.0,
         limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
     )
-    logger.info("Gateway started — Alpha-ID=%s Nebula=%s Flow=%s Net-Agent=%s", ALPHAID_URL, NEBULA_URL, FLOW_URL, NETAGENT_URL)
+    logger.info(
+        "Gateway started — Alpha-ID=%s Nebula=%s Flow=%s Net-Agent=%s",
+        config.ALPHAID_URL,
+        config.NEBULA_URL,
+        config.FLOW_URL,
+        config.NETAGENT_URL,
+    )
+
+    # 启动豆包桌面日志扫描器（默认启用，设置 ENABLE_DOUBAO_SCANNER=0 可禁用）
+    if os.environ.get("ENABLE_DOUBAO_SCANNER", "1") != "0":
+        ensure_scanner()
+
     yield
-    await client.aclose()
+    await _proxy.client.aclose()
     logger.info("Gateway shutdown complete")
 
 
 # ============================================================
 # FastAPI Application
 # ============================================================
+tags_metadata = [
+    {
+        "name": "human",
+        "description": "Human user interfaces — identity, chat, memory, registration, dashboard. Proxied to Alpha-ID.",
+    },
+    {
+        "name": "agent",
+        "description": "Agent ecosystem — A2A interaction topology, industry feeds.",
+    },
+    {
+        "name": "flow",
+        "description": "Workflow engine — templates, execution, AID sessions, map/POI, computer-use. Proxied to Flow :3036.",
+    },
+    {
+        "name": "internal",
+        "description": "Internal operations — Doubao capture, Obsidian vault, orchestrator.",
+    },
+    {
+        "name": "net",
+        "description": "Network operations — router management, Net-Agent proxy.",
+    },
+]
+
 app = FastAPI(
     title="Ghost Gateway",
     description="Ghost Unified API Gateway — Identity + Workflow + Registration",
     version="2.0.0",
     lifespan=lifespan,
+    openapi_tags=tags_metadata,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
 # CORS: explicit allowlist via AID_ALLOWED_ORIGINS env var (comma-separated)
-# Zero-trust default: in production, wildcard is rejected; in dev, localhost is assumed.
-_ALLOWED_ENV = os.getenv("AID_ALLOWED_ORIGINS", "").strip()
-if _ALLOWED_ENV == "*":
-    if ENVIRONMENT == "production":
-        logger.warning("CORS wildcard (*) blocked in production — falling back to localhost only")
-        allow_origins = ["http://localhost:3000", "http://localhost:3001", "http://localhost:18080", "http://localhost:8000"]
-    else:
-        allow_origins = ["*"]
-elif _ALLOWED_ENV:
-    allow_origins = [o.strip() for o in _ALLOWED_ENV.split(",") if o.strip()]
-else:
-    # Default: explicit localhost origins (never wildcard unless explicitly set)
-    allow_origins = ["http://localhost:3000", "http://localhost:3001", "http://localhost:18080", "http://localhost:8000"]
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allow_origins,
+    allow_origins=config.get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
 )
 
-# ============================================================
-# Middleware: Correlation ID + Access Log
-# ============================================================
+
+# Correlation ID + access log + metrics
 @app.middleware("http")
-async def add_correlation_id(request: Request, call_next):
-    """Inject correlation ID for distributed tracing and log all requests."""
-    request_id = request.headers.get("X-Request-ID", str(uuid.uuid4())[:12])
-    request.state.request_id = request_id
+async def _correlation_wrapper(request: Request, call_next):
     start = time.time()
-
-    response = await call_next(request)
-
-    duration_ms = round((time.time() - start) * 1000, 1)
-    response.headers["X-Request-ID"] = request_id
-    logger.info(
-        "%s %s %s %.1fms [%s]",
-        request.method,
-        request.url.path,
-        response.status_code,
-        duration_ms,
-        request_id,
+    response = await correlation_id_middleware(request, call_next)
+    duration = time.time() - start
+    record_request(
+        method=request.method,
+        endpoint=request.url.path,
+        status=response.status_code,
+        duration=duration,
     )
     return response
 
 
 # ============================================================
-# Utility Functions
+# Route Mounting
 # ============================================================
-async def proxy_get(path: str, base_url: str, headers: dict = None) -> dict:
-    """Proxy GET request to backend."""
-    try:
-        resp = await client.get(f"{base_url}{path}", headers=headers or {})
-        if resp.status_code == 200:
-            return resp.json()
-        return {"_error": f"backend returned {resp.status_code}", "_raw": resp.text[:200]}
-    except Exception as e:
-        return {"_error": f"backend unreachable: {str(e)}"}
+app.include_router(human_router)
+app.include_router(agent_router)
+app.include_router(internal_router)
+app.include_router(net_router)
+app.include_router(flow_router)
+
+# Ghost Workbench (extracted from inline _GHOST_PAGE)
+# 静态文件服务：/workbench → ghost-main/gateway/static/
+app.mount("/workbench", StaticFiles(directory="static", html=True), name="workbench")
 
 
-async def proxy_post(path: str, base_url: str, body: dict = None, headers: dict = None) -> dict:
-    """Proxy POST request to backend."""
-    try:
-        resp = await client.post(f"{base_url}{path}", json=body or {}, headers=headers or {})
-        if resp.status_code in (200, 201):
-            return resp.json()
-        return {"_error": f"backend returned {resp.status_code}", "_raw": resp.text[:200]}
-    except Exception as e:
-        return {"_error": f"backend unreachable: {str(e)}"}
+# ============================================================
+# Legacy Route Aliases（兼容旧版前端 /v1/register/* 路径）
+# ============================================================
+# ghost.js 使用 /v1/register/* 而非 /v1/human/register/*
+# 添加通配转发路由，将 /v1/register/{action} 代理到 /v1/human/register/{action}
 
 
-def has_error(data: dict) -> bool:
-    """Check if proxy response contains a backend error."""
-    return isinstance(data, dict) and "_error" in data
+@app.post("/v1/register/{action}")
+async def proxy_legacy_register(action: str, request: Request):
+    """代理旧版 /v1/register/{action} → /v1/human/register/{action}"""
+    from starlette.responses import JSONResponse
+    body = await request.body()
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            resp = await client.post(
+                f"http://localhost:{config.GATEWAY_PORT}/v1/human/register/{action}",
+                content=body,
+                headers={"Content-Type": request.headers.get("content-type", "application/json")},
+            )
+            return JSONResponse(content=resp.json(), status_code=resp.status_code)
+        except Exception as e:
+            return JSONResponse(content={"success": False, "error": str(e)}, status_code=502)
 
 
-def unwrap_flow_response(data: dict) -> dict:
-    """
-    Unpack flow/api's {success, data/error} envelope into Gateway unified envelope.
-    flow/api returns {success: true, data: {...}} or {success: false, error: "..."}.
-    """
-    if not isinstance(data, dict):
-        return data
-    if data.get("success") is False:
-        return {"_error": data.get("error", "flow/api returned failure")}
-    if data.get("success") is True and "data" in data:
-        return data["data"]
-    return data
+# ============================================================
+# API Documentation Landing Page
+# ============================================================
+@app.get("/api", tags=["docs"])
+async def api_docs(request: Request):
+    """API documentation landing page — overview of all endpoints."""
+    return ok(
+        {
+            "name": "Ghost Gateway API",
+            "version": "2.0.0",
+            "description": "Unified API Gateway for Ghost Web4.0 infrastructure",
+            "documentation": {
+                "swagger_ui": "/docs",
+                "redoc": "/redoc",
+                "openapi_schema": "/openapi.json",
+            },
+            "endpoints": {
+                "health": {
+                    "path": "/health",
+                    "description": "Public health check — aggregates all backend statuses",
+                },
+                "human": {
+                    "prefix": "/v1/human/*",
+                    "description": "Human user interfaces — identity, chat, memory, registration, dashboard",
+                    "backend": "Alpha-ID :8000",
+                    "key_routes": [
+                        "GET  /v1/human/identity",
+                        "GET  /v1/human/profile",
+                        "POST /v1/human/chat",
+                        "GET  /v1/human/brain/status",
+                        "POST /v1/human/brain/awake",
+                        "POST /v1/human/intent/parse",
+                        "POST /v1/human/memory/store",
+                        "GET  /v1/human/memory/graph",
+                        "GET  /v1/human/memory/search",
+                        "GET  /v1/human/workflows",
+                        "POST /v1/human/workflows/execute",
+                        "POST /v1/human/register/send-sms",
+                        "POST /v1/human/register/verify-sms",
+                        "POST /v1/human/register/face-verify",
+                        "POST /v1/human/register/generate-did",
+                        "POST /v1/human/register/complete",
+                        "GET  /v1/human/dashboard",
+                    ],
+                },
+                "agent": {
+                    "prefix": "/v1/agent/*",
+                    "description": "Agent ecosystem — A2A interaction, industry feeds",
+                    "backend": "Alpha-ID :8000",
+                    "key_routes": [
+                        "GET  /v1/agent/interact/topology",
+                        "GET  /v1/agent/feeds/latest",
+                        "POST /v1/agent/feeds/subscribe",
+                    ],
+                },
+                "flow": {
+                    "prefix": "/v1/agent/flow/*",
+                    "description": "Workflow engine — templates, execution, AID sessions, map, computer-use",
+                    "backend": "Flow :3036",
+                    "key_routes": [
+                        "GET  /v1/agent/flow/health",
+                        "GET  /v1/agent/flow/templates",
+                        "GET  /v1/agent/flow/templates/{id}",
+                        "POST /v1/agent/flow/execute",
+                        "GET  /v1/agent/flow/executions",
+                        "GET  /v1/agent/flow/executions/{id}",
+                        "GET  /v1/agent/flow/aid/capabilities",
+                        "POST /v1/agent/flow/aid/sessions",
+                        "GET  /v1/agent/flow/aid/sessions/{id}",
+                        "POST /v1/agent/flow/aid/sessions/{id}/messages",
+                        "DELETE /v1/agent/flow/aid/sessions/{id}",
+                        "GET  /v1/agent/flow/map/search",
+                        "GET  /v1/agent/flow/map/pois",
+                        "POST /v1/agent/flow/map/routes",
+                        "GET  /v1/agent/flow/map/routes",
+                        "GET  /v1/agent/flow/map/routes/{id}",
+                        "DELETE /v1/agent/flow/map/routes/{id}",
+                        "GET  /v1/agent/flow/computer-use/status",
+                        "POST /v1/agent/flow/computer-use/tasks",
+                        "GET  /v1/agent/flow/computer-use/tasks",
+                        "GET  /v1/agent/flow/computer-use/tasks/{id}",
+                        "POST /v1/agent/flow/computer-use/screenshot",
+                    ],
+                },
+                "internal": {
+                    "prefix": "/v1/internal/*",
+                    "description": "Internal operations — Doubao capture, Obsidian, orchestrator",
+                    "backend": "Various",
+                    "key_routes": [
+                        "POST /v1/internal/doubao/capture",
+                        "POST /v1/internal/orchestrator/task/submit",
+                        "GET  /v1/internal/orchestrator/tasks",
+                        "GET  /v1/internal/orchestrator/task/{id}",
+                        "GET  /v1/internal/obsidian/status",
+                    ],
+                },
+                "net": {
+                    "prefix": "/v1/net/*",
+                    "description": "Network operations — router management, Net-Agent proxy",
+                    "backend": "Net-Agent :18180",
+                    "key_routes": [
+                        "GET  /v1/net/vendors",
+                        "POST /v1/net/config/save",
+                        "GET  /v1/net/config",
+                        "POST /v1/net/action/{action}",
+                        "GET  /v1/net/tasks/pending",
+                        "POST /v1/net/tasks/{id}/complete",
+                        "POST /v1/net/metrics/upload",
+                        "GET  /v1/net/logs/history",
+                        "GET  /v1/net/logs/audit",
+                    ],
+                },
+            },
+            "response_format": {
+                "success": {"success": True, "data": {}, "ts": 1234567890},
+                "error": {"success": False, "error": "message", "ts": 1234567890},
+            },
+            "headers": {
+                "X-Request-ID": "Optional client-provided request ID (UUID). Gateway echoes it back.",
+                "X-Correlation-ID": "Auto-generated if not provided. Present in all responses.",
+            },
+        },
+        request,
+    )
 
 
-def ok(data: dict, request: Request = None) -> JSONResponse:
-    """Unified success response — if data contains backend error, return failure status."""
-    ts = int(time.time())
-    request_id = getattr(request.state, "request_id", None) if request else None
-    if has_error(data):
-        body = {"success": False, "error": data["_error"], "data": data, "ts": ts}
-        if request_id:
-            body["request_id"] = request_id
-        return JSONResponse(body, status_code=502)
-    body = {"success": True, "data": data, "ts": ts}
-    if request_id:
-        body["request_id"] = request_id
-    return JSONResponse(body)
+# ============================================================
+# Ghost Web UI (served at root)
+# ============================================================
+_GHOST_PAGE = """<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>💬 豆包 · Ghost 工作台</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:#0a0e1a;
+  color:#e2e8f0;
+  min-height:100vh;
+}
+header{
+  padding:18px 28px;
+  border-bottom:1px solid rgba(148,163,184,0.08);
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(10,14,26,0.8);
+  backdrop-filter:blur(12px);
+  position:sticky;top:0;z-index:10;
+}
+header h1{font-size:18px;font-weight:600;display:flex;align-items:center;gap:10px;letter-spacing:-0.3px;}
+header h1 .icon{font-size:22px;}
+.badge{
+  font-size:11px;
+  background:linear-gradient(135deg,rgba(56,189,248,0.12),rgba(168,85,247,0.12));
+  color:#7dd3fc;
+  padding:4px 12px;border-radius:999px;
+  border:1px solid rgba(56,189,248,0.15);
+  font-weight:500;
+}
+.status-bar{display:flex;gap:16px;align-items:center;font-size:12px;color:#64748b;}
+.status-bar span{display:flex;align-items:center;gap:5px;}
+.dot{width:6px;height:6px;border-radius:50%;display:inline-block;}
+.dot.green{background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,0.5);}
+.dot.red{background:#ef4444;box-shadow:0 0 6px rgba(239,68,68,0.4);}
+.dot.yellow{background:#eab308;box-shadow:0 0 6px rgba(234,179,8,0.4);}
+.grid{
+  display:grid;
+  grid-template-columns:1fr;
+  gap:16px;
+  padding:24px 28px;
+  max-width:1100px;margin:0 auto;
+}
+@media(min-width:860px){
+  .grid{grid-template-columns:1fr 1fr;gap:18px;}
+}
+.card{
+  background:linear-gradient(145deg,rgba(30,41,59,0.6),rgba(15,23,42,0.8));
+  border:1px solid rgba(148,163,184,0.08);
+  border-radius:16px;
+  padding:20px;
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(56,189,248,0.25),transparent);
+}
+.card h3{font-size:13px;color:#94a3b8;margin-bottom:14px;display:flex;align-items:center;gap:8px;font-weight:500;letter-spacing:0.2px;}
+.card h3 .icon{font-size:15px;}
+.card.full{grid-column:1/-1;}
+.action-row{display:flex;gap:10px;flex-wrap:wrap;}
+.btn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 18px;border:none;border-radius:12px;
+  cursor:pointer;font-size:13px;font-weight:500;
+  transition:all .2s;
+}
+.btn.primary{
+  background:linear-gradient(135deg,#38bdf8,#6366f1);
+  color:#fff;
+  box-shadow:0 4px 16px rgba(56,189,248,0.2);
+}
+.btn.primary:hover{
+  transform:translateY(-1px);
+  box-shadow:0 6px 24px rgba(56,189,248,0.3);
+}
+.btn.secondary{
+  background:rgba(30,41,59,0.6);
+  color:#94a3b8;
+  border:1px solid rgba(148,163,184,0.1);
+}
+.btn.secondary:hover{
+  background:rgba(51,65,85,0.6);color:#e2e8f0;
+  border-color:rgba(148,163,184,0.2);
+}
+.btn:active{transform:translateY(0);}
+.sync-status{
+  display:flex;gap:20px;flex-wrap:wrap;
+  font-size:13px;color:#94a3b8;
+}
+.sync-status .item{display:flex;align-items:center;gap:8px;}
+.sync-status .item strong{color:#e2e8f0;font-weight:500;}
+#messageList{max-height:480px;overflow-y:auto;}
+#messageList::-webkit-scrollbar{width:4px;}
+#messageList::-webkit-scrollbar-track{background:transparent;}
+#messageList::-webkit-scrollbar-thumb{background:rgba(148,163,184,0.2);border-radius:4px;}
+.conv-item{
+  padding:14px 16px;
+  border-radius:12px;
+  cursor:pointer;
+  transition:all .2s;
+  border-bottom:1px solid rgba(148,163,184,0.05);
+}
+.conv-item:last-child{border:none;}
+.conv-item:hover{
+  background:rgba(51,65,85,0.3);
+  transform:translateX(2px);
+}
+.conv-preview{
+  font-size:13px;color:#cbd5e1;margin-bottom:6px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;
+  overflow:hidden;line-height:1.5;
+}
+.conv-meta{font-size:11px;color:#64748b;display:flex;gap:14px;}
+.tag{
+  display:inline-block;font-size:10px;padding:2px 10px;border-radius:999px;
+  background:rgba(56,189,248,0.1);color:#7dd3fc;
+  border:1px solid rgba(56,189,248,0.1);
+}
+.empty-state{
+  text-align:center;padding:48px 20px;color:#475569;
+}
+.empty-state .icon{font-size:32px;margin-bottom:12px;opacity:0.5;}
+.empty-state p{font-size:13px;}
+</style>
+</head>
+<body>
+<header>
+  <h1><span class="icon">💬</span> 豆包记忆桥 <span class="badge">Ghost Capture</span></h1>
+  <div class="status-bar">
+    <span id="gwStatus"><span class="dot red"></span>检查中</span>
+    <span id="msgCount">0 条消息</span>
+  </div>
+</header>
+<div class="grid">
+  <div class="card full">
+    <h3><span class="icon">📋</span> 操作</h3>
+    <div class="action-row">
+      <button class="btn primary" onclick="window.open('https://www.doubao.com','_blank')">🌐 打开豆包网页版</button>
+      <button class="btn secondary" onclick="location.reload()">🔄 刷新</button>
+      <button class="btn secondary" onclick="searchMemories()">🔍 搜索知识链</button>
+    </div>
+  </div>
+  <div class="card full">
+    <h3><span class="icon">📡</span> 实时同步</h3>
+    <div class="sync-status">
+      <div class="item">🟢 桌面端: <strong id="desktopStatus">运行中</strong></div>
+      <div class="item">🌐 网页端: <strong id="webStatus">等待加载</strong></div>
+      <div class="item">📝 Obsidian: <strong id="obsidianStatus">等待中</strong></div>
+    </div>
+  </div>
+  <div class="card full">
+    <h3><span class="icon">💬</span> 最近同步对话</h3>
+    <div id="messageList">
+      <div class="empty-state">
+        <div class="icon">⏳</div>
+        <p>加载中...</p>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const GATEWAY = '';
+async function checkStatus() {
+  try {
+    const r = await fetch(GATEWAY + '/health');
+    const d = await r.json();
+    const el = document.getElementById('gwStatus');
+    if (d.success) {
+      el.innerHTML = '<span class="dot green"></span>Gateway 已连接';
+    } else {
+      el.innerHTML = '<span class="dot red"></span>Gateway 异常';
+    }
+  } catch {
+    document.getElementById('gwStatus').innerHTML = '<span class="dot red"></span>未连接';
+  }
+}
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+async function searchMemories() {
+  const q = prompt('搜索豆包记忆关键词:');
+  if (!q) return;
+  try {
+    const r = await fetch(GATEWAY + '/v1/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({alpha_id: 'Alpha-001', message: '搜索记忆: ' + q})
+    });
+    const d = await r.json();
+    const reply = d?.data?.reply || d?.reply || '无结果';
+    const msgList = document.getElementById('messageList');
+    msgList.innerHTML = '<div class="conv-item"><div class="conv-preview">' + escapeHtml(reply) + '</div></div>';
+  } catch(e) {
+    alert('搜索失败: ' + escapeHtml(e.message));
+  }
+}
+checkStatus();
+setInterval(checkStatus, 30000);
+</script>
+</body>
+</html>"""
 
 
-def fail(msg: str, code: int = 500, request: Request = None) -> JSONResponse:
-    """Unified failure response."""
-    ts = int(time.time())
-    request_id = getattr(request.state, "request_id", None) if request else None
-    body = {"success": False, "error": msg, "ts": ts}
-    if request_id:
-        body["request_id"] = request_id
-    return JSONResponse(body, status_code=code)
+@app.get("/", include_in_schema=False)
+def ghost_home():
+    """Ghost 工作台主页 — 重定向到 /workbench（豆包记忆桥操作面板）."""
+    return RedirectResponse(url="/workbench/workbench.html", status_code=301)
+
+
+# ============================================================
+# Prometheus Metrics
+# ============================================================
+@app.get("/metrics", include_in_schema=False)
+async def metrics():
+    """Prometheus metrics endpoint — scrape target for monitoring."""
+    resp = get_metrics_response()
+    if resp is None:
+        return JSONResponse(
+            {"error": "prometheus_client not installed"},
+            status_code=503,
+        )
+    return resp
 
 
 # ============================================================
@@ -250,609 +549,113 @@ def fail(msg: str, code: int = 500, request: Request = None) -> JSONResponse:
 # ============================================================
 @app.get("/health")
 async def health(request: Request):
-    """Public health check - returns component status."""
-    alphaid_ok = False
-    obsidian_ok = False
-    netagent_ok = False
-    try:
-        async with httpx.AsyncClient(timeout=3) as hc_client:
-            ar = await hc_client.get(f"{ALPHAID_URL}/brain/status")
-            alphaid_ok = ar.status_code < 500
-    except:
-        pass
-    try:
-        async with httpx.AsyncClient(timeout=3) as hc_client:
-            nr = await hc_client.get(f"{NETAGENT_URL}/health")
-            netagent_ok = nr.status_code < 500
-    except:
-        pass
-    vault_path = os.environ.get("OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库")
+    """Public health check — aggregates status of all backend services."""
+    import asyncio
+
+    # Check all backends concurrently
+    async def _check(url: str) -> bool:
+        try:
+            r = await _proxy.client.get(f"{url}/health", timeout=5.0)
+            return r.status_code < 500
+        except Exception:
+            return False
+
+    alphaid_ok, nebula_ok, orchestrator_ok, netagent_ok, flow_ok = await asyncio.gather(
+        _check(config.ALPHAID_URL),
+        _check(config.NEBULA_URL),
+        _check(config.ORCHESTRATOR_URL),
+        _check(config.NETAGENT_URL),
+        _check(config.FLOW_URL),
+    )
+
+    # Obsidian vault check (local filesystem) — 使用服务层的路径，避免硬编码不一致
+    from services.obsidian import get_vault_path
+
+    vault_path = get_vault_path()
     obsidian_ok = os.path.isdir(vault_path) and len(os.listdir(vault_path)) > 0
-    return ok({
-        "gateway": "ok",
-        "alphaid": "ok" if alphaid_ok else "error",
-        "obsidian": "ok" if obsidian_ok else "not_found",
-        "netagent": "ok" if netagent_ok else "error",
-    }, request)
+
+    # Update Prometheus backend health gauges
+    set_backend_health("alphaid", alphaid_ok)
+    set_backend_health("nebula", nebula_ok)
+    set_backend_health("orchestrator", orchestrator_ok)
+    set_backend_health("obsidian", obsidian_ok)
+    set_backend_health("netagent", netagent_ok)
+    set_backend_health("flow", flow_ok)
+
+    all_ok = all([alphaid_ok, nebula_ok, netagent_ok, flow_ok])
+
+    return ok(
+        {
+            "gateway": "ok",
+            "overall": "ok" if all_ok else "degraded",
+            "alphaid": "ok" if alphaid_ok else "error",
+            "nebula": "ok" if nebula_ok else "error",
+            "orchestrator": "ok" if orchestrator_ok else "error",
+            "obsidian": "ok" if obsidian_ok else "not_found",
+            "netagent": "ok" if netagent_ok else "error",
+            "flow": "ok" if flow_ok else "error",
+        },
+        request,
+    )
 
 
 # ============================================================
 # Periodic scanner for Doubao desktop app LevelDB
 # ============================================================
-
-import threading
-
+# 扫描器在 lifespan 中启动（而非模块级别），避免 import 时产生副作用。
+# 可通过设置环境变量 ENABLE_DOUBAO_SCANNER=0 禁用。
 _scanner_started = False
+_scanner_thread = None
+
+
+def _run_scanner_loop():
+    """后台扫描循环：读取豆包 LevelDB → 通过 ASGI transport 直接调用内部 API。"""
+    from doubao_reader.log_reader import LogReader
+    from doubao_reader.obsidian_organizer import run_organization, batch_link_related
+
+    # 使用 ASGI transport 直接调用 FastAPI 应用，避免 HTTP loopback
+    import httpx
+
+    transport = httpx.ASGITransport(app=app)
+    client = httpx.Client(transport=transport, base_url="http://testserver")
+
+    reader = LogReader()
+    time.sleep(10)  # Wait for server to start
+    while True:
+        try:
+            convs = reader.read_all()
+            logger.info("Doubao scanner: found %d conversations", len(convs))
+            for conv in convs[:5]:  # Limit to 5 per scan
+                payload = conv.to_dict()
+                try:
+                    r = client.post(
+                        "/v1/internal/doubao/capture", json=payload, timeout=5
+                    )
+                    logger.debug("Scanned: %s", r.status_code)
+                except Exception as e:
+                    logger.debug("Scan send error: %s", e)
+        except Exception as e:
+            logger.error("Doubao scanner error: %s", e)
+        # Run Obsidian organization
+        try:
+            run_organization()
+            batch_link_related()
+        except Exception as org_err:
+            logger.error("Organization error: %s", org_err)
+
+        time.sleep(120)  # Scan every 2 minutes
+
 
 def ensure_scanner():
-    global _scanner_started
+    """Start the Doubao desktop log scanner background thread (idempotent)."""
+    global _scanner_started, _scanner_thread
     if _scanner_started:
         return
     _scanner_started = True
-    
-    import time
-    
-    def scan_loop():
-        reader = LogReader()
-        time.sleep(10)  # Wait for server to start
-        while True:
-            try:
-                convs = reader.read_all()
-                logger.info("Doubao scanner: found %d conversations", len(convs))
-                for conv in convs[:5]:  # Limit to 5 per scan
-                    payload = conv.to_dict()
-                    try:
-                        r = requests.post(
-                            f"http://localhost:{GATEWAY_PORT}/v1/internal/doubao/capture",
-                            json=payload,
-                            timeout=5
-                        )
-                        logger.debug("Scanned: %s", r.status_code)
-                    except Exception as e:
-                        logger.debug("Scan send error: %s", e)
-            except Exception as e:
-                logger.error("Doubao scanner error: %s", e)
-            # Run Obsidian organization
-            try:
-                run_organization()
-                batch_link_related()
-            except Exception as org_err:
-                logger.error("Organization error: %s", org_err)
-            
-            time.sleep(120)  # Scan every 2 minutes
-    
-    thread = threading.Thread(target=scan_loop, daemon=True)
-    thread.start()
+
+    _scanner_thread = threading.Thread(target=_run_scanner_loop, daemon=True)
+    _scanner_thread.start()
     logger.info("Doubao desktop log scanner started")
-
-
-# ============================================================
-# Human User Layer — /v1/human/*
-# All human-facing interfaces, unified permission control
-# No fixed role binding, users can be consumer/creator/developer at the same time
-# ============================================================
-
-# --- Identity & Profile ---
-@app.get("/v1/human/identity")
-async def get_identity(request: Request, alpha_id: Optional[str] = None):
-    """Get current identity → proxy to Alpha-ID API (public overview or user profile)."""
-    aid = alpha_id or DEFAULT_ALPHA_ID
-    # Try authenticated profile first, fall back to public stats
-    data = await proxy_get(f"/api/v1/identity/{aid}", ALPHAID_URL, headers={"Authorization": "Bearer placeholder"})
-    if "_error" in data:
-        data = await proxy_get("/api/v1/identity/stats/overview", ALPHAID_URL)
-    return ok(data, request)
-
-
-@app.get("/v1/human/profile")
-async def get_profile(request: Request):
-    """Get user profile → proxy to Alpha-ID."""
-    data = await proxy_get("/api/profile", ALPHAID_URL)
-    return ok(data, request)
-
-
-# --- Brain Status ---
-@app.get("/v1/human/brain/status")
-async def get_brain_status(request: Request, alpha_id: Optional[str] = None):
-    """Get brain status → proxy to Alpha-ID."""
-    aid = alpha_id or DEFAULT_ALPHA_ID
-    data = await proxy_get(f"/brain/status?alpha_id={aid}", ALPHAID_URL)
-    return ok(data, request)
-
-
-@app.post("/v1/human/brain/awake")
-async def brain_awake(request: Request):
-    """Wake up brain → proxy to Alpha-ID."""
-    body = await request.json()
-    aid = body.get("alpha_id", DEFAULT_ALPHA_ID)
-    data = await proxy_post("/brain/awake", ALPHAID_URL, body={"alpha_id": aid})
-    return ok(data, request)
-
-
-# --- Chat & Intent ---
-@app.post("/v1/human/chat")
-async def chat(request: Request):
-    """Chat with Agent → proxy to Alpha-ID /chat, auto-register unknown users."""
-    ip = _client_ip(request)
-    if not _rate_limit_check(f"chat:{ip}", max_requests=10, window=60):
-        return fail("Too many requests, please slow down", 429, request)
-    body = await request.json()
-    aid = body.get("alpha_id", DEFAULT_ALPHA_ID)
-    message = body.get("message", "")
-    if not message:
-        return fail("message required", 400, request)
-
-    # First attempt: proxy to Alpha-ID /chat
-    data = await proxy_post("/chat", ALPHAID_URL, body={"alpha_id": aid, "message": message})
-
-    # If user not registered (401), auto-register via /login then retry
-    if data.get("_error") and "401" in str(data.get("_error", "")):
-        logger.info("Alpha-ID %s not registered, auto-registering...", aid)
-        reg_body = {"alpha_id": aid, "device_fingerprint": f"feishu_{aid}"}
-        reg_data = await proxy_post("/login", ALPHAID_URL, body=reg_body)
-        if not reg_data.get("_error"):
-            logger.info("Alpha-ID %s registered, retrying chat...", aid)
-            data = await proxy_post("/chat", ALPHAID_URL, body={"alpha_id": aid, "message": message})
-        else:
-            logger.warning("Auto-register failed for %s: %s", aid, reg_data.get("_error"))
-
-    return ok(data, request)
-
-
-@app.post("/v1/human/intent/parse")
-async def parse_intent(request: Request):
-    """
-    Intent parsing — gateway-level smart routing.
-    Routes to backend based on intent:
-      - Identity/Memory → Alpha-ID
-      - General chat → Alpha-ID /chat
-    """
-    body = await request.json()
-    text = body.get("text", "").strip()
-    if not text:
-        return fail("text required", 400, request)
-
-    text_lower = text.lower()
-    is_identity = any(kw in text_lower for kw in ["身份", "我是谁", "did", "identity", "画像"])
-
-    if is_identity:
-        identity = await proxy_get("/api/v1/identity/stats/overview", ALPHAID_URL)
-        profile = await proxy_get("/api/profile", ALPHAID_URL)
-        return ok({
-            "route": "identity",
-            "identity": identity,
-            "profile_summary": profile.get("profile", {}).get("persona", {}),
-        }, request)
-    else:
-        data = await proxy_post("/chat", ALPHAID_URL, body={"alpha_id": DEFAULT_ALPHA_ID, "message": text})
-        return ok({
-            "route": "chat",
-            "reply": data.get("reply", ""),
-            "raw": data,
-        }, request)
-
-
-# --- Memory ---
-@app.post("/v1/human/memory/store")
-async def memory_store(request: Request):
-    """Store memory -> proxy to Alpha-ID /memory/store."""
-    body = await request.json()
-    data = await proxy_post("/memory/store", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.get("/v1/human/memory/graph")
-async def memory_graph(request: Request):
-    """Return memory knowledge graph for d3.js visualization. Free, no LLM."""
-    import sqlite3, json as _json
-    memories = {}
-    for dbp in ["D:/MW/alphaid/projects/src/assets/alpha_id.db"]:
-        if not os.path.exists(dbp):
-            continue
-        try:
-            conn = sqlite3.connect(dbp)
-            row = conn.execute("SELECT data FROM collections WHERE collection_name='Alpha-001'").fetchone()
-            if row:
-                memories.update(_json.loads(row[0]))
-            conn.close()
-        except Exception as e:
-            logger.warning("DB error: %s", e)
-    nodes, edges, seen_tags = [], [], {}
-    cmap = {"doubao_chat":"#38bdf8","system":"#22c55e","profile_cursor":"#a78bfa","design":"#f59e0b","general":"#64748b"}
-    for mid, mem in memories.items():
-        if not isinstance(mem, dict):
-            continue
-        content = str(mem.get("content",""))[:60]
-        category = str(mem.get("category","general"))
-        source = str(mem.get("source","unknown"))
-        tags = mem.get("tags",[]) or []
-        if not isinstance(tags, list):
-            tags = []
-        nodes.append({"id":mid[:12],"label":content,"category":category,"source":source,"color":cmap.get(category,"#64748b"),"tags":tags})
-        for tag in tags:
-            if tag in seen_tags:
-                edges.append({"from":mid[:12],"to":seen_tags[tag][:12],"label":tag})
-            else:
-                seen_tags[tag] = mid
-    return ok({"nodes":nodes,"edges":edges,"stats":{"memories":len(nodes),"connections":len(edges)}}, request)
-
-
-@app.get("/v1/human/memory/search")
-async def memory_search(keyword: str = "", limit: int = 20, request: Request = None):
-    """Search the Obsidian vault for memories matching keyword."""
-    vault_path = os.environ.get("OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库")
-    
-    results = []
-    try:
-        for root, dirs, files in os.walk(vault_path):
-            for fname in files:
-                if not fname.endswith(".md"):
-                    continue
-                fpath = os.path.join(root, fname)
-                try:
-                    text = open(fpath, "r", encoding="utf-8").read()
-                except:
-                    continue
-                
-                title = fname.replace(".md", "")
-                category = os.path.basename(os.path.dirname(fpath))
-                date_str = ""
-                tags = []
-                
-                if text.startswith("---"):
-                    end_idx = text.find("---", 3)
-                    if end_idx > 0:
-                        fm = text[3:end_idx]
-                        for line in fm.split("\n"):
-                            line = line.strip()
-                            if line.startswith("title:"):
-                                title = line.split(":", 1)[1].strip().strip("\"")
-                            elif line.startswith("date:"):
-                                date_str = line.split(":", 1)[1].strip()
-                            elif line.startswith("  - "):
-                                tags.append(line[4:].strip())
-                
-                content_text = text
-                if keyword:
-                    if keyword.lower() not in content_text.lower():
-                        continue
-                    kw_lower = keyword.lower()
-                    ctx = max(0, content_text.lower().find(kw_lower) - 100)
-                    content_text = content_text[ctx:ctx+250]
-                
-                results.append({
-                    "title": title,
-                    "file": fname,
-                    "category": category,
-                    "date": date_str,
-                    "tags": tags,
-                    "preview": content_text[:300],
-                    "modified": os.path.getmtime(fpath),
-                })
-                
-                if len(results) >= limit:
-                    break
-            if len(results) >= limit:
-                break
-    except Exception as e:
-        return fail(str(e), 500, request)
-    
-    results.sort(key=lambda r: r["modified"], reverse=True)
-    return ok({"results": results, "total": len(results)}, request)
-
-
-# --- Workflows ---
-@app.get("/v1/human/workflows")
-async def get_workflows(request: Request):
-    """Get workflow templates → proxy to Nebula."""
-    data = await proxy_get("/api/v1/workflow/templates", NEBULA_URL)
-    return ok(data, request)
-
-
-@app.post("/v1/human/workflows/execute")
-async def execute_workflow(request: Request):
-    """Execute workflow → proxy to Nebula."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/workflow/execute", NEBULA_URL, body=body)
-    return ok(data, request)
-
-
-# --- Registration ---
-@app.post("/v1/human/register/send-sms")
-async def register_send_sms(request: Request):
-    """Send SMS verification code → proxy to flow/api (rate limited: 5 req/60s/IP)."""
-    ip = _client_ip(request)
-    if not _rate_limit_check(f"sms:{ip}", max_requests=5, window=60):
-        return fail("Too many requests, please try again later", 429, request)
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/send-sms", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.post("/v1/human/register/verify-sms")
-async def register_verify_sms(request: Request):
-    """Verify SMS code → proxy to flow/api."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/verify-sms", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.post("/v1/human/register/face-verify")
-async def register_face_verify(request: Request):
-    """Initiate face verification → proxy to flow/api."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/face-verify", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.post("/v1/human/register/face-query")
-async def register_face_query(request: Request):
-    """Query face verification result → proxy to flow/api."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/face-query", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.post("/v1/human/register/generate-did")
-async def register_generate_did(request: Request):
-    """Generate decentralized identity DID → proxy to flow/api."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/generate-did", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-@app.post("/v1/human/register/complete")
-async def register_complete(request: Request):
-    """Complete registration → proxy to flow/api."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/register/complete", ALPHAID_URL, body=body)
-    return ok(data, request)
-
-
-# --- Dashboard ---
-@app.get("/v1/human/dashboard")
-async def dashboard(request: Request):
-    """
-    Unified dashboard — single call returns all data needed.
-    Parallel requests to all backends, aggregated response.
-    """
-    import asyncio
-
-    identity, profile = await asyncio.gather(
-        proxy_get("/api/v1/identity/stats/overview", ALPHAID_URL),
-        proxy_get(f"/api/v1/identity/{DEFAULT_ALPHA_ID}", ALPHAID_URL),
-        return_exceptions=True,
-    )
-
-    def _to_result(value):
-        if isinstance(value, Exception):
-            return {"_error": str(value)}
-        return value
-
-    identity, profile = (_to_result(v) for v in (identity, profile))
-
-    return ok({
-        "identity": {
-            "alpha_id": identity.get("founder_alpha_id", DEFAULT_ALPHA_ID),
-            "total_users": identity.get("total_users", 0),
-            "state": "ready",
-        },
-        "profile": profile,
-    }, request)
-
-
-# ============================================================
-# Agent Ecosystem Layer — /v1/agent/*
-# All agent-facing interfaces, separate from human traffic
-# ============================================================
-
-# --- A2A Interaction ---
-@app.get("/v1/agent/interact/topology")
-async def get_network_topology(request: Request):
-    """Get Agent network topology → proxy to Alpha-ID."""
-    data = await proxy_get("/network/topology", ALPHAID_URL)
-    return ok(data, request)
-
-
-# --- Agent Information Feeds ---
-@app.get("/v1/agent/feeds/latest")
-async def agent_feeds_latest(request: Request, industry: Optional[str] = None, limit: int = 20):
-    """
-    Get latest industry-curated info captured by platform ops agent.
-    Agents can pull this info for their own vertical use cases.
-    """
-    vault_path = os.environ.get("OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库")
-    feeds_dir = os.path.join(vault_path, "feeds") if vault_path else ""
-    if not os.path.isdir(feeds_dir):
-        return ok({"results": [], "total": 0}, request)
-    
-    feeds = []
-    try:
-        for root, dirs, files in os.walk(feeds_dir):
-            for fname in files:
-                if not fname.endswith(".md"):
-                    continue
-                fpath = os.path.join(root, fname)
-                try:
-                    text = open(fpath, "r", encoding="utf-8").read()
-                except:
-                    continue
-                if industry and industry.lower() not in text.lower():
-                    continue
-                title = fname.replace(".md", "")
-                category = os.path.basename(os.path.dirname(fpath))
-                feeds.append({
-                    "title": title,
-                    "category": category,
-                    "preview": text[:500],
-                    "updated_at": os.path.getmtime(fpath),
-                    "content": text,
-                })
-                if len(feeds) >= limit:
-                    break
-            if len(feeds) >= limit:
-                break
-    except Exception as e:
-        return fail(str(e), 500, request)
-    
-    feeds.sort(key=lambda r: r["updated_at"], reverse=True)
-    return ok({"results": feeds, "total": len(feeds)}, request)
-
-
-@app.post("/v1/agent/feeds/subscribe")
-async def agent_feeds_subscribe(request: Request):
-    """Subscribe to industry feed updates."""
-    body = await request.json()
-    # TODO: implement subscription persistence
-    return ok({"status": "subscribed", "industry": body.get("industry", "all")}, request)
-
-
-# ============================================================
-# Internal Operations Layer — /v1/internal/*
-# Platform internal use only, not exposed to public
-# ============================================================
-
-# --- Doubao Capture ---
-@app.get("/v1/internal/doubao")
-async def doubao_page(request: Request):
-    """Internal: Serve the Doubao workspace page."""
-    from fastapi.responses import HTMLResponse
-    html_path = os.path.join(os.path.dirname(__file__), "doubao_page.html")
-    if os.path.exists(html_path):
-        html = open(html_path, "r", encoding="utf-8").read()
-        return HTMLResponse(content=html)
-    return HTMLResponse(content="<h1>Doubao page not found</h1>", status_code=404)
-
-@app.post("/v1/internal/doubao/capture")
-async def doubao_capture(request: Request):
-    """Internal: Accept Doubao conversation data from local LogReader only."""
-    ip = _client_ip(request)
-    if ip not in ("127.0.0.1", "::1", "localhost"):
-        logger.warning("Rejected doubao capture from non-local IP: %s", ip)
-        return fail("Only local requests allowed", 403, request)
-    body = await request.json()
-    session_id = body.get("session_id", "")
-    messages = body.get("messages", [])
-    # Refine: dedup, filter noise, auto-tag
-    if messages:
-        messages = refine_conversation(body.get("metadata", {}), messages)
-    if not session_id or not messages:
-        return fail("session_id and messages required", 400, request)
-    for m in messages:
-        if not all(k in m for k in ("role", "content")):
-            return fail("Each message must have role and content", 400, request)
-    bot_id = body.get("bot_id", "")
-    summary = messages[0].get("content", "")[:100]
-    last = messages[-1].get("content", "")[:200] if len(messages) > 1 else ""
-    memory_payload = {
-        "alpha_id": os.getenv("DEFAULT_ALPHA_ID", "Alpha-001"),
-        "content": "[Doubao] " + summary + (" ... " + last if last else ""),
-        "category": "doubao_chat",
-        "sensitivity": 10,
-        "source": "doubao",
-        "tags": ["doubao", "chat"] + ([bot_id] if bot_id else []),
-        "metadata": {
-            "session_id": session_id,
-            "bot_id": bot_id,
-            "captured_at": body.get("captured_at", 0),
-            "message_count": len(messages),
-            "messages": messages,
-        }
-    }
-    data = await proxy_post("/memory/store", ALPHAID_URL, body=memory_payload)
-    
-    # Also write to Obsidian vault
-    try:
-        import asyncio
-        ow = ObsidianWriter()
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(None, lambda: ow.write_conversation(
-            metadata=memory_payload.get("metadata", {}),
-            messages=messages,
-            session_id=session_id,
-            bot_id=bot_id,
-        ))
-    except Exception as ow_err:
-        logger.warning("Obsidian write failed (non-fatal): %s", ow_err)
-    
-    if has_error(data):
-        logger.error("Failed to store doubao memory: %s", data.get("_error"))
-        return ok({"status": "stored_with_warning", "session_id": session_id, "error": data.get("_error")}, request)
-    # Trigger Obsidian organization in background
-    try:
-        import threading
-        threading.Thread(target=run_organization, daemon=True).start()
-    except Exception as org_err:
-        logger.debug("Organization trigger error: %s", org_err)
-    
-    logger.info("Doubao conversation %s captured: %d messages", session_id, len(messages))
-    return ok({"status": "stored", "session_id": session_id, "message_count": len(messages)}, request)
-
-
-# --- Orchestrator ---
-@app.post("/v1/internal/orchestrator/task/submit")
-async def orch_submit(request: Request):
-    """Internal: Submit task to orchestrator."""
-    body = await request.json()
-    data = await proxy_post("/v1/task/submit", ORCHESTRATOR_URL, body=body)
-    return ok(data, request)
-
-
-@app.get("/v1/internal/orchestrator/tasks")
-async def orch_tasks(request: Request):
-    """Internal: Get all orchestrator tasks."""
-    data = await proxy_get("/v1/tasks", ORCHESTRATOR_URL)
-    return ok(data, request)
-
-
-@app.get("/v1/internal/orchestrator/task/{task_id}")
-async def orch_task(task_id: str, request: Request):
-    """Internal: Get task status by ID."""
-    data = await proxy_get(f"/v1/task/{task_id}", ORCHESTRATOR_URL)
-    return ok(data, request)
-
-
-# --- Internal Status Checks ---
-@app.get("/v1/internal/obsidian/status")
-async def obsidian_status(request: Request):
-    """Internal: Check Obsidian vault status."""
-    vault_path = os.environ.get("OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库")
-    exists = os.path.isdir(vault_path)
-    file_count = 0
-    recent_file = ""
-    if exists:
-        for root, dirs, files in os.walk(vault_path):
-            for f in files:
-                if f.endswith(".md"):
-                    file_count += 1
-                    fpath = os.path.join(root, f)
-                    mtime = os.path.getmtime(fpath)
-                    if not recent_file or mtime > os.path.getmtime(os.path.join(vault_path, recent_file)):
-                        recent_file = f
-    return ok({
-        "exists": exists,
-        "path": vault_path,
-        "file_count": file_count,
-        "recent_file": recent_file,
-    }, request)
-
-
-# ============================================================
-# Network Operations — /v1/net/* → proxy to Net-Agent Server
-# ============================================================
-# All JWT-authenticated requests are forwarded with their Authorization header.
-# The Net-Agent server handles its own permission checks.
-
-@app.api_route("/v1/net/{path:path}", methods=["GET", "POST", "PUT", "DELETE"])
-async def net_proxy(request: Request, path: str):
-    """Proxy /v1/net/* to Net-Agent server (router management)."""
-    target = f"/v1/net/{path}"
-    if request.method == "GET":
-        data = await proxy_get(target, NETAGENT_URL, headers=dict(request.headers))
-    else:
-        body = await request.json()
-        data = await proxy_post(target, NETAGENT_URL, body=body, headers=dict(request.headers))
-    return ok(data, request)
 
 
 # ============================================================
@@ -860,16 +663,17 @@ async def net_proxy(request: Request, path: str):
 # ============================================================
 if __name__ == "__main__":
     import uvicorn
+
     print(f"""
 ╔══════════════════════════════════════════════════╗
 ║           Ghost Gateway v2.0.0                   ║
 ║   Unified API Gateway                            ║
 ╠══════════════════════════════════════════════════╣
-║   Port:     {GATEWAY_PORT}                                ║
-║   Alpha-ID: {ALPHAID_URL}    ║
-║   Nebula:   {NEBULA_URL}       ║
-║   Flow:     {FLOW_URL}       ║
-║   NetAgent: {NETAGENT_URL}      ║
+║   Port:     {config.GATEWAY_PORT}                                ║
+║   Alpha-ID: {config.ALPHAID_URL}    ║
+║   Nebula:   {config.NEBULA_URL}       ║
+║   Flow:     {config.FLOW_URL}       ║
+║   NetAgent: {config.NETAGENT_URL}      ║
 ╚══════════════════════════════════════════════════╝
     """)
-    uvicorn.run(app, host="0.0.0.0", port=GATEWAY_PORT)
+    uvicorn.run("gateway.app:app", host="0.0.0.0", port=config.GATEWAY_PORT)

@@ -21,6 +21,7 @@ import os
 import re
 import sys
 import logging
+from pathlib import Path
 
 # ============================================================
 # 安全：prompt 输入校验
@@ -76,7 +77,10 @@ BACKENDS = {
     },
     "zcode": {
         "cmd": "node",
-        "args": ["D:\\Software\\ZCode\\resources\\glm\\zcode.cjs", "--prompt", "{prompt}", "--mode", "yolo", "--json"],
+        "args": [
+            os.environ.get("ZCODE_PATH", str(Path.home() / "Software" / "ZCode" / "resources" / "glm" / "zcode.cjs")),
+            "--prompt", "{prompt}", "--mode", "yolo", "--json"
+        ],
         "desc": "ZCode CLI（GLM / LongCat）",
     },
     "codex": {

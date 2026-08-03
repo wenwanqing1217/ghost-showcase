@@ -107,9 +107,23 @@ async def healthz():
         "dependencies": {
             "database": _check_database(),
             "llm": _check_llm(),
+            "feishu": _check_feishu(),
         },
         "platforms": check_all(),
     }
+
+
+def _check_feishu() -> Dict[str, Any]:
+    """Check Feishu bot WebSocket connection status."""
+    try:
+        from mindflow_map.api.feishu import feishu_client
+        return {
+            "status": "running" if feishu_client._running else "stopped",
+            "ws_connected": feishu_client._ws_client is not None,
+            "gateway_url": feishu_client.gateway_url,
+        }
+    except Exception as exc:
+        return {"status": "error", "error": str(exc)}
 
 
 @router.get("/config")

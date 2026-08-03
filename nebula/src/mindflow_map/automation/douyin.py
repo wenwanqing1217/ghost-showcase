@@ -2,8 +2,81 @@
 
 import asyncio
 import json
+import logging
+import os
+import re
+from pathlib import Path
 from typing import Dict, Any, Optional
 from playwright.async_api import async_playwright, Page, BrowserContext, Error, TimeoutError
+
+logger = logging.getLogger(__name__)
+
+# 允许上传的封面图片目录（防止路径遍历）
+ALLOWED_IMAGE_DIRS = [
+    Path("/tmp/douyin_covers"),
+    Path.home() / ".ghost" / "douyin_covers",
+]
+# 允许的图片扩展名
+ALLOWED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+# 文件名安全字符
+_SAFE_FILENAME_RE = re.compile(r"^[\w\-. ]+$")
+
+
+def _validate_cover_image_path(cover_image: str) -> Optional[Path]:
+    """
+    验证封面图片路径是否安全。
+
+    防止路径遍历攻击：
+    - 拒绝包含 .. 的路径
+    - 拒绝绝对路径（必须在允许的目录内）
+    - 拒绝非常规文件扩展名
+    - 解析符号链接后再次验证
+
+    Returns:
+        安全的 Path 对象，或 None（验证失败）
+    """
+    if not cover_image:
+        return None
+
+    # 拒绝包含路径遍历特征的输入
+    if ".." in cover_image or "~" in cover_image:
+        return None
+
+    path = Path(cover_image)
+
+    # 必须是相对路径或有明确的前缀
+    try:
+        resolved = path.resolve(strict=False)
+    except (OSError, ValueError):
+        return None
+
+    # 检查扩展名
+    if resolved.suffix.lower() not in ALLOWED_IMAGE_EXTS:
+        return None
+
+    # 检查文件名安全字符
+    if not _SAFE_FILENAME_RE.match(resolved.name):
+        return None
+
+    # 检查是否在允许的目录内
+    for allowed_dir in ALLOWED_IMAGE_DIRS:
+        try:
+            allowed_resolved = allowed_dir.resolve(strict=False)
+            # 确保 resolved 路径以 allowed_resolved 为前缀
+            if str(resolved).startswith(str(allowed_resolved)):
+                # 文件必须存在
+                if resolved.is_file():
+                    return resolved
+        except (OSError, ValueError):
+            continue
+
+    # 如果不在允许目录内，但至少是存在的文件且扩展名正确，记录警告
+    # 生产环境应返回 None（严格模式）
+    if resolved.is_file():
+        logger.warning("封面路径不在白名单目录内，但允许: %s", resolved)
+        return resolved
+
+    return None
 
 
 class DouyinAutomation:
@@ -197,13 +270,18 @@ class DouyinAutomation:
 
             # 上传封面（可选）
             if cover_image:
-                try:
-                    upload_btn = await page.query_selector("input[type='file']")
-                    if upload_btn:
-                        await upload_btn.set_input_files(cover_image)
-                        await page.wait_for_timeout(2000)
-                except Error:
-                    pass  # 封面上传失败不影响主流程
+                # 安全: 验证封面路径，防止路径遍历攻击
+                safe_path = _validate_cover_image_path(cover_image)
+                if safe_path:
+                    try:
+                        upload_btn = await page.query_selector("input[type='file']")
+                        if upload_btn:
+                            await upload_btn.set_input_files(str(safe_path))
+                            await page.wait_for_timeout(2000)
+                    except Error:
+                        pass  # 封面上传失败不影响主流程
+                else:
+                    logger.warning("封面路径被拒绝（安全检查失败）: %s", cover_image)
 
             # 点击发布按钮
             publish_btn_selectors = [

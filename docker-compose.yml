@@ -10,6 +10,9 @@
 #   Gateway (Unified API) → 18080
 #   Nebula (Workflow)     → 2002
 #   Alpha-ID (Identity)   → 8000
+#   Flow (Workflow Engine)→ 3036
+#   Net-Agent (Network)   → 18180
+#   Orchestrator          → 19090
 #   PostgreSQL            → 5432
 # ════════════════════════════════════════════════════════════════════
 
@@ -79,6 +82,26 @@ services:
       retries: 3
       start_period: 15s
 
+  # ── Flow (Workflow Engine — Fastify) ──
+  flow:
+    build:
+      context: ./flow
+      dockerfile: Dockerfile
+    ports:
+      - "3036:3036"
+    environment:
+      PORT: "3036"
+      HOST: "0.0.0.0"
+      NODE_ENV: production
+      LOG_LEVEL: info
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3036/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
   # ── Gateway (Unified API Gateway) ──
   gateway:
     build:
@@ -89,15 +112,72 @@ services:
     environment:
       ALPHAID_URL: http://alphaid:8000
       NEBULA_URL: http://nebula:2002
+      FLOW_URL: http://flow:3036
+      NETAGENT_URL: http://netagent:18180
+      ORCHESTRATOR_URL: http://orchestrator:19090
       GATEWAY_PORT: "18080"
     depends_on:
       alphaid:
         condition: service_healthy
       nebula:
         condition: service_healthy
+      flow:
+        condition: service_healthy
+      netagent:
+        condition: service_healthy
+      orchestrator:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:18080/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Net-Agent (Network Operations) ──
+  netagent:
+    build:
+      context: ./ghost-main
+      dockerfile: net_agent_server/Dockerfile
+    ports:
+      - "18180:18180"
+    environment:
+      NET_AGENT_HOST: "0.0.0.0"
+      NET_AGENT_PORT: "18180"
+      GATEWAY_URL: http://gateway:18080
+      ALPHAID_URL: http://alphaid:8000
+      NEBULA_URL: http://nebula:2002
+    env_file:
+      - ./ghost-main/net_agent_server/.env
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:18180/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Orchestrator (Dual-Tool Coordination) ──
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    ports:
+      - "19090:19090"
+    environment:
+      ORCHESTRATOR_HOST: "0.0.0.0"
+      ORCHESTRATOR_PORT: "19090"
+      GATEWAY_URL: http://gateway:18080
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:19090/health')"]
       interval: 30s
       timeout: 5s
       retries: 3

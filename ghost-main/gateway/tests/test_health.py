@@ -17,61 +17,76 @@ async def test_health_all_backends_healthy(gateway_client, mock_client):
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
+    assert data["data"]["gateway"] == "ok"
     assert data["data"]["alphaid"] == "ok"
-    assert data["data"]["nebula"] == "ok"
-    assert data["data"]["flow"] == "ok"
+    assert data["data"]["netagent"] == "ok"
 
 
 @pytest.mark.anyio
-async def test_health_alphaid_down_returns_503(gateway_client, mock_client):
-    """Health returns 503 when alphaid is unreachable."""
+async def test_health_alphaid_down_reports_error(gateway_client, mock_client):
+    """Health reports alphaid error when unreachable (overall: degraded)."""
+
     def mock_get(url, **kwargs):
         if "8000" in url:
             raise ConnectionError("Connection refused")
         from tests.conftest import _make_response
+
         return _make_response(200, {"status": "ok"})
 
     mock_client.get.side_effect = mock_get
     response = await gateway_client.get("/health")
-    assert response.status_code == 503
+    assert response.status_code == 200
     data = response.json()
-    assert data["success"] is False
-    assert data["data"]["alphaid"] == "unreachable"
-    assert data["data"]["nebula"] == "ok"
+    assert data["success"] is True
+    assert data["data"]["alphaid"] == "error"
+    assert data["data"]["overall"] == "degraded"
 
 
 @pytest.mark.anyio
-async def test_health_nebula_down_returns_503(gateway_client, mock_client):
-    """Health returns 503 when nebula is unreachable."""
+async def test_health_netagent_down_reports_error(gateway_client, mock_client):
+    """Health reports netagent error when unreachable."""
+
     def mock_get(url, **kwargs):
-        if "2002" in url:
+        if "18180" in url:
             raise ConnectionError("Connection refused")
         from tests.conftest import _make_response
+
         return _make_response(200, {"status": "ok"})
 
     mock_client.get.side_effect = mock_get
     response = await gateway_client.get("/health")
-    assert response.status_code == 503
+    assert response.status_code == 200
     data = response.json()
-    assert data["success"] is False
-    assert data["data"]["nebula"] == "unreachable"
+    assert data["success"] is True
+    assert data["data"]["netagent"] == "error"
+    assert data["data"]["overall"] == "degraded"
 
 
 @pytest.mark.anyio
-async def test_health_flow_down_returns_503(gateway_client, mock_client):
-    """Health returns 503 when flow is unreachable."""
+async def test_health_all_down_reports_errors(gateway_client, mock_client):
+    """Health reports all backends error when all unreachable."""
+
     def mock_get(url, **kwargs):
-        if "3001" in url:
-            raise ConnectionError("Connection refused")
-        from tests.conftest import _make_response
-        return _make_response(200, {"status": "ok"})
+        raise ConnectionError("Connection refused")
 
     mock_client.get.side_effect = mock_get
     response = await gateway_client.get("/health")
-    assert response.status_code == 503
+    assert response.status_code == 200
     data = response.json()
-    assert data["success"] is False
-    assert data["data"]["flow"] == "unreachable"
+    assert data["success"] is True
+    assert data["data"]["alphaid"] == "error"
+    assert data["data"]["netagent"] == "error"
+    assert data["data"]["overall"] == "degraded"
+
+
+@pytest.mark.anyio
+async def test_health_includes_nebula_and_orchestrator(gateway_client, mock_client):
+    """Health check covers nebula and orchestrator backends."""
+    response = await gateway_client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert "nebula" in data["data"]
+    assert "orchestrator" in data["data"]
 
 
 @pytest.mark.anyio

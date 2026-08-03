@@ -25,29 +25,37 @@ def enqueue_task(user_id: str, task_type: str, body: dict = None) -> int:
 
 def claim_next_task(user_id: str) -> Optional[dict]:
     """
-    Claim the next pending task for a user.
+    Claim the next pending task for a user atomically.
     Returns None if no pending tasks.
 
-    TODO 🟠: SELECT then UPDATE is not atomic — if multiple clients poll
-    the same user simultaneously, they could claim the same task.
-    Fix: use UPDATE ... RETURNING or a single UPDATE with WHERE status='pending'
-    and check rows affected. Acceptable for single-client-per-user for now.
+    Uses a single UPDATE with sub-SELECT to avoid the SELECT-then-UPDATE
+    race condition where multiple clients could claim the same task.
     """
     with get_connection() as conn:
+        # 原子操作：UPDATE 带子查询 WHERE，一行完成 claim
+        # SQLite 不支持 UPDATE ... RETURNING，用 total_changes 判断是否命中
+        now_ts = now()
+        conn.execute(
+            """UPDATE user_task_queue
+               SET status = 'claimed', claimed_at = ?
+               WHERE id = (
+                   SELECT id FROM user_task_queue
+                   WHERE user_id = ? AND status = 'pending'
+                   ORDER BY created_at ASC LIMIT 1
+               )""",
+            (now_ts, user_id),
+        )
+        if conn.total_changes == 0:
+            return None
+        # 读取刚 claim 的任务
         row = conn.execute(
             """SELECT id, task_type, task_body, created_at FROM user_task_queue
-               WHERE user_id = ? AND status = 'pending'
-               ORDER BY created_at ASC LIMIT 1""",
+               WHERE user_id = ? AND status = 'claimed'
+               ORDER BY claimed_at DESC LIMIT 1""",
             (user_id,),
         ).fetchone()
         if not row:
             return None
-        conn.execute(
-            """UPDATE user_task_queue
-               SET status = 'claimed', claimed_at = ?
-               WHERE id = ?""",
-            (now(), row["id"]),
-        )
         return {
             "id": row["id"],
             "task_type": row["task_type"],

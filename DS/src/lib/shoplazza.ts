@@ -162,7 +162,9 @@ export class ShoplazzaClient {
   private rateLimiter: TokenBucket;
 
   constructor(domain: string, accessToken: string) {
-    if (!SHOPLAZZA_DOMAIN_RE.test(domain) && !domain.includes('.')) {
+    // 安全: 严格校验域名格式，防止 SSRF
+    // 只允许 xxx.myshoplaza.com 格式（小写字母、数字、连字符 + .myshoplaza.com）
+    if (!SHOPLAZZA_DOMAIN_RE.test(domain)) {
       throw new ShoplazzaError(
         `无效的 Shoplazza 域名: ${domain}。格式应为 xxx.myshoplaza.com`
       );

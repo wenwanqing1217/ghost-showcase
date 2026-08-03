@@ -99,6 +99,8 @@ class Settings(BaseSettings):
 
     # 认证配置
     allow_header_auth: bool = False  # 仅开发/测试环境允许 header 认证
+    # 允许使用 header 认证的受信任网络 CIDR 列表（仅 localhost 默认）
+    auth_trusted_networks: List[str] = ["127.0.0.1/32", "::1/128"]
 
     # 抖音短剧配置
     douyin_username: str = ""

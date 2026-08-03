@@ -175,41 +175,85 @@ class MetricsRegistry:
         self._gauges: dict[str, Gauge] = {}
         self._histograms: dict[str, Histogram] = {}
 
-    def _counter(self, name: str) -> Counter:
+    def _counter(self, name: str, label_names: list[str] | None = None) -> Counter:
+        label_names = label_names or []
+        if name in self._counters:
+            # 如果 label_names 变化（从无到有），需要重新创建
+            existing_label_names = self._counters[name]._labelnames
+            if set(existing_label_names or []) != set(label_names):
+                # 从注册表移除旧的，重新创建
+                try:
+                    self._registry_obj.unregister(self._counters[name])
+                except KeyError:
+                    pass
+                del self._counters[name]
         if name not in self._counters:
             self._counters[name] = Counter(
-                f"mindflow_{name}", f"Metric {name}", [],
+                f"mindflow_{name}", f"Metric {name}", label_names,
                 registry=self._registry_obj,
             )
         return self._counters[name]
 
-    def _gauge(self, name: str) -> Gauge:
+    def _gauge(self, name: str, label_names: list[str] | None = None) -> Gauge:
+        label_names = label_names or []
+        if name in self._gauges:
+            existing_label_names = self._gauges[name]._labelnames
+            if set(existing_label_names or []) != set(label_names):
+                try:
+                    self._registry_obj.unregister(self._gauges[name])
+                except KeyError:
+                    pass
+                del self._gauges[name]
         if name not in self._gauges:
             self._gauges[name] = Gauge(
-                f"mindflow_{name}", f"Metric {name}", [],
+                f"mindflow_{name}", f"Metric {name}", label_names,
                 registry=self._registry_obj,
             )
         return self._gauges[name]
 
-    def _histogram(self, name: str) -> Histogram:
+    def _histogram(self, name: str, label_names: list[str] | None = None) -> Histogram:
+        label_names = label_names or []
+        if name in self._histograms:
+            existing_label_names = self._histograms[name]._labelnames
+            if set(existing_label_names or []) != set(label_names):
+                try:
+                    self._registry_obj.unregister(self._histograms[name])
+                except KeyError:
+                    pass
+                del self._histograms[name]
         if name not in self._histograms:
             self._histograms[name] = Histogram(
-                f"mindflow_{name}", f"Metric {name}", [],
+                f"mindflow_{name}", f"Metric {name}", label_names,
                 registry=self._registry_obj,
             )
         return self._histograms[name]
 
     def increment(self, name: str, amount: float = 1.0, labels: dict | None = None) -> None:
         """兼容旧接口：计数器 +1"""
-        self._counter(name).inc(amount)
+        label_names = list(labels.keys()) if labels else []
+        counter = self._counter(name, label_names)
+        if labels:
+            counter.labels(**labels).inc(amount)
+        else:
+            counter.inc(amount)
 
     def gauge(self, name: str, value: float, labels: dict | None = None) -> None:
         """兼容旧接口：设置 Gauge 值"""
-        self._gauge(name).set(value)
+        label_names = list(labels.keys()) if labels else []
+        gauge = self._gauge(name, label_names)
+        if labels:
+            gauge.labels(**labels).set(value)
+        else:
+            gauge.set(value)
 
     def observe(self, name: str, value: float, labels: dict | None = None) -> None:
         """兼容旧接口：记录到直方图"""
-        self._histogram(name).observe(value)
+        label_names = list(labels.keys()) if labels else []
+        histogram = self._histogram(name, label_names)
+        if labels:
+            histogram.labels(**labels).observe(value)
+        else:
+            histogram.observe(value)
 
     def render(self) -> str:
         """兼容旧接口：返回 Prometheus 文本格式"""

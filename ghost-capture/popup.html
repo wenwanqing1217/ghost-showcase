@@ -5,31 +5,118 @@
 <title>Ghost Capture</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
-body{width:320px;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,sans-serif;background:#0f172a;color:#e2e8f0;padding:16px;}
-h1{font-size:16px;margin-bottom:8px;color:#38bdf8;}
-.status{display:flex;align-items:center;gap:8px;font-size:13px;padding:8px 12px;background:rgba(30,41,59,0.8);border-radius:12px;margin-bottom:12px;}
-.dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
-.dot.green{background:#22c55e;}
-.dot.red{background:#ef4444;}
-.dot.yellow{background:#eab308;}
-.meta{font-size:12px;color:#64748b;margin-top:8px;}
-.stats{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;}
-.stat-card{background:rgba(30,41,59,0.6);padding:10px;border-radius:10px;text-align:center;}
-.stat-card .num{font-size:20px;font-weight:bold;color:#38bdf8;}
-.stat-card .label{font-size:11px;color:#64748b;margin-top:2px;}
-.btn{width:100%;padding:10px;border:none;border-radius:10px;cursor:pointer;font-size:13px;}
-.btn.primary{background:#38bdf8;color:#0f172a;}
-.btn.primary:hover{background:#7dd3fc;}
-.btn.secondary{background:rgba(51,65,85,0.6);color:#e2e8f0;margin-top:8px;}
-.btn.secondary:hover{background:rgba(51,65,85,0.8);}
+body{
+  width:360px;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:#0a0e1a;
+  color:#e2e8f0;
+  padding:0;
+  overflow:hidden;
+}
+
+/* ── Header ── */
+.header{
+  padding:20px 20px 16px;
+  background:linear-gradient(135deg,rgba(56,189,248,0.08),rgba(168,85,247,0.05));
+  border-bottom:1px solid rgba(148,163,184,0.08);
+}
+.header-row{display:flex;align-items:center;justify-content:space-between;}
+.header h1{font-size:17px;font-weight:600;letter-spacing:-0.3px;display:flex;align-items:center;gap:8px;}
+.header h1 span{font-size:20px;}
+.version{font-size:10px;color:#475569;background:rgba(148,163,184,0.1);padding:2px 8px;border-radius:999px;}
+
+/* ── Status ── */
+.status{
+  display:flex;align-items:center;gap:10px;
+  margin-top:14px;padding:10px 14px;
+  background:rgba(15,23,42,0.6);
+  border:1px solid rgba(148,163,184,0.08);
+  border-radius:12px;
+}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;flex-shrink:0;}
+.dot.green{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,0.5);}
+.dot.red{background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,0.4);}
+.dot.yellow{background:#eab308;box-shadow:0 0 8px rgba(234,179,8,0.4);}
+.status-text{font-size:13px;color:#94a3b8;}
+.status-text strong{color:#e2e8f0;font-weight:500;}
+
+/* ── Stats ── */
+.stats{
+  display:grid;grid-template-columns:1fr 1fr;gap:10px;
+  padding:16px 20px;
+}
+.stat-card{
+  background:linear-gradient(145deg,rgba(30,41,59,0.7),rgba(15,23,42,0.9));
+  border:1px solid rgba(148,163,184,0.08);
+  border-radius:14px;
+  padding:16px 14px;
+  text-align:center;
+  position:relative;
+  overflow:hidden;
+}
+.stat-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,transparent,rgba(56,189,248,0.4),transparent);
+}
+.stat-card .num{
+  font-size:26px;font-weight:700;
+  background:linear-gradient(135deg,#38bdf8,#818cf8);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+.stat-card .label{font-size:11px;color:#64748b;margin-top:4px;letter-spacing:0.3px;}
+
+/* ── Meta ── */
+.meta{
+  padding:0 20px 12px;
+  font-size:11px;color:#475569;
+  display:flex;align-items:center;gap:6px;
+}
+.meta-dot{width:4px;height:4px;border-radius:50%;background:#38bdf8;display:inline-block;}
+
+/* ── Actions ── */
+.actions{padding:0 20px 20px;display:flex;flex-direction:column;gap:8px;}
+.btn{
+  width:100%;padding:12px;border:none;border-radius:12px;
+  cursor:pointer;font-size:13px;font-weight:500;
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  transition:all .2s;
+}
+.btn.primary{
+  background:linear-gradient(135deg,#38bdf8,#6366f1);
+  color:#fff;
+  box-shadow:0 4px 16px rgba(56,189,248,0.25);
+}
+.btn.primary:hover{
+  transform:translateY(-1px);
+  box-shadow:0 6px 20px rgba(56,189,248,0.35);
+}
+.btn.secondary{
+  background:rgba(30,41,59,0.6);
+  color:#94a3b8;
+  border:1px solid rgba(148,163,184,0.1);
+}
+.btn.secondary:hover{
+  background:rgba(51,65,85,0.6);
+  color:#e2e8f0;
+  border-color:rgba(148,163,184,0.2);
+}
+.btn:active{transform:translateY(0);}
 </style>
 </head>
 <body>
-<h1>👻 Ghost Capture</h1>
-<div class="status">
-  <span class="dot" id="statusDot"></span>
-  <span id="statusText">检查连接中...</span>
+
+<div class="header">
+  <div class="header-row">
+    <h1><span>👻</span> Ghost Capture</h1>
+    <span class="version">v2.0</span>
+  </div>
+  <div class="status">
+    <span class="dot" id="statusDot"></span>
+    <span class="status-text" id="statusText">检查连接中...</span>
+  </div>
 </div>
+
 <div class="stats">
   <div class="stat-card">
     <div class="num" id="msgCount">0</div>
@@ -40,9 +127,17 @@ h1{font-size:16px;margin-bottom:8px;color:#38bdf8;}
     <div class="label">会话数</div>
   </div>
 </div>
-<div class="meta" id="metaInfo">等待豆包页面加载...</div>
-<button class="btn primary" id="openDoubao">打开豆包网页版</button>
-<button class="btn secondary" id="openGhost">打开 Ghost</button>
+
+<div class="meta">
+  <span class="meta-dot"></span>
+  <span id="metaInfo">等待豆包页面加载...</span>
+</div>
+
+<div class="actions">
+  <button class="btn primary" id="openDoubao">🌐 打开豆包网页版</button>
+  <button class="btn secondary" id="openGhost">⚡ 打开 Ghost 控制台</button>
+</div>
+
 <script src="popup.js"></script>
 </body>
 </html>

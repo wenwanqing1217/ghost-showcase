@@ -11,7 +11,37 @@
  *   AI_MODEL      ← 模型名
  */
 
-const AI_BASE_URL = process.env.AI_BASE_URL || 'https://api.groq.com/openai/v1';
+// 安全: 允许的 AI API 域名白名单（防止 SSRF）
+const AI_ALLOWED_HOSTS = [
+  'api.groq.com',
+  'api.openai.com',
+  'api.deepseek.com',
+  'api.deepseek.cn',
+];
+
+function resolveAiBaseUrl(): string {
+  const raw = process.env.AI_BASE_URL || 'https://api.groq.com/openai/v1';
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    console.warn('[AI] AI_BASE_URL 无效，回退到默认');
+    return 'https://api.groq.com/openai/v1';
+  }
+  // 仅允许 https
+  if (parsed.protocol !== 'https:') {
+    console.warn('[AI] AI_BASE_URL 必须使用 HTTPS，回退到默认');
+    return 'https://api.groq.com/openai/v1';
+  }
+  // 域名白名单校验
+  if (!AI_ALLOWED_HOSTS.includes(parsed.hostname)) {
+    console.warn(`[AI] AI_BASE_URL 域名 ${parsed.hostname} 不在白名单，回退到默认`);
+    return 'https://api.groq.com/openai/v1';
+  }
+  return raw;
+}
+
+const AI_BASE_URL = resolveAiBaseUrl();
 const AI_MODEL = process.env.AI_MODEL || 'llama-3.3-70b-versatile';
 const AI_API_KEY = process.env.AI_API_KEY || '';
 

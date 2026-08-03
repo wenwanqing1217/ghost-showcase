@@ -39,6 +39,10 @@ async def lifespan(app: FastAPI):
 
     # 配置结构化日志（幂等）
     setup_logging()
+    # 开启 lark-oapi DEBUG 日志（查看是否收到飞书事件）
+    logging.getLogger("lark_oapi").setLevel(logging.DEBUG)
+    logging.getLogger("lark_oapi.ws.client").setLevel(logging.DEBUG)
+    logging.getLogger("lark_oapi.event").setLevel(logging.DEBUG)
 
     # 启动时校验平台配置
     status = check_all()
@@ -128,6 +132,7 @@ app.add_middleware(AuthMiddleware, db=db)
 # 4. RateLimit（认证前限流，拒绝 flood 请求）
 # Webhook 回调路径豁免（外部平台推送无法控制请求频率）
 _rate_limit_exempt = {
+    "/health",
     "/api/v1/wechat",
     "/api/v1/webhook/feishu",
     "/api/v1/webhook/wechat",

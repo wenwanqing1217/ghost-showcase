@@ -31,6 +31,7 @@ from net_agent_common.config.settings import (
     NET_AGENT_HOST,
     NET_AGENT_PORT,
     GATEWAY_URL,
+    validate_security_settings,
 )
 from api.routes import router as net_router
 from net_agent_common.db.models import init_db
@@ -40,7 +41,9 @@ from net_agent_common.utils.logger import logger
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: ensure DB exists. Shutdown: cleanup."""
+    """Startup: ensure DB exists + validate security. Shutdown: cleanup."""
+    # 安全：启动时校验 JWT 密钥配置，不满足则拒绝启动
+    validate_security_settings()
     import sqlite3
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     conn = sqlite3.connect(DB_PATH)

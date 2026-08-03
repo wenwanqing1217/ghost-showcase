@@ -119,13 +119,15 @@ class TestMetrics:
     def test_gauge(self, metrics: MetricsRegistry) -> None:
         metrics.gauge("active_requests", 5)
         rendered = metrics.render()
-        assert "mindflow_active_requests{} 5" in rendered
+        # prometheus_client omits {} when no labels are defined and formats values as floats
+        assert "mindflow_active_requests 5.0" in rendered
 
     def test_histogram(self, metrics: MetricsRegistry) -> None:
         metrics.observe("request_duration_seconds", 0.1)
         metrics.observe("request_duration_seconds", 0.2)
         rendered = metrics.render()
-        assert "mindflow_request_duration_seconds_count{} 2" in rendered
+        # prometheus_client omits {} when no labels are defined and formats values as floats
+        assert "mindflow_request_duration_seconds_count 2.0" in rendered
 
     def test_reset(self, metrics: MetricsRegistry) -> None:
         metrics.increment("x")

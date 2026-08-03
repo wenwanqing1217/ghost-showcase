@@ -14,15 +14,21 @@ from tests.conftest import _make_response
 @pytest.mark.anyio
 async def test_chat_rate_limit_blocks_after_10(gateway_client, mock_client):
     """Chat endpoint blocks after 10 requests per IP within 60s window."""
-    mock_client.post.side_effect = lambda url, **kwargs: _make_response(200, {"reply": "hello"})
+    mock_client.post.side_effect = lambda url, **kwargs: _make_response(
+        200, {"reply": "hello"}
+    )
 
     # First 10 requests should pass (not 429)
     for i in range(10):
-        response = await gateway_client.post("/v1/chat", json={"message": f"msg {i}"})
-        assert response.status_code != 429, f"Request {i+1} should not be rate limited"
+        response = await gateway_client.post(
+            "/v1/human/chat", json={"message": f"msg {i}"}
+        )
+        assert response.status_code != 429, (
+            f"Request {i + 1} should not be rate limited"
+        )
 
     # 11th request should be rate limited
-    response = await gateway_client.post("/v1/chat", json={"message": "overflow"})
+    response = await gateway_client.post("/v1/human/chat", json={"message": "overflow"})
     assert response.status_code == 429
     data = response.json()
     assert data["success"] is False
@@ -32,7 +38,7 @@ async def test_chat_rate_limit_blocks_after_10(gateway_client, mock_client):
 @pytest.mark.anyio
 async def test_chat_missing_message_returns_400(gateway_client):
     """Chat endpoint rejects empty message with 400."""
-    response = await gateway_client.post("/v1/chat", json={})
+    response = await gateway_client.post("/v1/human/chat", json={})
     assert response.status_code == 400
     data = response.json()
     assert data["success"] is False
@@ -42,7 +48,7 @@ async def test_chat_missing_message_returns_400(gateway_client):
 @pytest.mark.anyio
 async def test_intent_parse_missing_text_returns_400(gateway_client):
     """Intent parse rejects empty text with 400."""
-    response = await gateway_client.post("/v1/intent/parse", json={})
+    response = await gateway_client.post("/v1/human/intent/parse", json={})
     assert response.status_code == 400
     data = response.json()
     assert data["success"] is False
@@ -55,7 +61,7 @@ async def test_identity_proxy(gateway_client, mock_client):
     mock_client.get.side_effect = lambda url, **kwargs: _make_response(
         200, {"alpha_id": "Alpha-1", "did": "did:aid:test"}
     )
-    response = await gateway_client.get("/v1/identity")
+    response = await gateway_client.get("/v1/human/identity")
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
@@ -65,6 +71,7 @@ async def test_identity_proxy(gateway_client, mock_client):
 @pytest.mark.anyio
 async def test_dashboard_returns_aggregated_data(gateway_client, mock_client):
     """Dashboard aggregates data from all backends."""
+
     def mock_get(url, **kwargs):
         if "/identity" in url:
             return _make_response(200, {"alpha_id": "Alpha-1"})
@@ -77,12 +84,12 @@ async def test_dashboard_returns_aggregated_data(gateway_client, mock_client):
         return _make_response(200, {})
 
     mock_client.get.side_effect = mock_get
-    response = await gateway_client.get("/v1/dashboard")
+    response = await gateway_client.get("/v1/human/dashboard")
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
     assert "identity" in data["data"]
-    assert "brain" in data["data"]
+    assert "profile" in data["data"]
 
 
 @pytest.mark.anyio
@@ -94,13 +101,13 @@ async def test_register_sms_rate_limit(gateway_client, mock_client):
     # First 5 requests pass
     for i in range(5):
         response = await gateway_client.post(
-            "/v1/register/send-sms", json={"phone": f"1380000000{i}"}
+            "/v1/human/register/send-sms", json={"phone": f"1380000000{i}"}
         )
-        assert response.status_code != 429, f"SMS {i+1} should not be rate limited"
+        assert response.status_code != 429, f"SMS {i + 1} should not be rate limited"
 
     # 6th request blocked
     response = await gateway_client.post(
-        "/v1/register/send-sms", json={"phone": "13800000099"}
+        "/v1/human/register/send-sms", json={"phone": "13800000099"}
     )
     assert response.status_code == 429
 
@@ -108,5 +115,5 @@ async def test_register_sms_rate_limit(gateway_client, mock_client):
 @pytest.mark.anyio
 async def test_response_includes_request_id(gateway_client, mock_client):
     """All responses include X-Request-ID header."""
-    response = await gateway_client.get("/v1/identity")
+    response = await gateway_client.get("/v1/human/identity")
     assert "x-request-id" in response.headers

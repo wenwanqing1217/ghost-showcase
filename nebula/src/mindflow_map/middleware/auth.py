@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 from typing import Optional
 
@@ -14,6 +15,48 @@ from mindflow_map.models.session import Database
 from mindflow_map.schemas.auth import PermissionType, RoleType, TenantContext
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Trusted network helpers
+# ---------------------------------------------------------------------------
+
+
+def _parse_networks(cidrs: list[str]) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """Parse CIDR strings into ipaddress network objects."""
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for c in cidrs:
+        try:
+            networks.append(ipaddress.ip_network(c, strict=False))
+        except ValueError:
+            logger.warning("Invalid CIDR in auth_trusted_networks: %r", c)
+    return networks
+
+
+_trusted_networks_cached: list[ipaddress.IPv4Network | ipaddress.IPv6Network] | None = None
+
+
+def _get_trusted_networks() -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    """Cached parse of trusted networks."""
+    global _trusted_networks_cached
+    if _trusted_networks_cached is None:
+        _trusted_networks_cached = _parse_networks(settings.auth_trusted_networks)
+    return _trusted_networks_cached
+
+
+def _is_trusted_client(request: Request) -> bool:
+    """
+    Check if the request originates from a trusted network.
+    Uses the direct client IP (not X-Forwarded-For, which is spoofable).
+    """
+    client = request.client
+    if client is None:
+        return False
+    try:
+        addr = ipaddress.ip_address(client.host)
+    except ValueError:
+        return False
+    return any(addr in net for net in _get_trusted_networks())
 
 
 # ---------------------------------------------------------------------------
@@ -53,13 +96,28 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 role = token_payload.role
                 permissions = token_payload.scope or provider.get_permissions(role)
             elif settings.allow_header_auth and tenant_id and user_id:
-                # ⚠️ 仅开发/测试环境：允许 header 认证（需显式设置 allow_header_auth=True）
-                logger.warning(
-                    "Header-based auth used for tenant=%s user=%s (dev mode)",
-                    tenant_id, user_id,
-                )
-                role = await provider.get_role(user_id, tenant_id)
-                permissions = provider.get_permissions(role)
+                # ⚠️ Header auth is ONLY allowed from trusted networks (localhost by default).
+                # This prevents external attackers from spoofing X-Tenant-ID / X-User-ID headers.
+                if not _is_trusted_client(request):
+                    logger.warning(
+                        "Header auth REJECTED from untrusted client %s (tenant=%s user=%s)",
+                        request.client.host if request.client else "unknown",
+                        tenant_id,
+                        user_id,
+                    )
+                    tenant_id = None
+                    user_id = None
+                    role = None
+                    permissions = []
+                else:
+                    logger.warning(
+                        "Header-based auth used for tenant=%s user=%s from trusted client %s (dev mode)",
+                        tenant_id,
+                        user_id,
+                        request.client.host if request.client else "unknown",
+                    )
+                    role = await provider.get_role(user_id, tenant_id)
+                    permissions = provider.get_permissions(role)
             else:
                 tenant_id = None
                 user_id = None

@@ -7,11 +7,13 @@ from threading import Thread
 from typing import Any, Dict, Optional
 
 from mindflow_map.config import settings
-import httpx  # replaced WorkflowEngine with Gateway call
 from mindflow_map.api.feishu_sender import FeishuSender
 
 
 logger = logging.getLogger(__name__)
+
+# lark-oapi PING/PONG 补丁状态（幂等，只补丁一次）
+_patched = False
 
 
 class FeishuLongPollingClient:
@@ -43,19 +45,19 @@ class FeishuLongPollingClient:
         async def _process_message(user_id: str, content_text: str) -> None:
             """异步处理消息并回复（在 WS 事件循环中运行）"""
             try:
-                async with httpx.AsyncClient() as client:
-                    try:
-                        resp = await client.post(
-                            f"{self.gateway_url}/v1/chat",
-                            json={"alpha_id": user_id or "feishu_user", "message": content_text},
-                            timeout=30.0
-                        )
-                        resp.raise_for_status()
-                        data = resp.json()
-                        reply_text = data.get("data", {}).get("reply", "") or str(data)
-                    except Exception as e:
-                        logger.error("Gateway 调用失败: %s", e)
-                        reply_text = "抱歉我暂时无法处理你的消息（系统错误）"
+                # 复用共享 httpx 客户端，避免每请求创建连接池
+                client = FeishuSender._get_shared_client()
+                try:
+                    resp = await client.post(
+                        f"{self.gateway_url}/v1/human/chat",
+                        json={"alpha_id": user_id or "feishu_user", "message": content_text},
+                    )
+                    resp.raise_for_status()
+                    data = resp.json()
+                    reply_text = data.get("data", {}).get("reply", "") or str(data)
+                except Exception as e:
+                    logger.error("Gateway 调用失败: %s", e)
+                    reply_text = "抱歉我暂时无法处理你的消息（系统错误）"
 
                 if user_id:
                     await self._sender.send_text(user_id, reply_text)
@@ -64,11 +66,34 @@ class FeishuLongPollingClient:
             except Exception as e:
                 logger.error("处理/回复飞书消息失败: %s", e, exc_info=True)
 
+        def _event_to_dict(obj: Any) -> Any:
+            """递归转换 Pydantic 模型为 dict（兼容 register_p2_im_message_receive_v1 传入的对象）"""
+            if isinstance(obj, dict):
+                return {k: _event_to_dict(v) for k, v in obj.items()}
+            if isinstance(obj, (list, tuple)):
+                return [_event_to_dict(v) for v in obj]
+            # Pydantic BaseModel
+            if hasattr(obj, "dict") and callable(obj.dict):
+                try:
+                    return _event_to_dict(obj.dict())
+                except Exception:
+                    pass
+            # 有 __dict__ 但不是 dict 的对象
+            if hasattr(obj, "__dict__") and not isinstance(obj, type):
+                try:
+                    return _event_to_dict(vars(obj))
+                except Exception:
+                    pass
+            return obj
+
         def handle_message(data: Any) -> None:
             """同步回调：收到飞书 im.message.receive_v1 事件，调度异步处理"""
+            logger.info("⚡ handle_message 被调用! data_type=%s", type(data).__name__)
             try:
-                event_data = data.event if hasattr(data, "event") else {}
+                raw_event = data.event if hasattr(data, "event") else {}
+                event_data = _event_to_dict(raw_event)
                 if not isinstance(event_data, dict):
+                    logger.warning("飞书事件数据无法解析为 dict: %r", type(raw_event))
                     return
 
                 message_info = event_data.get("message", {})
@@ -119,7 +144,15 @@ class FeishuLongPollingClient:
             except Exception as e:
                 logger.error("处理飞书消息失败: %s", e, exc_info=True)
 
-        handler_builder.register_p2_customized_event("im.message.receive_v1", handle_message)
+        # 注册消息接收事件
+        handler_builder.register_p2_im_message_receive_v1(handle_message)
+
+        # 注册已读回执事件（避免报错"processor not found"）
+        def handle_message_read(data: Any) -> None:
+            """处理消息已读事件（仅记录日志，不做回复）"""
+            logger.debug("消息已读事件: %r", type(data).__name__)
+        handler_builder.register_p2_im_message_message_read_v1(handle_message_read)
+
         return handler_builder.build()
 
     def start(self) -> None:
@@ -152,9 +185,10 @@ class FeishuLongPollingClient:
             from lark_oapi.ws.enum import FrameType, MessageType
             from lark_oapi.ws.const import HEADER_TYPE
 
-            # ---- 劫持 _handle_control_frame：自动回复 PONG ----
+            # ---- PING/PONG 协议修复 ----
             # lark-oapi v1.7.1 收到服务端 PING 后只 return 不发 PONG，
             # 导致飞书服务端认为连接已死 -> 控制台显示"连接失败"
+            # 使用子类化替代直接 monkey-patch，避免污染全局类
             _orig_hcf = _ws_mod.Client._handle_control_frame
 
             async def _patched_hcf(self_frame, frame):
@@ -186,7 +220,12 @@ class FeishuLongPollingClient:
                 # PONG 或其他控制帧交给原逻辑
                 await _orig_hcf(self_frame, frame)
 
-            _ws_mod.Client._handle_control_frame = _patched_hcf
+            # 幂等补丁：只补丁一次，避免重复包装
+            global _patched
+            if not _patched:
+                _ws_mod.Client._handle_control_frame = _patched_hcf
+                _patched = True
+                logger.info("已应用 lark-oapi PING/PONG 协议修复")
 
             # ---- 构建事件 handler ----
             event_handler = self._build_event_handler()

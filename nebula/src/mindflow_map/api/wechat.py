@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import hashlib
 import logging
+import threading
 import time
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
@@ -24,24 +25,42 @@ logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Access Token 缓存（模块级，进程内单例）
+# 线程安全: 使用锁保护并发访问
 # ---------------------------------------------------------------------------
 
 _ACCESS_TOKEN_CACHE: dict = {"token": "", "expire_at": 0.0}
+_TOKEN_CACHE_LOCK = threading.Lock()
+
+
+def _get_cached_token() -> Optional[str]:
+    """线程安全地获取缓存的 token"""
+    with _TOKEN_CACHE_LOCK:
+        if _ACCESS_TOKEN_CACHE["token"] and time.time() < _ACCESS_TOKEN_CACHE["expire_at"]:
+            return _ACCESS_TOKEN_CACHE["token"]
+    return None
+
+
+def _set_cached_token(token: str, expire_in: int) -> None:
+    """线程安全地设置缓存的 token"""
+    with _TOKEN_CACHE_LOCK:
+        _ACCESS_TOKEN_CACHE["token"] = token
+        _ACCESS_TOKEN_CACHE["expire_at"] = time.time() + expire_in - 300  # 提前 5 分钟过期
 
 
 @contextlib.contextmanager
 def fresh_token_cache():
     """测试用：隔离 token 缓存的上下文管理器（原地修改，保持引用有效）"""
-    global _ACCESS_TOKEN_CACHE
-    old_token = _ACCESS_TOKEN_CACHE["token"]
-    old_expire = _ACCESS_TOKEN_CACHE["expire_at"]
-    _ACCESS_TOKEN_CACHE["token"] = ""
-    _ACCESS_TOKEN_CACHE["expire_at"] = 0.0
+    with _TOKEN_CACHE_LOCK:
+        old_token = _ACCESS_TOKEN_CACHE["token"]
+        old_expire = _ACCESS_TOKEN_CACHE["expire_at"]
+        _ACCESS_TOKEN_CACHE["token"] = ""
+        _ACCESS_TOKEN_CACHE["expire_at"] = 0.0
     try:
         yield
     finally:
-        _ACCESS_TOKEN_CACHE["token"] = old_token
-        _ACCESS_TOKEN_CACHE["expire_at"] = old_expire
+        with _TOKEN_CACHE_LOCK:
+            _ACCESS_TOKEN_CACHE["token"] = old_token
+            _ACCESS_TOKEN_CACHE["expire_at"] = old_expire
 
 
 # ---------------------------------------------------------------------------
@@ -184,10 +203,26 @@ def _build_xml(from_user: str, to_user: str, content: str) -> str:
 # ---------------------------------------------------------------------------
 
 
+# 共享 HTTP 客户端（避免每次请求创建新连接）
+_wechat_http_client: Optional[httpx.AsyncClient] = None
+_wechat_client_lock = threading.Lock()
+
+
+def _get_wechat_http_client() -> httpx.AsyncClient:
+    """获取共享的微信 HTTP 客户端（线程安全的懒加载）"""
+    global _wechat_http_client
+    if _wechat_http_client is None:
+        with _wechat_client_lock:
+            if _wechat_http_client is None:
+                _wechat_http_client = httpx.AsyncClient(timeout=10.0)
+    return _wechat_http_client
+
+
 async def get_wechat_access_token() -> str:
     """获取微信全局 access_token（带缓存）
 
     先从进程内缓存读取，过期则调用微信 API 刷新。
+    线程安全：使用锁保护缓存读写。
 
     Returns:
         access_token 字符串
@@ -195,11 +230,10 @@ async def get_wechat_access_token() -> str:
     Raises:
         HTTPException: 获取失败时抛出
     """
-    global _ACCESS_TOKEN_CACHE
-
-    # 缓存未过期直接返回
-    if _ACCESS_TOKEN_CACHE["token"] and time.time() < _ACCESS_TOKEN_CACHE["expire_at"]:
-        return _ACCESS_TOKEN_CACHE["token"]
+    # 缓存未过期直接返回（线程安全读取）
+    cached = _get_cached_token()
+    if cached:
+        return cached
 
     app_id = settings.wechat_app_id
     app_secret = settings.wechat_app_secret
@@ -214,10 +248,10 @@ async def get_wechat_access_token() -> str:
     }
 
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.get(url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
+        client = _get_wechat_http_client()
+        resp = await client.get(url, params=params)
+        resp.raise_for_status()
+        data = resp.json()
     except Exception as exc:
         logger.error("Failed to get WeChat access_token: %s", exc)
         raise HTTPException(status_code=502, detail="WeChat API request failed") from exc
@@ -226,14 +260,13 @@ async def get_wechat_access_token() -> str:
         logger.error("WeChat API error response: %s", data)
         raise HTTPException(status_code=502, detail=f"WeChat API error: {data.get('errmsg', 'unknown')}")
 
-    _ACCESS_TOKEN_CACHE["token"] = data["access_token"]
-    # 提前 5 分钟过期，避免边界问题
-    _ACCESS_TOKEN_CACHE["expire_at"] = time.time() + data.get("expires_in", 7200) - 300
+    # 线程安全写入缓存
+    _set_cached_token(data["access_token"], data.get("expires_in", 7200))
     return data["access_token"]
 
 
 def invalidate_wechat_access_token() -> None:
     """清除 access_token 缓存，强制下次调用时重新获取"""
-    global _ACCESS_TOKEN_CACHE
-    _ACCESS_TOKEN_CACHE["token"] = ""
-    _ACCESS_TOKEN_CACHE["expire_at"] = 0.0
+    with _TOKEN_CACHE_LOCK:
+        _ACCESS_TOKEN_CACHE["token"] = ""
+        _ACCESS_TOKEN_CACHE["expire_at"] = 0.0

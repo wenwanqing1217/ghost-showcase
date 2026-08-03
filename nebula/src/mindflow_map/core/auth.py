@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import secrets
+import threading
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
@@ -117,14 +118,20 @@ class AuthProvider:
 
 
 # Global singleton (replace with DI in production)
+# 线程安全: 使用锁保护单例创建，防止多线程竞态
 _auth_provider: Optional[AuthProvider] = None
+_auth_provider_lock = threading.Lock()
 
 
 def get_auth_provider() -> AuthProvider:
+    """获取全局 AuthProvider 实例（线程安全的懒加载单例）"""
     global _auth_provider
     if _auth_provider is None:
-        _auth_provider = AuthProvider()
-        _bootstrap_defaults(_auth_provider)
+        with _auth_provider_lock:
+            # 双重检查锁定（Double-Checked Locking）
+            if _auth_provider is None:
+                _auth_provider = AuthProvider()
+                _bootstrap_defaults(_auth_provider)
     return _auth_provider
 
 

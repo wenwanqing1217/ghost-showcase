@@ -1,8 +1,21 @@
 """One-shot CDP test - read page text and print it."""
-import sys, asyncio, json, websockets, urllib.request
+import sys, os, asyncio, json, websockets, urllib.request
+
+CDP_PORT = os.environ.get("CDP_PORT", "9229")
 
 async def main():
-    tabs = json.loads(urllib.request.urlopen("http://127.0.0.1:9229/json").read())
+    base = f"http://127.0.0.1:{CDP_PORT}"
+    # 动态获取浏览器 WebSocket URL（避免硬编码每次启动变化的 UUID）
+    try:
+        ver = json.loads(urllib.request.urlopen(f"{base}/json/version").read())
+        browser_ws = ver.get("webSocketDebuggerUrl", "")
+    except Exception:
+        browser_ws = ""
+    if not browser_ws:
+        sys.stderr.write("CDP not available\n")
+        return
+
+    tabs = json.loads(urllib.request.urlopen(f"{base}/json").read())
     tid = None
     for t in tabs:
         u = t.get("url", "")
@@ -11,24 +24,24 @@ async def main():
             break
     if not tid:
         sys.stderr.write("Not found\n"); return
-    
-    async with websockets.connect("ws://127.0.0.1:9229/devtools/browser/9456fd66-0cfa-4522-a52c-20f9d0306ef5") as ws:
+
+    async with websockets.connect(browser_ws) as ws:
         await ws.send(json.dumps({"id":1, "method":"Target.attachToTarget", "params":{"targetId":tid, "flatten":True}}))
         sid = json.loads(await ws.recv())["params"]["sessionId"]
         await ws.send(json.dumps({"id":2, "sessionId":sid, "method":"Runtime.enable"}))
-        
+
         # Drain
         for _ in range(10):
             try: await asyncio.wait_for(ws.recv(), timeout=0.3)
             except: break
-        
+
         # Evaluate
         cid = 3
         await ws.send(json.dumps({"id":cid, "sessionId":sid, "method":"Runtime.evaluate", "params":{
             "expression": "(function(){var m=document.querySelector(\"main\");return m?m.innerText:document.body.innerText;})()",
             "returnByValue": True, "timeout": 5000
         }}))
-        
+
         for _ in range(10):
             try:
                 m = json.loads(await asyncio.wait_for(ws.recv(), timeout=3))

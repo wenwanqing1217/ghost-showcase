@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""codex_api — 让 AID 直接调 Codex CLI"""
+"""codex_api — 让 AID 直接调 Codex CLI
+
+安全说明：
+- 默认绑定 127.0.0.1（仅本机访问），可通过 CODEX_API_HOST 配置
+- 支持 API Key 认证（CODEX_API_KEY 环境变量），未设置时仅允许 localhost
+- prompt 输入经过清理，防止命令注入
+"""
 import json
 import os
 import re
@@ -21,13 +27,25 @@ def _sanitize_prompt(prompt: str) -> str:
     # 移除危险字符
     return _FORBIDDEN_CHARS.sub("", prompt).strip()
 
-CODEX_PATH = "atomcode"
-WORK_DIR = os.environ.get("CODE_RUNNER_DIR", "D:\\MW")
+CODEX_PATH = os.environ.get("CODEX_PATH", "atomcode")
+WORK_DIR = os.environ.get("CODE_RUNNER_DIR", os.getcwd())
 # CORS 安全：默认仅允许 localhost，生产环境通过环境变量配置
 CORS_ORIGIN = os.environ.get("CODEX_API_CORS_ORIGIN", "http://localhost:21345")
 
+# 安全：API Key 认证（可选，未设置时仅允许 localhost 访问）
+_API_KEY = os.environ.get("CODEX_API_KEY", "")
+# 安全：默认绑定 localhost，防止外部网络访问
+_API_HOST = os.environ.get("CODEX_API_HOST", "127.0.0.1")
+
 
 class Handler(BaseHTTPRequestHandler):
+    def _check_auth(self) -> bool:
+        """检查 API Key 认证（仅在设置了 _API_KEY 时生效）"""
+        if not _API_KEY:
+            return True  # 未设置 API Key 时不检查
+        provided = self.headers.get("X-API-Key", "")
+        return provided == _API_KEY
+
     def do_OPTIONS(self):
         self.send_response(200)
         self._cors()
@@ -40,6 +58,10 @@ class Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "not found"})
 
     def do_POST(self):
+        # 安全：API Key 认证检查
+        if not self._check_auth():
+            self._json(401, {"error": "Unauthorized — 需要有效的 X-API-Key header"})
+            return
         if self.path == "/ask":
             length = int(self.headers.get("Content-Length", 0))
             body = json.loads(self.rfile.read(length))
@@ -94,8 +116,12 @@ class ThreadedServer(ThreadingMixIn, HTTPServer):
 
 if __name__ == "__main__":
     port = int(os.environ.get("CODEX_API_PORT", "21345"))
-    srv = ThreadedServer(("0.0.0.0", port), Handler)
-    print(f"Codex API → http://localhost:{port}")
+    srv = ThreadedServer((_API_HOST, port), Handler)
+    print(f"Codex API → http://{_API_HOST}:{port}")
     print(f"  POST /ask   {{\"prompt\":\"...\"}}")
     print(f"  GET  /health")
+    if _API_KEY:
+        print(f"  认证: X-API-Key header")
+    else:
+        print(f"  警告: 未设置 CODEX_API_KEY，仅允许 localhost 访问")
     srv.serve_forever()

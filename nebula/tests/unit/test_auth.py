@@ -115,6 +115,8 @@ class TestAuthMiddleware:
     """Tests for auth middleware with isolated FastAPI apps."""
 
     def test_headers_set_tenant_context(self):
+        from unittest.mock import patch
+
         db = Database("sqlite+aiosqlite:///:memory:")
         app = FastAPI()
         app.add_middleware(AuthMiddleware, db=db)
@@ -124,10 +126,12 @@ class TestAuthMiddleware:
             ctx = get_tenant_context(request)
             return {"tenant_id": ctx.tenant_id, "user_id": ctx.user_id}
 
-        client = TestClient(app)
-        resp = client.get("/check", headers={"X-Tenant-ID": "t1", "X-User-ID": "u1"})
-        assert resp.status_code == 200
-        assert resp.json()["tenant_id"] == "t1"
+        # 模拟可信客户端（localhost），因为 TestClient 的 ASGI transport 不设置真实 IP
+        with patch("mindflow_map.middleware.auth._is_trusted_client", return_value=True):
+            client = TestClient(app)
+            resp = client.get("/check", headers={"X-Tenant-ID": "t1", "X-User-ID": "u1"})
+            assert resp.status_code == 200
+            assert resp.json()["tenant_id"] == "t1"
 
     def test_missing_headers_returns_401_for_protected_route(self):
         db = Database("sqlite+aiosqlite:///:memory:")

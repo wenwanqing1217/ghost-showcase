@@ -1,4 +1,5 @@
-"""AgentOrchestrator — 双编程工具协同调度中枢
+"""
+AgentOrchestrator — 双编程工具协同调度中枢
 
 架构：
   Gateway (:18080) → Orchestrator (:19090)
@@ -10,6 +11,14 @@
 工作模式：
   - 串联: 需求 → AI起草 → ToolA生成 → ToolB优化 → 归档
   - 并行: 同一需求同时发ToolA+ToolB → 对比 → 归档
+
+安全/质量改进：
+  - 有界线程池 (ThreadPoolExecutor) 替代无界 thread creation
+  - 任务状态转换原子化 (under lock)
+  - 输入校验 (limit 有上限)
+  - 任务 TTL 自动清理
+  - 可选 API Key 认证
+  - 异步 HTTP 客户端复用
 """
 
 import os
@@ -20,28 +29,43 @@ import logging
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
-from concurrent.futures import ThreadPoolExecutor
+from typing import Optional, Dict, List
+from concurrent.futures import ThreadPoolExecutor, Future
 from dataclasses import dataclass, field, asdict
 
 import uvicorn
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 import httpx
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+)
 logger = logging.getLogger("orchestrator")
+
+# ---------------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------------
 
 GATEWAY = os.getenv("GATEWAY_URL", "http://localhost:18080")
 TOOL_A = os.getenv("TOOL_A_URL", "http://localhost:8081")
 TOOL_B = os.getenv("TOOL_B_URL", "http://localhost:8082")
 PORT = int(os.getenv("ORCHESTRATOR_PORT", "19090"))
+API_KEY = os.getenv("ORCHESTRATOR_API_KEY", "")  # 空字符串表示不校验
+MAX_WORKERS = int(os.getenv("ORCHESTRATOR_MAX_WORKERS", "4"))
+MAX_LIMIT = 100  # list_tasks 最大返回条数
+TASK_TTL_SECONDS = int(os.getenv("ORCHESTRATOR_TASK_TTL", "3600"))  # 1 小时
+
+# ---------------------------------------------------------------------------
+# Data model
+# ---------------------------------------------------------------------------
 
 
 @dataclass
 class Task:
     id: str = ""
-    status: str = "pending"  # pending/running/success/failed
+    status: str = "pending"  # pending/running/completed/failed
     requirement: str = ""
     mode: str = "serial"  # serial/parallel
     created_at: float = 0.0
@@ -51,33 +75,179 @@ class Task:
     error: Optional[str] = None
 
 
-app = FastAPI(title="AgentOrchestrator", version="1.0.0")
-_tasks: dict = {}
-_tasks_lock = threading.Lock()
+# ---------------------------------------------------------------------------
+# Task manager (encapsulates state + lock)
+# ---------------------------------------------------------------------------
 
 
-def _sync_to_gateway(content: str, category: str = "orchestrator"):
+class TaskManager:
+    """Thread-safe task store with atomic transitions and TTL eviction."""
+
+    def __init__(self, ttl: int = TASK_TTL_SECONDS):
+        self._tasks: Dict[str, Task] = {}
+        self._lock = threading.Lock()
+        self._ttl = ttl
+
+    def create(self, task: Task) -> None:
+        with self._lock:
+            self._maybe_evict()
+            self._tasks[task.id] = task
+
+    def get(self, task_id: str) -> Optional[Task]:
+        with self._lock:
+            return self._tasks.get(task_id)
+
+    def transition(self, task_id: str, from_status: str, to_status: str) -> bool:
+        """
+        Atomically transition a task's status.
+        Returns False if task not found or not in from_status.
+        """
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if not task or task.status != from_status:
+                return False
+            task.status = to_status
+            return True
+
+    def update(self, task_id: str, **kwargs) -> None:
+        """Update task fields under lock."""
+        with self._lock:
+            task = self._tasks.get(task_id)
+            if task:
+                for k, v in kwargs.items():
+                    if hasattr(task, k):
+                        setattr(task, k, v)
+
+    def list_latest(self, limit: int) -> List[Task]:
+        """Return up to `limit` most-recent tasks."""
+        with self._lock:
+            return sorted(
+                self._tasks.values(), key=lambda t: t.created_at, reverse=True
+            )[:limit]
+
+    @property
+    def count(self) -> int:
+        with self._lock:
+            return len(self._tasks)
+
+    def _maybe_evict(self) -> None:
+        """Remove expired tasks (must be called under lock)."""
+        if self._ttl <= 0:
+            return
+        now = time.time()
+        expired = [
+            tid for tid, t in self._tasks.items()
+            if t.created_at < now - self._ttl and t.status in ("completed", "failed")
+        ]
+        for tid in expired:
+            del self._tasks[tid]
+        if expired:
+            logger.info("Evicted %d expired tasks", len(expired))
+
+
+# ---------------------------------------------------------------------------
+# Application state
+# ---------------------------------------------------------------------------
+
+app = FastAPI(title="AgentOrchestrator", version="1.1.0")
+task_manager = TaskManager()
+executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="task")
+_http_client: Optional[httpx.AsyncClient] = None
+
+
+async def get_http_client() -> httpx.AsyncClient:
+    """Shared async HTTP client (avoids per-request client creation)."""
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(timeout=10.0)
+    return _http_client
+
+
+# ---------------------------------------------------------------------------
+# Authentication
+# ---------------------------------------------------------------------------
+
+
+async def require_api_key(request: Request) -> None:
+    """FastAPI dependency: enforce API key if configured."""
+    if not API_KEY:
+        return  # auth disabled
+    key = request.headers.get("Authorization", "")
+    if key.startswith("Bearer "):
+        key = key[7:]
+    if key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+# ---------------------------------------------------------------------------
+# Gateway sync
+# ---------------------------------------------------------------------------
+
+
+async def sync_to_gateway(content: str, category: str = "orchestrator") -> None:
+    """Send a memory entry to the gateway asynchronously."""
+    client = await get_http_client()
     try:
-        with httpx.Client() as c:
-            c.post(f"{GATEWAY}/v1/memory/store", json={
+        await client.post(
+            f"{GATEWAY}/v1/memory/store",
+            json={
                 "alpha_id": "Alpha-001",
                 "content": content,
                 "category": category,
                 "sensitivity": 30,
                 "source": "orchestrator",
                 "tags": ["orchestrator", "task"],
-            }, timeout=10)
+            },
+        )
     except Exception as e:
         logger.warning("sync error: %s", e)
 
 
+# ---------------------------------------------------------------------------
+# Task execution logic
+# ---------------------------------------------------------------------------
+
+
+def _execute_task(task: Task) -> None:
+    """Run in thread pool. Updates task via manager (thread-safe)."""
+    try:
+        logger.info("Executing task %s (%s mode)", task.id, task.mode)
+
+        # NOTE: ToolA/ToolB 尚未接入真实服务，执行端点返回 not_implemented
+        # 配置 TOOL_A_URL / TOOL_B_URL 环境变量后，可在此处接入真实调用
+        task_manager.update(
+            task.id,
+            tool_a_result={
+                "status": "not_implemented",
+                "message": "ToolA 未配置（设置 TOOL_A_URL 环境变量接入）",
+            },
+            tool_b_result={
+                "status": "not_implemented",
+                "message": "ToolB 未配置（设置 TOOL_B_URL 环境变量接入）",
+            },
+            status="completed",
+            completed_at=time.time(),
+        )
+        logger.info("Task %s completed (no real tools wired)", task.id)
+    except Exception as e:
+        task_manager.update(task.id, status="failed", error=str(e))
+        logger.error("Task %s failed: %s", task.id, e)
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
+
+
 @app.post("/v1/task/submit")
-async def submit_task(req: Request):
+async def submit_task(req: Request, _=Depends(require_api_key)):
     body = await req.json()
     requirement = body.get("requirement", "")
     mode = body.get("mode", "serial")
     if not requirement:
         return JSONResponse({"error": "requirement required"}, 400)
+    if mode not in ("serial", "parallel"):
+        return JSONResponse({"error": "mode must be serial or parallel"}, 400)
 
     task = Task(
         id=uuid.uuid4().hex[:12],
@@ -85,73 +255,68 @@ async def submit_task(req: Request):
         mode=mode,
         created_at=time.time(),
     )
-    with _tasks_lock:
-        _tasks[task.id] = task
+    task_manager.create(task)
 
     logger.info("Task %s submitted (mode=%s): %s...", task.id, mode, requirement[:80])
-    _sync_to_gateway(f"[Orchestrator] \u65b0\u4efb\u52a1 {task.id}: {requirement[:100]}", "task_submitted")
+    await sync_to_gateway(
+        f"[Orchestrator] 新任务 {task.id}: {requirement[:100]}", "task_submitted"
+    )
 
     return {"success": True, "task_id": task.id, "status": task.status}
 
 
 @app.get("/v1/task/{task_id}")
-async def get_task(task_id: str):
-    with _tasks_lock:
-        task = _tasks.get(task_id)
+async def get_task(task_id: str, _=Depends(require_api_key)):
+    task = task_manager.get(task_id)
     if not task:
         return JSONResponse({"error": "task not found"}, 404)
     return {"success": True, "task": asdict(task)}
 
 
 @app.get("/v1/tasks")
-async def list_tasks(limit: int = 20):
-    with _tasks_lock:
-        items = sorted(_tasks.values(), key=lambda t: t.created_at, reverse=True)[:limit]
-    return {"success": True, "tasks": [asdict(t) for t in items], "total": len(_tasks)}
+async def list_tasks(limit: int = 20, _=Depends(require_api_key)):
+    # Clamp limit to prevent abuse
+    if limit < 1:
+        limit = 1
+    elif limit > MAX_LIMIT:
+        limit = MAX_LIMIT
+    items = task_manager.list_latest(limit)
+    return {
+        "success": True,
+        "tasks": [asdict(t) for t in items],
+        "total": task_manager.count,
+    }
 
 
 @app.post("/v1/task/{task_id}/execute")
-async def execute_task(task_id: str):
-    with _tasks_lock:
-        task = _tasks.get(task_id)
-    if not task:
-        return JSONResponse({"error": "task not found"}, 404)
-    if task.status != "pending":
+async def execute_task(task_id: str, _=Depends(require_api_key)):
+    # Atomic transition: pending → running (prevents double-execution race)
+    if not task_manager.transition(task_id, "pending", "running"):
+        task = task_manager.get(task_id)
+        if not task:
+            return JSONResponse({"error": "task not found"}, 404)
         return JSONResponse({"error": "task already running/completed"}, 400)
 
-    task.status = "running"
-
-    def _run():
-        try:
-            logger.info("Executing task %s (%s mode)", task.id, task.mode)
-            
-            if task.mode == "serial":
-                # Step 1: AI draft
-                # Step 2: ToolA generate
-                # Step 3: ToolB optimize
-                task.tool_a_result = {"status": "simulated", "message": "ToolA would generate here"}
-                task.tool_b_result = {"status": "simulated", "message": "ToolB would optimize here"}
-            else:  # parallel
-                # Both tools run independently
-                task.tool_a_result = {"status": "simulated", "message": "ToolA parallel result"}
-                task.tool_b_result = {"status": "simulated", "message": "ToolB parallel result"}
-            
-            task.status = "success"
-            task.completed_at = time.time()
-            _sync_to_gateway(f"[Orchestrator] \u4efb\u52a1 {task.id} \u5b8c\u6210", "task_completed")
-            logger.info("Task %s completed", task.id)
-        except Exception as e:
-            task.status = "failed"
-            task.error = str(e)
-            logger.error("Task %s failed: %s", task.id, e)
-
-    threading.Thread(target=_run, daemon=True).start()
+    # Submit to thread pool (bounded concurrency)
+    executor.submit(_execute_task, task_manager.get(task_id))
     return {"success": True, "task_id": task_id, "status": "running"}
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "tasks": len(_tasks), "port": PORT}
+    return {"status": "ok", "tasks": task_manager.count, "port": PORT}
+
+
+# ---------------------------------------------------------------------------
+# Lifecycle
+# ---------------------------------------------------------------------------
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    executor.shutdown(wait=False, cancel_futures=True)
+    if _http_client is not None:
+        await _http_client.aclose()
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""
+r"""
 ObsidianWriter — Auto-sync Alpha-ID memories to Obsidian vault
 ===============================================================
 Reads from MemoryStore (via Gateway API) and writes formatted .md files
@@ -21,14 +21,37 @@ Run modes:
 
 import os
 import json
+import re
 import time
 import logging
+import tempfile
 import requests
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger("obsidian_writer")
+
+# Allowlist pattern for category names: alphanumeric, underscore, hyphen only
+_CATEGORY_RE = re.compile(r"^[\w-]+$")
+
+
+def _yaml_scalar(value: Any) -> str:
+    """
+    Safely serialize a value as a YAML scalar.
+    Wraps strings containing special characters in double quotes
+    to prevent YAML frontmatter injection.
+    """
+    s = str(value)
+    # Characters that require quoting in YAML plain scalars
+    if not s:
+        return '""'
+    needs_quote = any(c in s for c in ':{}[]&*?|-><!%@`#,\'"\\') or s[0] in "-?#"
+    if needs_quote:
+        # Escape backslashes and double quotes
+        escaped = s.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    return s
 
 # Config
 VAULT_PATH = os.getenv("OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库")
@@ -59,17 +82,23 @@ class ObsidianWriter:
             logger.warning("Empty content, skipping")
             return None
 
-        memory_id = data.get("memory_id", f"mem_{int(time.time())}")
+        memory_id = data.get("memory_id", f"mem_{int(time.time())}_{os.getpid()}")
         category = data.get("category", "general")
         tags = data.get("tags", [])
         source = data.get("source", "unknown")
         timestamp = data.get("timestamp", time.time())
-        
+
+        # --- Path traversal prevention ---
+        # Reject any category containing path separators or parent-dir references.
+        if not _CATEGORY_RE.match(category):
+            logger.warning("Invalid category rejected: %r", category)
+            category = "general"
+
         dt = datetime.fromtimestamp(timestamp)
         date_str = dt.strftime("%Y-%m-%d")
         time_str = dt.strftime("%H:%M:%S")
-        
-        # Create category subfolder
+
+        # Create category subfolder (safe: category validated against allowlist)
         cat_dir = self.vault / category.replace("_", "-")
         cat_dir.mkdir(exist_ok=True)
         
@@ -97,26 +126,41 @@ class ObsidianWriter:
             "source": source,
             "tags": tags if isinstance(tags, list) else [tags],
         }
-        
-        # Build note content
+
+        # Build note content with proper YAML escaping
         note = "---\n"
         for k, v in frontmatter.items():
             if isinstance(v, list):
                 note += f"{k}:\n"
                 for item in v:
-                    note += f"  - {item}\n"
+                    note += f"  - {_yaml_scalar(item)}\n"
             else:
-                note += f"{k}: {v}\n"
+                note += f"{k}: {_yaml_scalar(v)}\n"
         note += "---\n\n"
-        note += f"# {title}\n\n"
+        note += f"# {_yaml_scalar(title)}\n\n"
         note += content + "\n"
-        
+
         # Add cross-links
-        note += f"\n---\n"
+        note += "\n---\n"
         note += f"来源: [[{source}]]  |  分类: [[{category}]]  |  captured: {date_str} {time_str}\n"
-        
-        # Write file
-        filepath.write_text(note, encoding="utf-8")
+
+        # Atomic write: write to temp file then rename (prevents partial writes)
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(filepath.parent), suffix=".tmp", prefix=".ow_"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(note)
+            os.replace(tmp_path, str(filepath))
+        except Exception:
+            # Clean up temp file on failure
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
         logger.info("Written: %s", filepath)
         return filepath
 
@@ -137,32 +181,47 @@ class ObsidianWriter:
         dir_path = self.vault / "doubao-chat" / date_str
         dir_path.mkdir(parents=True, exist_ok=True)
         filepath = dir_path / filename
-        
-        # Build note
+
+        # Build note with proper YAML escaping
         note = "---\n"
-        note += f"title: \"{title}\"\n"
-        note += f"date: {date_str}\n"
-        note += f"source: doubao\n"
-        note += f"bot_id: \"{bot_id}\"\n"
-        note += f"session_id: \"{session_id}\"\n"
+        note += f"title: {_yaml_scalar(title)}\n"
+        note += f"date: {_yaml_scalar(date_str)}\n"
+        note += "source: doubao\n"
+        note += f"bot_id: {_yaml_scalar(bot_id)}\n"
+        note += f"session_id: {_yaml_scalar(session_id)}\n"
         note += f"message_count: {len(messages)}\n"
         note += "tags:\n"
         note += "  - doubao\n"
         note += "  - chat\n"
         if bot_id:
-            note += f"  - bot_{bot_id}\n"
+            note += f"  - {_yaml_scalar(f'bot_{bot_id}')}\n"
         note += "---\n\n"
-        note += f"# {title}\n\n"
-        
+        note += f"# {_yaml_scalar(title)}\n\n"
+
         for i, msg in enumerate(messages):
             role = msg.get("role", "unknown")
             content = msg.get("content", "")
             emoji = "👤" if role == "user" else "🤖"
             note += f"### {emoji} {role.upper()}\n\n{content}\n\n"
-        
+
         note += f"\n---\n会话ID: {session_id} | 捕获时间: {date_str}\n"
-        
-        filepath.write_text(note, encoding="utf-8")
+
+        # Atomic write
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_path = tempfile.mkstemp(
+            dir=str(filepath.parent), suffix=".tmp", prefix=".ow_"
+        )
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(note)
+            os.replace(tmp_path, str(filepath))
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+
         logger.info("Conversation written: %s", filepath)
         return filepath
 
@@ -171,24 +230,19 @@ def poll_gateway():
     """Daemon mode: poll Gateway for new memories periodically."""
     writer = ObsidianWriter()
     state = {"last_memory_id": ""}
-    
+
     if STATE_FILE.exists():
         try:
             state = json.loads(STATE_FILE.read_text(encoding="utf-8"))
         except Exception:
             pass
-    
+
     logger.info("ObsidianWriter daemon starting (vault: %s)", VAULT_PATH)
-    
+
+    # NOTE: This daemon is currently a placeholder. The Gateway push
+    # integration is not yet implemented. The loop below simply sleeps
+    # until the feature is wired up.
     while True:
-        try:
-            # For now, the daemon listens for new files written by the Gateway
-            # or scans the memory store periodically
-            # Future: Gateway can push events when new memories are stored
-            pass
-        except Exception as e:
-            logger.error("Error: %s", e)
-        
         time.sleep(POLL_INTERVAL)
 
 

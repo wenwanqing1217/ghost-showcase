@@ -2,6 +2,7 @@
 
 > 目标：从零开始，让一个人能装包、注册、连飞书、完成第一次数据采集
 > 适用版本：alpha-id-zix >= 0.3.2
+> 更新日期：2026-07-27
 
 ---
 
@@ -86,7 +87,105 @@ aid-api
 
 ---
 
-## 五、连接飞书机器人
+## 五、Gateway API 调用
+
+Gateway（`:18080`）是所有 API 的统一入口。以下为 curl 示例：
+
+### 健康检查
+
+```bash
+curl http://localhost:18080/health
+```
+
+### 获取身份
+
+```bash
+curl "http://localhost:18080/v1/human/identity?alpha_id=Alpha-001"
+```
+
+### 聊天
+
+```bash
+curl -X POST http://localhost:18080/v1/human/chat \
+  -H "Content-Type: application/json" \
+  -d '{"alpha_id": "Alpha-001", "message": "你好"}'
+```
+
+### 意图解析
+
+```bash
+curl -X POST http://localhost:18080/v1/human/intent/parse \
+  -H "Content-Type: application/json" \
+  -d '{"text": "我是谁"}'
+```
+
+### 记忆图谱
+
+```bash
+curl "http://localhost:18080/v1/human/memory/graph"
+```
+
+### 搜索知识库
+
+```bash
+curl "http://localhost:18080/v1/human/memory/search?keyword=架构&limit=10"
+```
+
+### 存储记忆
+
+```bash
+curl -X POST http://localhost:18080/v1/human/memory/store \
+  -H "Content-Type: application/json" \
+  -d '{
+    "alpha_id": "Alpha-001",
+    "content": "今天学到了新东西",
+    "category": "general",
+    "tags": ["学习"]
+  }'
+```
+
+### 仪表盘
+
+```bash
+curl http://localhost:18080/v1/human/dashboard
+```
+
+### 行业资讯
+
+```bash
+curl "http://localhost:18080/v1/agent/feeds/latest?industry=跨境电商&limit=5"
+```
+
+### 响应信封示例
+
+所有 API 返回统一格式：
+
+```json
+{
+  "success": true,
+  "data": { ... },
+  "ts": 1721890000,
+  "request_id": "abc123def456"
+}
+```
+
+| 字段 | 说明 |
+|:-----|:-----|
+| `success` | 请求是否成功 |
+| `data` | 业务数据 |
+| `ts` | Unix 时间戳 |
+| `request_id` | 关联 ID（可用于追踪） |
+
+### API 文档
+
+- Swagger UI: `http://localhost:18080/docs`
+- ReDoc: `http://localhost:18080/redoc`
+
+完整 API 参考见：`docs/architecture/GATEWAY_API_REFERENCE.md`
+
+---
+
+## 六、连接飞书机器人
 
 ### 前提
 
@@ -116,18 +215,30 @@ python src/mindflow_map/main.py
 
 ---
 
-## 六、完整架构
+## 七、完整架构
 
 ```
 你
  ├── 终端 → aid (CLI) → DID 身份 / 采集器 / 画像
  ├── 浏览器 → :8000   → Ghost.html / Web API
- └── 飞书   → 机器人  → Gateway(:18080) → alphaid / nebula
+ ├── 飞书   → 机器人  → Gateway(:18080) → alphaid / nebula
+ └── API 调用 → :18080 → Gateway → 各后端服务
 ```
+
+### 服务端口一览
+
+| 服务 | 端口 | 说明 |
+|:-----|:-----|:-----|
+| Alpha-ID | 8000 | 身份/记忆/注册 |
+| Gateway | 18080 | 统一 API 入口 |
+| Nebula | 2002 | 工作流 |
+| Flow/API | 3001 | AI 路由 |
+| Net-Agent | 18180 | 路由器管理 |
+| Orchestrator | 19090 | 任务调度 |
 
 ---
 
-## 七、常见问题
+## 八、常见问题
 
 | 问题 | 原因 | 解决 |
 |:-----|:------|:------|
@@ -135,3 +246,6 @@ python src/mindflow_map/main.py
 | `AUTH_MASTER_KEY 未配置` | 启动 Web 服务前未设置环境变量 | `export AUTH_MASTER_KEY=...` |
 | 注册时验证码一直转圈 | alphaid API 未启动 | `cd D:/MW/alphaid/projects && PYTHONPATH=src python -m uvicorn main:app --port 8000` |
 | 飞书机器人收不到消息 | Event Subscription 未配置 | 在飞书开放平台 App → 事件订阅 → 添加 `im.message.receive_v1` |
+| Gateway 返回 502 | 后端服务未启动 | 检查 alphaid 是否在 :8000 运行 |
+| API 返回 429 | 触发限流 | 降低请求频率（默认 5 次/60秒） |
+| CORS 错误 | 来源不在白名单 | 设置 `AID_ALLOWED_ORIGINS` 或检查 `ENVIRONMENT` |

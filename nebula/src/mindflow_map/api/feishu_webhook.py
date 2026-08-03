@@ -7,7 +7,6 @@ import json
 import logging
 from typing import Dict, Any
 
-import httpx
 from fastapi import APIRouter, Request, HTTPException
 
 from mindflow_map.config import settings
@@ -97,17 +96,18 @@ async def _handle_im_message(event: Dict[str, Any]):
 
     try:
         # 统一走 Gateway → Alpha-ID TwinBrain + AgentLoop
+        # 复用共享 httpx 客户端，避免每请求创建连接池
         gateway_url = settings.gateway_url
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            resp = await client.post(
-                f"{gateway_url}/v1/chat",
-                json={"alpha_id": user_id or "feishu_user", "message": text},
-            )
-            resp.raise_for_status()
-            data = resp.json()
-            reply = data.get("data", {}).get("reply", "") or ""
-            if not reply:
-                reply = "嗯？"
+        client = FeishuSender._get_shared_client()
+        resp = await client.post(
+            f"{gateway_url}/v1/chat",
+            json={"alpha_id": user_id or "feishu_user", "message": text},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        reply = data.get("data", {}).get("reply", "") or ""
+        if not reply:
+            reply = "嗯？"
     except Exception as e:
         logger.error("Gateway 调用失败: %s", e, exc_info=True)
         reply = "抱歉我暂时无法处理你的消息（系统错误）"

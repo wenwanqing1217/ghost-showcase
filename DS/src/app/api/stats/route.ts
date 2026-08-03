@@ -1,14 +1,22 @@
 /**
  * GET /api/stats — 看板统计数据
  * 返回：商品总数、订单总数、收入总额、各状态分布、近7日趋势
+ *
+ * 认证: 需 Authorization: Bearer <DS_API_KEY>（配置 DS_API_KEY 后生效）
  */
 
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { verifyRequest } from '@/lib/auth';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = verifyRequest(req);
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: 401 });
+  }
+
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
 
@@ -80,7 +88,7 @@ export async function GET() {
       totalRevenue: orderTotalAmount._sum.amount ?? 0,
       lowInventoryCount,
     },
-    orderStatus: statusDistribution.map((s) => ({
+    orderStatus: statusDistribution.map((s: { status: string; _count: { status: number }; _sum: { amount: number | null } }) => ({
       status: s.status,
       count: s._count.status,
       amount: s._sum.amount ?? 0,
