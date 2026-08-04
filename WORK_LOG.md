@@ -92,4 +92,50 @@
 
 ---
 
+---
+
+## 2026-08-04 会话 #2 — 代码级深度审计
+
+### 本次成果
+
+| 类型 | 内容 | 状态 |
+|:-----|:-----|:-----|
+| 审计 | 逐文件检查 DS 前端全部代码 | ✅ |
+| 审计 | 逐文件检查 Gateway 全部代码 | ✅ |
+| 审计 | 逐文件检查 Docker Compose 全部配置 | ✅ |
+| 审计 | 逐文件检查 Nebula 全部代码 | ✅ |
+| 审计 | 逐文件检查 Orchestrator 全部代码 | ✅ |
+| 审计 | 逐文件检查 Net-Agent 全部代码 | ✅ |
+| 审计 | 逐文件检查 Feishu Bot 全部代码 | ✅ |
+| 审计 | 检查 Alpha-ID 子模块状态 | ✅ |
+| 文档 | 重写 PROJECT_STATUS_REPORT.md（代码级真实状态） | ✅ |
+| 发现 | Docker 容器实际运行中（12 up, 2 unhealthy） | ✅ |
+| 发现 | 发现 10 个已知 Bug | ✅ |
+| 发现 | 发现 Orchestrator 核心为 stub | ✅ |
+| 发现 | 发现 Net-Agent 缺失依赖 | ✅ |
+| 发现 | 发现 Gateway 重复路由定义 | ✅ |
+
+### 核心发现
+
+1. **项目比文档描述的更可用** — 几乎所有服务都有真实实现，不是 stubs
+2. **Docker 已经在运行** — 12 个容器 up，可以直接访问
+3. **Sidebar.tsx 没有被删除** — 在 `components/layout/Sidebar.tsx`，我之前的文档错误
+4. **Orchestrator 是骨架** — 基础设施真实但 ToolA/ToolB 为 stub
+5. **Gateway 有重复路由 bug** — human.py 中 memory_search 和 memory_graph 各定义两次
+6. **Feishu Bot/Consumer unhealthy** — 容器运行但健康检查失败
+7. **ghost-net 网络** — override.yml 引用 external 网络，由 prod compose 创建，有隐患
+8. **Alpha-ID 是外部子模块** — 有 28 个本地修改文件未提交
+9. **Net-Agent 缺失依赖** — requirements.txt 缺少 cryptography, python-jose 等
+10. **77 个文件未提交** — 主要是 unstaged 变更
+
+### 审计方法
+
+- 使用 5 个 Explore 子代理并行检查所有服务
+- 逐文件读取实际代码内容
+- 检查 Docker 容器实际运行状态
+- 检查 git 子模块状态
+- 检查网络配置
+
+---
+
 *最后更新: 2026-08-04*
