@@ -97,12 +97,14 @@ secrets/
 # ── 非核心项目（独立仓库，不在此 monorepo 中跟踪） <longcat_arg_value>
 
 DS/
+!DS/README.md
 !DS/src/lib/onebound.ts
 !DS/src/lib/gateway-client.ts
 !DS/src/lib/eventbus-init.ts
 !DS/scripts/apply-migration.bat
 !DS/src/app/api/webhook/shoplazza/route.ts
 flow/
+!flow/README.md
 obsidian-plugin/
 profile-readme/
 Ghost.html
@@ -176,8 +178,9 @@ core/
 # 支付宝密钥源文件（公钥已提取到 .pem）
 alipayPublicKey_RSA2*.txt
 
-# 飞书机器人残留
+# 飞书机器人残留（保留 README）
 ghost-main/feishu-bot/
+!ghost-main/feishu-bot/README.md
 
 # 阿里云密钥备份
 1784806729763.txt
@@ -195,8 +198,9 @@ pii_config.example.py
 scripts/add_mock_warnings.py
 scripts/archive/
 
-# 监控配置示例
+# 监控配置示例（保留 README）
 monitoring/
+!monitoring/README.md
 
 # 临时文档
 docs/architecture/ARCHITECTURE_DESIGN.md

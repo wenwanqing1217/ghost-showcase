@@ -458,11 +458,8 @@ make ps
 | 文档 | 原用途 | 整合位置 | 状态 |
 |:-----|:-------|:---------|:-----|
 | `README.md` | 项目介绍 | 第 1 节 | 内容已整合，Git 历史保留 |
-| `PORTS.md` | 端口速查 | 第 7 节 | 与第 7 节同步 |
-| `1.md.md` | 早期设计思考 | 第 1-2 节 | 内容已整合 |
-| `2.md.md` | 早期设计思考 | 第 1-2 节 | 内容已整合 |
-| `AGENTS.md` | 项目级 AI 指令 | 第 9 节 | 已升级为工程规范 |
-| `CONTRIBUTING.md` | 贡献规范 | 第 9.6 节 | 内容已整合 |
+| `AGENTS.md` | 项目级 AI 指令 | 第 9 节 | 已升级为工程规范（ACTIVE） |
+| `CONTRIBUTING.md` | 贡献规范 | 第 9.6 节 | 内容已整合（ACTIVE） |
 
 ### Alpha-ID 设计文档系列（REFERENCE）
 
@@ -487,14 +484,7 @@ make ps
 |:-----|:-----|:-----|
 | `docs/architecture/ARCHITECTURE.md` | REFERENCE | 详细架构文档（含路由表 + 数据流） |
 | `docs/architecture/GATEWAY_API_REFERENCE.md` | REFERENCE | Gateway API 详细参考 |
-| `docs/audit/` | ARCHIVED | 历史审计报告（8 份），已移至 `docs/archive/audit/` |
-| `docs/planning/CODE_BASE_MAP.md` | SUPERSEDED | 代码结构已整合到第 5 节 |
-| `docs/planning/FUTURE_PLAN.md` | SUPERSEDED | 路线图已整合到第 10 节 |
-| `docs/planning/GHOST_COMPLETE_MASTER_PLAN.md` | SUPERSEDED | 总计划已整合到第 10 节 |
-| `docs/planning/PHASE1_DEMO_SCRIPT.md` | SUPERSEDED | Demo 脚本，Git 历史保留 |
-| `docs/planning/PHASE1_IMPLEMENTATION_PACK.md` | SUPERSEDED | 实施包，Git 历史保留 |
-| `docs/planning/PHASE1_MINIMUM_TASKBOOK.md` | SUPERSEDED | 任务书，Git 历史保留 |
-| `docs/planning/ROADMAP_ALL.md` | SUPERSEDED | 路线图，已整合到第 10 节 |
+| `docs/archive/audit/` | ARCHIVED | 历史审计报告（8 份） |
 | `docs/planning/REGISTRY_ALL.md` | REFERENCE | 服务注册表参考 |
 | `docs/planning/RETROSPECTIVE.md` | REFERENCE | 复盘记录 |
 | `docs/planning/STRATEGY.md` | REFERENCE | 策略文档 |
@@ -503,30 +493,17 @@ make ps
 
 | 文档 | 用途 |
 |:-----|:-----|
-| `alphaid/README.md` | Alpha-ID 服务说明 |
-| `DS/README.md` | Ghost DS 电商看板说明 |
-| `flow/README.md` | Flow 工作流门户说明 |
+| `alphaid/projects/README.md` | Alpha-ID 服务说明 |
 | `ghost-main/feishu-bot/README.md` | 飞书 Bot 说明 |
-| `ghost-main/docs/doubao-reader.md` | 豆包阅读器说明 |
-| `monitoring/README.md` | 监控说明 |
 | `nebula/README.md` | Nebula 工作流引擎说明 |
-| `nebula/docs/API_VERSIONING.md` | API 版本管理 |
-| `nebula/docs/OPENAPI_SDK_GENERATION.md` | OpenAPI SDK 生成 |
 
 ### 其他文档（SUPERSEDED / REFERENCE）
 
 | 文档 | 状态 | 用途 |
 |:-----|:-----|:-----|
-| `docs/GHOST_DOUBAO_DESIGN.md` | REFERENCE | 豆包集成设计 |
-| `docs/EXPERT_DEEP_AUDIT_2026-07-27.md` | ARCHIVED | 深度审计报告 |
-| `docs/MEDICAL_RECORD.md` | ARCHIVED | 历史记录 |
 | `docs/Net-Agent 零重复造轮子落地方案 (1).md` | REFERENCE | Net-Agent 设计参考 |
 | `docs/ORPHANED_MODULES.md` | REFERENCE | 孤立模块清单 |
 | `alphaid/projects/CHANGELOG.md` | REFERENCE | Alpha-ID 变更日志 |
-| `alphaid/projects/README.md` | REFERENCE | Alpha-ID 项目说明 |
-| `resume_output/*.md` | REFERENCE | 简历输出（8 份） |
-| `skills/baidu-ai-map/*.md` | REFERENCE | 百度 AI 地图技能文档 |
-| `archive/md_old/*.md` | ARCHIVED | 早期文档（7 份） |
 | `.github/PULL_REQUEST_TEMPLATE.md` | ACTIVE | PR 模板 |
 
 ---
