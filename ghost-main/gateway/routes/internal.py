@@ -12,6 +12,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from services.proxy import proxy_get, proxy_post, ok, fail, has_error
+from services.eventbus_client import get_gateway_eventbus
 from middleware.rate_limit import client_ip
 from services.obsidian import (
     check_vault_status,
@@ -311,8 +312,43 @@ async def wechat_webhook(request: Request):
 
     WeChat sends XML messages to this endpoint. We forward to Nebula
     which handles signature verification, message parsing, and reply.
+
+    Also emits SOCIAL_MESSAGE event to EventBus for cross-service consumption.
     """
     body = await request.body()
+
+    # Parse WeChat XML to extract message content for EventBus
+    event_emitted = False
+    try:
+        import xml.etree.ElementTree as ET
+        root = ET.fromstring(body.decode("utf-8"))
+        msg_type = root.find("MsgType")
+        content = root.find("Content")
+        from_user = root.find("FromUserName")
+
+        if msg_type is not None and msg_type.text == "text" and content is not None:
+            bus = get_gateway_eventbus()
+            event = bus.emit(
+                EventType.SOCIAL_MESSAGE.value if hasattr(EventType, "value") else "social.message",
+                {
+                    "platform": "wechat",
+                    "action_type": "MESSAGE_RECEIVED",
+                    "intent": "wechat.message",
+                    "payload": {
+                        "content": content.text,
+                        "from_user": from_user.text if from_user is not None else "",
+                        "msg_type": msg_type.text,
+                    },
+                    "source_alpha_id": "",
+                },
+                source="gateway_wechat_webhook",
+            )
+            event_emitted = event is not None
+            if event_emitted:
+                logger.info("[WeChat] Emitted SOCIAL_MESSAGE event (id=%s)", event.event_id)
+    except Exception as e:
+        logger.warning("[WeChat] EventBus emit failed (non-critical): %s", e)
+
     # Forward to Nebula WeChat endpoint
     data = await proxy_post(
         "/api/v1/wechat",
