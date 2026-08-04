@@ -49,6 +49,7 @@ from routes.flow import router as flow_router  # noqa: E402
 from routes.ecom import router as ecom_router  # noqa: E402
 from routes.notify import router as notify_router  # noqa: E402
 from routes.obsidian_bridge import router as obsidian_bridge_router  # noqa: E402
+from routes.tools import router as tools_router  # noqa: E402
 from middleware.tenant import TenantMiddleware  # noqa: E402
 
 # ============================================================
@@ -120,6 +121,10 @@ tags_metadata = [
         "name": "net",
         "description": "Network operations — router management, Net-Agent proxy.",
     },
+    {
+        "name": "tools",
+        "description": "Code generation and optimization — ToolA (generator) and ToolB (optimizer).",
+    },
 ]
 
 app = FastAPI(
@@ -172,6 +177,7 @@ app.include_router(flow_router)
 app.include_router(ecom_router)
 app.include_router(notify_router)
 app.include_router(obsidian_bridge_router)
+app.include_router(tools_router)
 
 # Ghost Workbench (extracted from inline _GHOST_PAGE)
 # 静态文件服务：/workbench → ghost-main/gateway/static/

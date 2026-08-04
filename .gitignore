@@ -125,6 +125,8 @@ DS/scripts/apply-migration.sh
 !DS/src/lib/eventbus-init.ts
 !DS/src/lib/api-proxy.ts
 !DS/src/app/layout.tsx
+!DS/src/components/layout/Sidebar.tsx
+!DS/src/components/shared/NavIcon.tsx
 !DS/scripts/seed-demo.mjs
 !DS/scripts/apply-migration.bat
 !DS/src/app/api/webhook/shoplazza/route.ts

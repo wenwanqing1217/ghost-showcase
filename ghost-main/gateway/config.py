@@ -20,6 +20,8 @@ ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:19090")
 FLOW_URL = os.getenv("FLOW_URL", "http://flow:3036")
 NETAGENT_URL = os.getenv("NETAGENT_URL", "http://netagent:18180")
 DS_URL = os.getenv("DS_URL", "http://ghost-ds:3000")
+TOOL_A_URL = os.getenv("TOOL_A_URL", "http://tool-a:8081")
+TOOL_B_URL = os.getenv("TOOL_B_URL", "http://tool-b:8082")
 
 # --- Identity ---
 DEFAULT_ALPHA_ID = os.getenv("DEFAULT_ALPHA_ID", "")
