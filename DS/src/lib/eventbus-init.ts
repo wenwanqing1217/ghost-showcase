@@ -1,8 +1,9 @@
 /**
- * Server-side EventBus initialization
+ * Server-side EventBus initialization for Next.js
  * 
- * Import this module from any server-side code to ensure
- * the EventBus is initialized once when the Next.js server starts.
+ * This module initializes the EventBus and starts consumers
+ * when the Next.js server process starts. Import this module
+ * from any server-side code to ensure it runs once.
  * 
  * Usage: import '@/lib/eventbus-init' from any server-only module.
  * 
@@ -11,16 +12,21 @@
  */
 
 import { Redis } from 'ioredis';
-import { initEventBus, EventType } from './eventbus';
+import { initEventBus, getEventBus, EventType } from './eventbus';
 
 let initialized = false;
+let redis: Redis | null = null;
 
-async function initialize() {
+/**
+ * Initialize the EventBus — called automatically on module import.
+ * Creates Redis connection, registers handlers, starts consumer loop.
+ */
+async function initialize(): Promise<void> {
   if (initialized) return;
 
   try {
     const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    const redis = new Redis(redisUrl, {
+    redis = new Redis(redisUrl, {
       retryStrategy: (times) => Math.min(times * 200, 2000),
       maxRetriesPerRequest: 3,
       lazyConnect: true,
@@ -53,12 +59,46 @@ async function initialize() {
 
     // Start consuming events (activates consumer groups + XREADGROUP loop)
     await eventBus.startConsuming();
-    
+
     initialized = true;
     console.log('[EventBus] Server-side initialization complete');
   } catch (error) {
     console.error('[EventBus] Server-side initialization failed:', error);
   }
+}
+
+/**
+ * Ensure EventBus is ready — synchronous check.
+ * If not initialized, triggers async initialization.
+ * (Merged from eventbus-server.ts for backward compat)
+ */
+export function ensureEventBusReady(): void {
+  if (!initialized) {
+    initialize().catch((e) => console.error('[EventBus] ensureEventBusReady failed:', e));
+  }
+}
+
+/**
+ * Get the EventBus instance — throws if not initialized.
+ * (Merged from eventbus-server.ts for backward compat)
+ */
+export function getEventBusInstance() {
+  if (!initialized) {
+    throw new Error('EventBus not initialized. Call ensureEventBusReady() first.');
+  }
+  return getEventBus();
+}
+
+/**
+ * Shutdown the EventBus — disconnect Redis.
+ * (Merged from eventbus-server.ts for backward compat)
+ */
+export function shutdownEventBus(): void {
+  if (redis) {
+    redis.disconnect();
+    redis = null;
+  }
+  initialized = false;
 }
 
 // Initialize on import (server-side only)

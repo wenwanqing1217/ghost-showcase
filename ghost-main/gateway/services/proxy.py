@@ -30,7 +30,12 @@ SAFE_PROXY_HEADERS = {
     "x-correlation-id",
     "accept",
     "user-agent",
+    "x-requested-with",
+    "origin",
 }
+
+# Headers required by Alpha-ID CSRF middleware.
+_CSRF_HEADERS = ("x-requested-with", "origin", "referer")
 
 # Status codes worth retrying (transient failures)
 _RETRYABLE_STATUS = {502, 503, 504}
@@ -41,6 +46,22 @@ _RETRY_DELAY = 0.5  # seconds
 def filter_headers(headers: dict) -> dict:
     """Filter request headers to only include safe-to-forward ones."""
     return {k: v for k, v in headers.items() if k.lower() in SAFE_PROXY_HEADERS}
+
+
+def forward_csrf_headers(request: Request, extra: dict = None) -> dict:
+    """Extract CSRF-relevant headers from the incoming request.
+
+    Returns a dict with X-Requested-With, Origin, Referer if present.
+    Merges with optional extra dict (extra keys take precedence).
+    """
+    fwd = {}
+    for h in _CSRF_HEADERS:
+        v = request.headers.get(h)
+        if v:
+            fwd[h] = v
+    if extra:
+        fwd.update(extra)
+    return fwd
 
 
 def get_client() -> httpx.AsyncClient:
@@ -55,9 +76,10 @@ async def _proxy_request(
     body: dict = None,
     headers: dict = None,
     timeout: float = None,
+    is_json: bool = True,
 ) -> dict:
     """Core proxy request with retry logic and error preservation.
-    
+
     Returns the JSON response on success. On failure, returns a dict with:
       - _error: Human-readable error summary
       - _status: Original HTTP status code (if available)
@@ -73,7 +95,11 @@ async def _proxy_request(
             if timeout:
                 kwargs["timeout"] = timeout
             if body is not None:
-                kwargs["json"] = body
+                if is_json:
+                    kwargs["json"] = body
+                else:
+                    kwargs["content"] = body
+                    kwargs["headers"] = {**kwargs["headers"], "Content-Type": "application/xml"}
 
             resp = await client.request(method, url, **kwargs)
 
@@ -136,9 +162,19 @@ async def proxy_post(
     body: dict = None,
     headers: dict = None,
     timeout: float = None,
+    is_json: bool = True,
 ) -> dict:
-    """Proxy POST request to backend."""
-    return await _proxy_request("POST", path, base_url, body=body, headers=headers, timeout=timeout)
+    """Proxy POST request to backend.
+
+    Args:
+        path: Backend path (e.g. /api/v1/chat)
+        base_url: Backend base URL
+        body: JSON dict or raw bytes
+        headers: Extra headers to forward
+        timeout: Request timeout (seconds)
+        is_json: If True, serialize body as JSON; if False, send body as raw content
+    """
+    return await _proxy_request("POST", path, base_url, body=body, headers=headers, timeout=timeout, is_json=is_json)
 
 
 def has_error(data: dict) -> bool:

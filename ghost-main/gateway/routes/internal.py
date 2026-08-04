@@ -5,9 +5,11 @@ Platform internal use only, not exposed to public.
 
 import os
 import logging
+import asyncio
+from typing import Any
 
 from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from services.proxy import proxy_get, proxy_post, ok, fail, has_error
 from middleware.rate_limit import client_ip
@@ -21,6 +23,143 @@ import config
 logger = logging.getLogger("ghost-gateway")
 
 router = APIRouter(prefix="/v1/internal", tags=["internal"])
+
+
+# ── Monitoring Dashboard ──
+
+
+@router.get("/monitoring")
+async def monitoring_dashboard(request: Request):
+    """Internal: Serve the Ghost Platform monitoring dashboard."""
+    html_path = os.path.join(os.path.dirname(__file__), "..", "monitoring.html")
+    if os.path.exists(html_path):
+        html = open(html_path, "r", encoding="utf-8").read()
+        return HTMLResponse(content=html)
+    return HTMLResponse(content="<h1>Monitoring dashboard not found</h1>", status_code=404)
+
+
+@router.get("/monitoring/metrics")
+async def monitoring_metrics(request: Request):
+    """Internal: Aggregate metrics from all backend services.
+    
+    Calls each service's /metrics endpoint and returns combined health + metrics.
+    This replaces the need for a separate Prometheus server.
+    """
+    import time
+    
+    # Use the shared httpx client from proxy module
+    from services.proxy import _proxy_request
+    
+    services = {
+        "gateway": f"http://localhost:{config.GATEWAY_PORT}/metrics",
+        "alphaid": f"{config.ALPHAID_URL}/metrics",
+        "nebula": f"{config.NEBULA_URL}/metrics",
+        "flow": f"{config.FLOW_URL}/metrics",
+        "orchestrator": f"{config.ORCHESTRATOR_URL}/metrics",
+        "netagent": f"{config.NETAGENT_URL}/metrics",
+        "ghost-ds": f"{config.DS_URL}/api/metrics",
+    }
+    
+    results = {}
+    health = {}
+    
+    async def _fetch(name: str, url: str) -> tuple[str, dict]:
+        try:
+            start = time.perf_counter()
+            # Use the shared client (connection pool)
+            data = await _proxy_request("GET", url, "")
+            duration = time.perf_counter() - start
+            
+            if isinstance(data, dict) and data.get("_error"):
+                return name, {
+                    "status": 0,
+                    "ok": False,
+                    "error": data["_error"],
+                    "duration_ms": round(duration * 1000, 1),
+                }
+            
+            # Convert to text for display
+            if isinstance(data, dict):
+                text = "\n".join(f"{k} {v}" for k, v in data.items())
+            else:
+                text = str(data)
+            
+            return name, {
+                "status": 200,
+                "ok": True,
+                "duration_ms": round(duration * 1000, 1),
+                "size_bytes": len(text),
+                "metrics": text[:5000],
+            }
+        except Exception as e:
+            return name, {
+                "status": 0,
+                "ok": False,
+                "error": str(e),
+                "duration_ms": 0,
+            }
+    
+    # Fetch all concurrently
+    tasks = [_fetch(name, url) for name, url in services.items()]
+    completed = await asyncio.gather(*tasks, return_exceptions=True)
+    
+    for result in completed:
+        if isinstance(result, Exception):
+            continue
+        name, data = result
+        results[name] = data
+        health[name] = "ok" if data.get("ok") else "error"
+    
+    overall = "ok" if all(v == "ok" for v in health.values()) else "degraded"
+    
+    return ok({
+        "overall": overall,
+        "services": health,
+        "details": results,
+        "timestamp": time.time(),
+    }, request)
+
+
+@router.get("/monitoring/health")
+async def monitoring_health(request: Request):
+    """Internal: Quick health summary for monitoring dashboards."""
+    import time
+    from services.proxy import _proxy_request
+    
+    services = {
+        "alphaid": config.ALPHAID_URL,
+        "nebula": config.NEBULA_URL,
+        "orchestrator": config.ORCHESTRATOR_URL,
+        "netagent": config.NETAGENT_URL,
+        "flow": config.FLOW_URL,
+        "ghost-ds": config.DS_URL,
+    }
+    
+    health = {}
+    
+    async def _check(name: str, base_url: str) -> None:
+        try:
+            start = time.perf_counter()
+            data = await _proxy_request("GET", f"{base_url}/health", "")
+            duration = time.perf_counter() - start
+            
+            if isinstance(data, dict) and data.get("_error"):
+                health[name] = "error"
+            else:
+                health[name] = "ok"
+        except Exception:
+            health[name] = "error"
+    
+    tasks = [_check(name, url) for name, url in services.items()]
+    await asyncio.gather(*tasks)
+    
+    # Obsidian vault check
+    vault_status = check_vault_status()
+    health["obsidian"] = "ok" if vault_status.get("exists") else "not_found"
+    
+    overall = "ok" if all(v == "ok" for v in health.values()) else "degraded"
+    
+    return ok({"overall": overall, "services": health}, request)
 
 
 # ── Doubao Capture ──
@@ -114,9 +253,11 @@ async def doubao_capture(request: Request):
         logger.warning("Gateway→Alpha-ID auth failed: %s", auth_err)
 
     # 调用 dual-chain/save（带 JWT Token + CSRF 头）
+    from urllib.parse import urlparse
+    _alphaid_origin = urlparse(config.ALPHAID_URL).origin
     _headers = {
         "X-Requested-With": "XMLHttpRequest",  # Alpha-ID CSRF 防护要求
-        "Origin": "http://localhost:8000",     # Alpha-ID 允许的来源
+        "Origin": _alphaid_origin,              # Alpha-ID 允许的来源
     }
     if _access_token:
         _headers["Authorization"] = f"Bearer {_access_token}"
@@ -157,6 +298,43 @@ async def doubao_capture(request: Request):
         },
         request,
     )
+
+
+# ── WeChat Webhook ──
+
+
+@router.post("/webhook/wechat")
+async def wechat_webhook(request: Request):
+    """Proxy WeChat webhook to Nebula /api/v1/wechat.
+
+    WeChat sends XML messages to this endpoint. We forward to Nebula
+    which handles signature verification, message parsing, and reply.
+    """
+    body = await request.body()
+    # Forward to Nebula WeChat endpoint
+    data = await proxy_post(
+        "/api/v1/wechat",
+        config.NEBULA_URL,
+        body=body,
+        is_json=False,
+    )
+    if has_error(data):
+        return fail(f"WeChat proxy error: {data.get('_error', 'unknown')}", 502, request)
+    return ok(data, request)
+
+
+@router.get("/webhook/wechat")
+async def wechat_verify(request: Request):
+    """WeChat signature verification — proxy to Nebula."""
+    # Forward query params for signature verification
+    query_params = str(request.query_params)
+    data = await proxy_get(
+        f"/api/v1/wechat?{query_params}",
+        config.NEBULA_URL,
+    )
+    if has_error(data):
+        return fail(f"WeChat verify error: {data.get('_error', 'unknown')}", 502, request)
+    return ok(data, request)
 
 
 # ── Orchestrator ──
