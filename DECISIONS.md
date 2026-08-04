@@ -428,8 +428,9 @@
 1. Gateway human.py 新增 `/v1/human/brain/chat`（含 quick-register JWT 自动获取）+ `/v1/human/voice/status` 路由
 2. Alpha-ID 新增 `api/voice.py`（/api/v1/voice/status）+ 注册到 main.py
 3. DS 新增 `/app/brain` 页面（状态/唤醒/对话）+ `/app/voice` 页面（状态/TTS）
-4. DS 新增 2 条 API 路由代理到 Gateway
-**后果:** DS 侧边栏"智能大脑"+"语音"入口连通，brain chat 返回真实 AI 回复，voice status 返回引擎可用性
+4. DS 新增 4 条 API 路由代理到 Gateway（brain/status, brain/awake, brain/chat, voice/status）
+5. DS 导航更新：NavIcon 新增 `brain`/`voice` 图标，Sidebar 操作区新增两个入口
+**后果:** DS 侧边栏"智能大脑"+"语音"入口全部连通，brain chat 返回真实 AI 回复，voice status 返回引擎可用性
 
 ---
 

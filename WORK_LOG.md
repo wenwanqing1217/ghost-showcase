@@ -127,7 +127,23 @@
 
 **git commits:**
 - `da80f09` feat: add GhostBrain/GhostVoice Gateway routes + DS brain/voice pages
+- `5dfdbf6` fix(ds): add missing brain/status and brain/awake API routes
 - Alpha-ID submodule: `wip/2026-07-27 6d98ce1` feat(alphaid): add /api/v1/voice/status endpoint
+
+---
+
+## Session 7 — 2026-08-04（全栈端到端验证 + 补齐缺失路由）
+
+**工作内容:**
+1. **补齐缺失的 brain API 路由**: 发现 `/app/brain` 页面调用了 `/api/v1/human/brain/status` 和 `/api/v1/human/brain/awake` 但未实现，新增两条路由
+2. **全栈端到端验证通过**:
+   - DS Brain Status → Gateway → Alpha-ID → TwinBrain ✅
+   - DS Brain Awake → Gateway → Alpha-ID → TwinBrain ✅  
+   - DS Brain Chat → Gateway → Alpha-ID → AgentLoop → 真实 AI 回复 ✅
+   - DS Voice Status → Gateway → Alpha-ID → GhostVoice → 引擎可用性 ✅
+   - DS Social Friends → 401 expected (Alpha-ID 需显式 JWT) ✅
+   - DS Chat, Products, Orders, Stats, Shop, Health 全部正常 ✅
+3. **文档更新**: DECISIONS.md D-18 补充完整路由数量，WORK_LOG.md session 7
 
 ---
 
