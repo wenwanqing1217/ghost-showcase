@@ -30,9 +30,12 @@ const NAV_GROUPS = [
   {
     label: '生态',
     items: [
-      { href: '/ecosystem', label: 'Agent 网络', icon: 'network' as const },
+      { href: '/ecosystem', label: '生态总览', icon: 'network' as const },
+      { href: '/ecosystem/a2a', label: 'A2A 协议', icon: 'a2a' as const },
+      { href: '/ecosystem/obsidian', label: '知识图谱', icon: 'obsidian' as const },
       { href: '/ecosystem/workbench', label: '个人工作台', icon: 'workbench' as const },
       { href: '/social', label: '社交', icon: 'social' as const },
+      { href: '/demo', label: '演示', icon: 'overview' as const },
     ],
   },
   {
