@@ -1,3 +1,5 @@
+<!-- STATUS: ARCHIVED → 详见 GHOST.md v3.0 -->
+
 # Ghost 全局生态系统
 
 > 更新日期：2026-07-27

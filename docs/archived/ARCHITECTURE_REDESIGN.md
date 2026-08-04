@@ -1,3 +1,5 @@
+<!-- STATUS: ARCHIVED → 详见 GHOST.md v3.0 -->
+
 # Ghost 架构重构设计方案
 
 > ⚠️ **已过时** — 本文档已合并到新文档 `ARCHITECTURE.md`，请以新文档为准。

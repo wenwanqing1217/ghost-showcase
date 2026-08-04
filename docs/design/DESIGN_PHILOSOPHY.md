@@ -1,3 +1,7 @@
+<!-- STATUS: REFERENCE → 详见 GHOST.md v3.0 -->
+<!-- 本文件为英文设计哲学文档（第一性原理推导所有决策）。 -->
+<!-- 核心思想已整合到 GHOST.md 第 1 节，本文件保留为英文参考。 -->
+
 # Alpha-ID Design Philosophy
 
 > *Why every decision was made, traced back to first principles.*

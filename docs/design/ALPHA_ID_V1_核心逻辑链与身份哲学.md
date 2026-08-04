@@ -1,3 +1,6 @@
+<!-- STATUS: REFERENCE → 详见 GHOST.md v3.0 -->
+<!-- V1 核心逻辑链与身份哲学。核心思想已整合到 GHOST.md 第 1 节。 -->
+
 # Alpha-ID V1 · 核心逻辑链与身份哲学
 
 > 本文档是 Alpha-ID 重构系列的**第一轴**。

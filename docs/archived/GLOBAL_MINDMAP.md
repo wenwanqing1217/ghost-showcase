@@ -1,3 +1,5 @@
+<!-- STATUS: ARCHIVED → 详见 GHOST.md v3.0 -->
+
 # Ghost + Alpha-ID 全局思维导图
 
 > ⚠️ **已过时** — 本文档已合并到新文档 `ARCHITECTURE.md`，请以新文档为准。

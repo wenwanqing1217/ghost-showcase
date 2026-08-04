@@ -435,21 +435,248 @@ make ps
 
 ## 13. 关联文档
 
-| 文档 | 用途 | 状态 |
+> 本节为所有项目文档的唯一索引。分类规则：
+> - **ACTIVE**：当前维护中，内容与 GHOST.md 互补
+> - **SUPERSEDED**：内容已整合到 GHOST.md，保留为 Git 历史参考，文件头部有指向 GHOST.md 的注释
+> - **REFERENCE**：详细技术参考，补充 GHOST.md 未展开的深度内容，文件头部有指向 GHOST.md 的注释
+> - **ARCHIVED**：历史审计/报告，已移至 `docs/archive/`，文件头部有指向 GHOST.md 的注释
+
+### 核心文档（ACTIVE）
+
+| 文档 | 用途 | 说明 |
 |:-----|:-----|:-----|
-| `DECISIONS.md` | 架构决策日志 | ✅ 10 条已记录 |
-| `WORK_LOG.md` | 每次会话成果记录 | ⚠️ 待建立 |
-| `PORTS.md` | 服务端口速查 | ✅ 与第 7 节同步 |
-| `Makefile` | 统一命令入口 | ✅ up/down/test/lint/fmt |
-| `AGENTS.md` | 项目级 AI Agent 指令 | ✅ TERM 规则 + 文档更新规则 |
-| `CODEOWNERS` | 代码归属自动分配 | ✅ 按服务分区 |
-| `CONTRIBUTING.md` | 开发者 onboarding | ✅ 环境搭建 + 规范 |
-| `PHASE1_PLAN.md` | Phase 1 实施计划 | ✅ P0-P2 全部完成 |
-| `docs/architecture/ARCHITECTURE.md` | 详细架构文档 | ✅ 含路由表 + 数据流 |
-| `docs/audit/GHOST_DEEP_AUDIT.md` | 逐行审计报告 | ✅ 380+ 文件 |
-| `docs/design/` | Alpha-ID 设计文档 (00-04) | ✅ 产品/技术/哲学 |
+| `GHOST.md` | 项目唯一真相源 | 本章所有内容，v3.0 基于逐行代码阅读 + 运行时验证 |
+| `DECISIONS.md` | 架构决策日志 | 10 条已记录的关键决策 |
+| `Makefile` | 统一命令入口 | `up`/`down`/`test`/`lint`/`fmt` |
+| `AGENTS.md` | 项目级 AI Agent 指令 | TERM 规则 + 文档更新规则 |
+| `CODEOWNERS` | 代码归属自动分配 | 按服务分区 |
+| `CONTRIBUTING.md` | 开发者 onboarding | 环境搭建 + 规范 |
+| `PHASE1_PLAN.md` | Phase 1 实施计划 | P0-P2 全部完成 |
+
+### 项目顶层文档（SUPERSEDED → GHOST.md）
+
+| 文档 | 原用途 | 整合位置 | 状态 |
+|:-----|:-------|:---------|:-----|
+| `README.md` | 项目介绍 | 第 1 节 | 内容已整合，Git 历史保留 |
+| `PORTS.md` | 端口速查 | 第 7 节 | 与第 7 节同步 |
+| `1.md.md` | 早期设计思考 | 第 1-2 节 | 内容已整合 |
+| `2.md.md` | 早期设计思考 | 第 1-2 节 | 内容已整合 |
+| `AGENTS.md` | 项目级 AI 指令 | 第 9 节 | 已升级为工程规范 |
+| `CONTRIBUTING.md` | 贡献规范 | 第 9.6 节 | 内容已整合 |
+
+### Alpha-ID 设计文档系列（REFERENCE）
+
+> 以下文档为 Alpha-ID 产品的完整设计思考链。内容已整合到 GHOST.md 第 1-2 节，保留为深度参考。
+> 阅读顺序：00 → V0 → V1 → DESIGN_PHILOSOPHY → V2 → 01 → 02 → 03 → 04 → GHOST.md
+
+| 文档 | 定位 | GHOST.md 对应章节 |
+|:-----|:-----|:-----------------|
+| `docs/design/ALPHA_ID_00_项目总纲.md` | 产品哲学、7大需求、5大原则 | 第 1 节 |
+| `docs/design/ALPHA_ID_V0_万象追认录.md` | 命名溯源、21条问答 | 第 1 节（命名体系） |
+| `docs/design/ALPHA_ID_V1_核心逻辑链与身份哲学.md` | 第一轴：逻辑链与身份哲学 | 第 1-2 节 |
+| `docs/design/DESIGN_PHILOSOPHY.md` | 英文第一性原理推导（与 V1 互补） | 第 1 节 |
+| `docs/design/ALPHA_ID_V2_Web4_生态位与设备演进.md` | 第二轴：生态位、设备演进、3D形象 | 第 1-6 节 |
+| `docs/design/ALPHA_ID_01_Web端与产品设计.md` | 第三轴：Web端五层页面结构 | 第 6 节 |
+| `docs/design/ALPHA_ID_02_模拟盘·数字创世纪.md` | 第四轴：9小宇宙完整设计 | 第 6 节（模拟盘） |
+| `docs/design/ALPHA_ID_03_技术架构与执行路线.md` | 第五轴：技术架构 ⚠️ 部分过时 | 第 2 节（四层→七层已更新） |
+| `docs/design/ALPHA_ID_04_执行哲学与自动化协作手册.md` | 第六轴：BDD验收标准、5大规则 | 第 9 节 |
+
+### 架构与审计文档（REFERENCE / ARCHIVED）
+
+| 文档 | 状态 | 用途 |
+|:-----|:-----|:-----|
+| `docs/architecture/ARCHITECTURE.md` | REFERENCE | 详细架构文档（含路由表 + 数据流） |
+| `docs/architecture/GATEWAY_API_REFERENCE.md` | REFERENCE | Gateway API 详细参考 |
+| `docs/audit/` | ARCHIVED | 历史审计报告（8 份），已移至 `docs/archive/audit/` |
+| `docs/planning/CODE_BASE_MAP.md` | SUPERSEDED | 代码结构已整合到第 5 节 |
+| `docs/planning/FUTURE_PLAN.md` | SUPERSEDED | 路线图已整合到第 10 节 |
+| `docs/planning/GHOST_COMPLETE_MASTER_PLAN.md` | SUPERSEDED | 总计划已整合到第 10 节 |
+| `docs/planning/PHASE1_DEMO_SCRIPT.md` | SUPERSEDED | Demo 脚本，Git 历史保留 |
+| `docs/planning/PHASE1_IMPLEMENTATION_PACK.md` | SUPERSEDED | 实施包，Git 历史保留 |
+| `docs/planning/PHASE1_MINIMUM_TASKBOOK.md` | SUPERSEDED | 任务书，Git 历史保留 |
+| `docs/planning/ROADMAP_ALL.md` | SUPERSEDED | 路线图，已整合到第 10 节 |
+| `docs/planning/REGISTRY_ALL.md` | REFERENCE | 服务注册表参考 |
+| `docs/planning/RETROSPECTIVE.md` | REFERENCE | 复盘记录 |
+| `docs/planning/STRATEGY.md` | REFERENCE | 策略文档 |
+
+### 各服务 README（REFERENCE）
+
+| 文档 | 用途 |
+|:-----|:-----|
+| `alphaid/README.md` | Alpha-ID 服务说明 |
+| `DS/README.md` | Ghost DS 电商看板说明 |
+| `flow/README.md` | Flow 工作流门户说明 |
+| `ghost-main/feishu-bot/README.md` | 飞书 Bot 说明 |
+| `ghost-main/docs/doubao-reader.md` | 豆包阅读器说明 |
+| `monitoring/README.md` | 监控说明 |
+| `nebula/README.md` | Nebula 工作流引擎说明 |
+| `nebula/docs/API_VERSIONING.md` | API 版本管理 |
+| `nebula/docs/OPENAPI_SDK_GENERATION.md` | OpenAPI SDK 生成 |
+
+### 其他文档（SUPERSEDED / REFERENCE）
+
+| 文档 | 状态 | 用途 |
+|:-----|:-----|:-----|
+| `docs/GHOST_DOUBAO_DESIGN.md` | REFERENCE | 豆包集成设计 |
+| `docs/EXPERT_DEEP_AUDIT_2026-07-27.md` | ARCHIVED | 深度审计报告 |
+| `docs/MEDICAL_RECORD.md` | ARCHIVED | 历史记录 |
+| `docs/Net-Agent 零重复造轮子落地方案 (1).md` | REFERENCE | Net-Agent 设计参考 |
+| `docs/ORPHANED_MODULES.md` | REFERENCE | 孤立模块清单 |
+| `alphaid/projects/CHANGELOG.md` | REFERENCE | Alpha-ID 变更日志 |
+| `alphaid/projects/README.md` | REFERENCE | Alpha-ID 项目说明 |
+| `resume_output/*.md` | REFERENCE | 简历输出（8 份） |
+| `skills/baidu-ai-map/*.md` | REFERENCE | 百度 AI 地图技能文档 |
+| `archive/md_old/*.md` | ARCHIVED | 早期文档（7 份） |
+| `.github/PULL_REQUEST_TEMPLATE.md` | ACTIVE | PR 模板 |
 
 ---
 
 *本文件是 Ghost Platform 的唯一真相源。所有其他文档已合并到此。*
 *第 3.0 版基于 2026-08-04 逐行代码阅读 + Docker 运行时验证。*
+
+---
+
+## 14. 操作手册（服务独有细节）
+
+> 以下为各服务 README 中 GHOST.md 未覆盖的操作细节。原始 README 已删除，内容合并至此。
+
+### 14.1 Ghost DS（电商看板）
+
+```bash
+# 本地开发（自动配置 SQLite + 种子数据）
+npm run dev:setup
+npm run dev                          # 端口 3004
+
+# 生产 Docker
+docker build -t ghost-ds .
+docker run -p 3000:3000 --env-file .env ghost-ds
+
+# 数据库切换
+# 本地（SQLite）
+cp prisma/schema.local.prisma prisma/schema.prisma && npx prisma db push
+# 生产（PostgreSQL）
+cp prisma/schema.production.prisma prisma/schema.prisma && npx prisma db push
+
+# AI 文案生成环境变量
+AI_API_KEY=your_deepseek_key
+AI_BASE_URL=https://api.deepseek.com/v1
+AI_MODEL=deepseek-chat
+```
+
+**端口**：开发 3004，生产 3000（Docker compose 映射到 3001）
+
+### 14.2 Flow（前端门户）
+
+```bash
+# 同时启动 API + Web
+npm run dev
+
+# 单独启动
+npm run dev:api   # API 服务 → :3036
+npm run dev:web   # Web 前端 → :3000
+```
+
+### 14.3 Feishu Bot
+
+```bash
+# .env 配置
+FEISHU_APP_ID=cli_你的AppId
+FEISHU_APP_SECRET=你的AppSecret
+DEFAULT_BACKEND=atomcode
+CODE_RUNNER_DIR=D:\MW              # 工作目录（可选）
+KNOWN_CHAT_IDS=oc_xxx,oc_yyy       # 预注册会话 ID（轮询用）
+CODEX_MAX_CONCURRENT=3              # 最大并发任务数
+CUSTOM_BACKEND=name:cmd:arg1|arg2  # 自定义后端（可选）
+
+# 飞书 Bot 命令
+/backend list          # 查看可用后端
+/backend <名字>        # 切换引擎
+/status               # 查看状态
+/task list            # 查看待办任务
+```
+
+**后端引擎**：
+| 后端 | 命令 | 费用 |
+|:-----|:-----|:-----|
+| `atomcode` | `atomcode -p "{prompt}" -y --provider AtomGit-deepseek-v4-flash` | 免费 |
+| `zcode` | `node zcode.cjs --prompt "{prompt}" --mode yolo --json` | GLM 待确认 |
+| `codex` | `codex -p "{prompt}"` | 仅限本机桌面版 |
+
+### 14.4 监控（Prometheus + Grafana）
+
+| 服务 | URL | 凭证 |
+|:-----|:-----|:-----|
+| Prometheus | http://localhost:9090 | — |
+| Grafana | http://localhost:3000 | admin / admin |
+
+**Dashboard**：Ghost Gateway（request rate、p50/p95/p99 latency、error rate、backend health）
+
+**Metrics 源**：
+
+| 服务 | 端口 | 层级 |
+|:-----|-----:|:-----|
+| Gateway | :18080 | L6 |
+| Flow | :3036 | L4 |
+| Orchestrator | :19090 | L5 |
+| Net-Agent | :18180 | L3 |
+| Alpha-ID | :8000 | L1 |
+
+**Retention**：Prometheus 15 天本地存储，scrape interval 15s
+
+### 14.5 Alpha-ID（PyPI 包）
+
+```bash
+# 安装
+pip install alpha-id
+pip install alpha-id[web]      # Web API 服务
+pip install alpha-id[mcp]      # MCP Server
+pip install alpha-id[fairy]    # AI 自动化
+
+# CLI 命令
+aid init                        # 初始化数字身份
+aid detect                      # 扫描本机数字痕迹
+aid collect chatgpt ~/export.zip # 从 ChatGPT 导入
+aid collect trae                # 从 Trae 取回代码痕迹
+aid profile show                # 查看数字画像
+aid profile web                 # 浏览器查看画像卡片
+aid wizard start                # 3 个问题快速生成画像
+
+# 启动 API
+export AUTH_MASTER_KEY="your-random-key-here"
+aid-api --reload --port 8000
+
+# 启动 MCP Server
+aid-mcp
+```
+
+**数据采集器**：
+
+| 数据源 | 命令 | 说明 |
+|:--------|:------|:------|
+| ChatGPT | `aid collect chatgpt <zip>` | 从 OpenAI 导出导入 |
+| Claude | 自动检测 | Claude 对话记录 |
+| Trae | `aid collect trae` | 代码痕迹 |
+| Cursor | 自动检测 | 编辑器行为 |
+| 浏览器 | 自动检测 | 浏览历史与偏好 |
+| Git | 自动检测 | 代码提交记录 |
+
+**SDK 用法**：
+```python
+from alpha_id import Agent
+agent = Agent()
+agent.register("my-device-fingerprint")
+agent.connect("Alpha-002")
+agent.think("来聊天吧")
+```
+
+### 14.6 Nebula（工作流引擎）
+
+```bash
+# 安装
+pip install -e ".[dev]"
+
+# 启动
+uvicorn mindflow_map.main:app --reload --port 2002
+```
+
+---
