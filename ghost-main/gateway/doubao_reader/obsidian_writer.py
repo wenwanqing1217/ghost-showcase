@@ -25,7 +25,6 @@ import re
 import time
 import logging
 import tempfile
-import requests
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, Dict, Any
