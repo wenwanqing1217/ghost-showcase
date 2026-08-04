@@ -51,6 +51,9 @@ logger = logging.getLogger("orchestrator")
 GATEWAY = os.getenv("GATEWAY_URL", "http://localhost:18080")
 TOOL_A = os.getenv("TOOL_A_URL", "http://localhost:8081")
 TOOL_B = os.getenv("TOOL_B_URL", "http://localhost:8082")
+TOOL_A_TIMEOUT = float(os.getenv("TOOL_A_TIMEOUT", "30"))
+TOOL_B_TIMEOUT = float(os.getenv("TOOL_B_TIMEOUT", "30"))
+TOOL_MAX_RETRIES = int(os.getenv("TOOL_MAX_RETRIES", "2"))
 PORT = int(os.getenv("ORCHESTRATOR_PORT", "19090"))
 API_KEY = os.getenv("ORCHESTRATOR_API_KEY", "")  # 空字符串表示不校验
 MAX_WORKERS = int(os.getenv("ORCHESTRATOR_MAX_WORKERS", "4"))
@@ -208,48 +211,88 @@ async def sync_to_gateway(content: str, category: str = "orchestrator") -> None:
 # ---------------------------------------------------------------------------
 
 
+def _call_tool_with_retry(
+    client: httpx.Client,
+    url: str,
+    payload: dict,
+    timeout: float,
+    max_retries: int,
+    tool_name: str,
+) -> dict:
+    """Call a tool endpoint with exponential backoff retry.
+
+    Returns a dict with either the JSON response under "data"
+    or an error description under "error".
+    """
+    last_err = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = client.post(url, json=payload, timeout=timeout)
+            if resp.status_code == 200:
+                return {"data": resp.json(), "attempt": attempt}
+            # 5xx → retry, 4xx → no point retrying
+            if resp.status_code >= 500:
+                last_err = f"{tool_name} returned {resp.status_code} (attempt {attempt})"
+                logger.warning(last_err)
+                continue
+            return {
+                "error": f"{tool_name} returned {resp.status_code}",
+                "status_code": resp.status_code,
+                "body": resp.text[:500],
+                "attempt": attempt,
+            }
+        except httpx.TimeoutException:
+            last_err = f"{tool_name} timeout after {timeout}s (attempt {attempt})"
+            logger.warning(last_err)
+        except httpx.ConnectError:
+            last_err = f"{tool_name} unreachable (attempt {attempt})"
+            logger.warning(last_err)
+        except Exception as exc:
+            last_err = f"{tool_name} error: {exc} (attempt {attempt})"
+            logger.warning(last_err)
+
+    return {"error": last_err, "attempts": max_retries}
+
+
 def _execute_task(task: Task) -> None:
-    """Run in thread pool. Calls ToolA + ToolB via HTTP when configured."""
+    """Run in thread pool. Calls ToolA + ToolB via HTTP with retry."""
     try:
         logger.info("Executing task %s (%s mode)", task.id, task.mode)
 
-        # TERM: ToolA — 生成器服务（代码/内容生成），端口 :8081
-        # TERM: ToolB — 校验优化服务（代码审查/优化），端口 :8082
-        # 当 TOOL_A_URL / TOOL_B_URL 配置时，实际调用 HTTP 服务
         tool_a_result = None
         tool_b_result = None
 
-        # Use sync httpx client for thread pool execution
-        with httpx.Client(timeout=30.0) as client:
+        with httpx.Client(timeout=max(TOOL_A_TIMEOUT, TOOL_B_TIMEOUT) + 5) as client:
+            # ── ToolA: 生成器（serial + parallel 模式均调用） ──
             if TOOL_A:
-                try:
-                    resp = client.post(
-                        f"{TOOL_A}/v1/generate",
-                        json={"requirement": task.requirement, "task_id": task.id},
-                    )
-                    if resp.status_code == 200:
-                        tool_a_result = resp.json()
-                    else:
-                        tool_a_result = {"status": "error", "message": f"ToolA returned {resp.status_code}"}
-                except Exception as e:
-                    tool_a_result = {"status": "error", "message": f"ToolA unreachable: {e}"}
+                tool_a_result = _call_tool_with_retry(
+                    client=client,
+                    url=f"{TOOL_A}/v1/generate",
+                    payload={"requirement": task.requirement, "task_id": task.id},
+                    timeout=TOOL_A_TIMEOUT,
+                    max_retries=TOOL_MAX_RETRIES,
+                    tool_name="ToolA",
+                )
             else:
                 tool_a_result = {"status": "not_configured", "message": "ToolA URL not configured"}
 
+            # ── ToolB: 校验优化（parallel 模式调用；serial 模式跳过） ──
             if task.mode == "parallel" and TOOL_B:
-                try:
-                    resp = client.post(
-                        f"{TOOL_B}/v1/optimize",
-                        json={"requirement": task.requirement, "task_id": task.id, "tool_a_result": tool_a_result},
-                    )
-                    if resp.status_code == 200:
-                        tool_b_result = resp.json()
-                    else:
-                        tool_b_result = {"status": "error", "message": f"ToolB returned {resp.status_code}"}
-                except Exception as e:
-                    tool_b_result = {"status": "error", "message": f"ToolB unreachable: {e}"}
+                tool_b_result = _call_tool_with_retry(
+                    client=client,
+                    url=f"{TOOL_B}/v1/optimize",
+                    payload={
+                        "requirement": task.requirement,
+                        "task_id": task.id,
+                        "tool_a_result": tool_a_result.get("data") or tool_a_result,
+                    },
+                    timeout=TOOL_B_TIMEOUT,
+                    max_retries=TOOL_MAX_RETRIES,
+                    tool_name="ToolB",
+                )
             else:
-                tool_b_result = {"status": "skipped", "message": "ToolB not configured or serial mode"}
+                reason = "serial mode" if task.mode != "parallel" else "ToolB URL not configured"
+                tool_b_result = {"status": "skipped", "message": reason}
 
         task_manager.update(
             task.id,
@@ -258,10 +301,11 @@ def _execute_task(task: Task) -> None:
             status="completed",
             completed_at=time.time(),
         )
-        logger.info("Task %s completed", task.id)
-    except Exception as e:
-        task_manager.update(task.id, status="failed", error=str(e))
-        logger.error("Task %s failed: %s", task.id, e)
+        logger.info("Task %s completed (a_err=%s, b_err=%s)", task.id,
+                    "data" in tool_a_result, "data" in (tool_b_result or {}))
+    except Exception as exc:
+        task_manager.update(task.id, status="failed", error=str(exc))
+        logger.error("Task %s failed: %s", task.id, exc)
 
 
 # ---------------------------------------------------------------------------
@@ -335,6 +379,26 @@ async def execute_task(task_id: str, _=Depends(require_api_key)):
 @app.get("/health")
 async def health():
     return {"status": "ok", "tasks": task_manager.count, "port": PORT}
+
+
+@app.get("/v1/tools/status")
+async def tools_status():
+    """Report reachability of ToolA and ToolB (no auth required for monitoring)."""
+    client = get_http_client()
+    results = {"tool_a": None, "tool_b": None}
+    for name, url, timeout in [
+        ("tool_a", f"{TOOL_A}/health" if TOOL_A else None, TOOL_A_TIMEOUT),
+        ("tool_b", f"{TOOL_B}/health" if TOOL_B else None, TOOL_B_TIMEOUT),
+    ]:
+        if not url:
+            results[name] = {"configured": False}
+            continue
+        try:
+            resp = await client.get(url, timeout=timeout)
+            results[name] = {"configured": True, "reachable": resp.status_code == 200, "status_code": resp.status_code}
+        except Exception as exc:
+            results[name] = {"configured": True, "reachable": False, "error": str(exc)}
+    return {"success": True, "tools": results}
 
 
 # ---------------------------------------------------------------------------
