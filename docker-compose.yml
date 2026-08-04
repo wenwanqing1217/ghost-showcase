@@ -124,6 +124,8 @@ services:
       DS_URL: http://ghost-ds:3000
       TOOL_A_URL: http://tool-a:8081
       TOOL_B_URL: http://tool-b:8082
+      REDIS_URL: redis://redis:6379
+      EVENT_STREAM_PREFIX: alphaid:events
       GATEWAY_PORT: "18080"
       ENVIRONMENT: production
     env_file:
@@ -182,6 +184,8 @@ services:
       GATEWAY_URL: http://gateway:18080
       TOOL_A_GATEWAY: http://gateway:18080/v1/tools/generate
       TOOL_B_GATEWAY: http://gateway:18080/v1/tools/optimize
+      REDIS_URL: redis://redis:6379
+      EVENT_STREAM_PREFIX: alphaid:events
       ENVIRONMENT: production
     env_file:
       - ./orchestrator/.env
