@@ -419,4 +419,18 @@
 
 ---
 
+### D-20260804-18: Gateway 接入 GhostBrain/GhostVoice 路由 + DS brain/voice 页面
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** GhostBrain (TwinBrain + AgentLoop) 和 GhostVoice (Whisper STT + Coqui TTS) 是 Alpha-ID 核心模块，但之前未通过 Gateway 暴露，DS 看板无法访问  
+**决定:**
+1. Gateway human.py 新增 `/v1/human/brain/chat`（含 quick-register JWT 自动获取）+ `/v1/human/voice/status` 路由
+2. Alpha-ID 新增 `api/voice.py`（/api/v1/voice/status）+ 注册到 main.py
+3. DS 新增 `/app/brain` 页面（状态/唤醒/对话）+ `/app/voice` 页面（状态/TTS）
+4. DS 新增 2 条 API 路由代理到 Gateway
+**后果:** DS 侧边栏"智能大脑"+"语音"入口连通，brain chat 返回真实 AI 回复，voice status 返回引擎可用性
+
+---
+
 *最后更新: 2026-08-04

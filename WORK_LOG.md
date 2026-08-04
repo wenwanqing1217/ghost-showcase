@@ -109,11 +109,33 @@
 
 ---
 
+## Session 6 — 2026-08-04（GhostBrain/GhostVoice 接入 Gateway + DS 页面）
+
+**工作内容:**
+1. **Gateway 新增 brain/voice 路由**: 
+   - `/v1/human/brain/chat` — 代理到 Alpha-ID /api/v1/agent/chat，含 quick-register JWT 自动获取
+   - `/v1/human/voice/status` — 代理到 Alpha-ID /api/v1/voice/status
+   - 新增 `_brain_quick_register()` 辅助函数复用 chat 路由的 JWT 获取逻辑
+2. **Alpha-ID 新增 voice API**: `api/voice.py`（/api/v1/voice/status）+ 注册到 main.py
+3. **DS 新增 brain/voice 页面**: `/app/brain`（状态/唤醒/对话）+ `/app/voice`（状态/TTS 输入）
+4. **DS 新增 2 条 API 路由**: `/api/v1/human/brain/chat`、`/api/v1/human/voice/status`
+5. **DS 导航更新**: NavIcon 新增 `brain`/`voice` 图标，Sidebar 操作区新增两个入口
+6. **全栈端到端验证通过**:
+   - DS Brain Chat → Gateway → Alpha-ID → TwinBrain → 真实 AI 回复 ✅
+   - DS Voice Status → Gateway → Alpha-ID → GhostVoice → 引擎可用性 ✅
+   - Social API 401 是 Alpha-ID 正常认证要求（social 路由需显式 JWT，brain 路由自动 quick-register）✅
+
+**git commits:**
+- `da80f09` feat: add GhostBrain/GhostVoice Gateway routes + DS brain/voice pages
+- Alpha-ID submodule: `wip/2026-07-27 6d98ce1` feat(alphaid): add /api/v1/voice/status endpoint
+
+---
+
 ## 待办
 
 - [x] Docker Desktop 启动后验证全栈健康
-- [ ] 逐步接入 Alpha-ID 新模块到 Gateway 路由
+- [x] 逐步接入 Alpha-ID 新模块到 Gateway 路由（brain/voice/social）
 - [ ] 为 Nebula、Alpha-ID 补充单元测试
 - [ ] 接入真实 ToolA/ToolB 服务（替换 stub）
 - [x] DS 添加 demo seed script 验证
-- [ ] Alpha-ID GhostBrain/GhostVoice 接入 Gateway 路由（P2）
+- [x] Alpha-ID GhostBrain/GhostVoice 接入 Gateway 路由
