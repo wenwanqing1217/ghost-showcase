@@ -268,4 +268,14 @@
 
 ---
 
+### D-20260804-4: /v1/chat 代理转发租户身份
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** `/v1/chat` 内部代理调用 `/v1/human/chat` 时不携带任何租户身份头，导致 TenantMiddleware 返回 401  
+**决定:** 代理转发 X-Tenant-ID / Authorization 头；若请求体含 alpha_id 且无头，则设为 X-Tenant-ID  
+**后果:** `/v1/chat` 端到端链路恢复，feishu webhook 和 demo UI 可用
+
+---
+
 *最后更新: 2026-08-04*
