@@ -215,13 +215,15 @@ async def proxy_doubao(request: Request):
 # feishu_webhook.py 和 demo UI 使用 /v1/chat，实际处理在 /v1/human/chat
 @app.post("/v1/chat")
 async def proxy_legacy_chat(request: Request):
-    """代理旧版 /v1/chat → /v1/human/chat"""
+    """代理旧版 /v1/chat → /v1/human/chat（内部代理用 127.0.0.1，避免 0.0.0.0 不可路由）"""
     from starlette.responses import JSONResponse
     body = await request.json()
+    # 内部代理必须用 loopback 地址，0.0.0.0 仅作 bind 地址，不可作为目标
+    internal_url = f"http://127.0.0.1:{config.GATEWAY_PORT}/v1/human/chat"
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             resp = await client.post(
-                f"http://{config.GATEWAY_HOST or '0.0.0.0'}:{config.GATEWAY_PORT}/v1/human/chat",
+                internal_url,
                 json=body,
                 headers={"Content-Type": "application/json"},
             )
