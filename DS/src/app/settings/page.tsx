@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import TopBar from '@/components/layout/TopBar';
 import AuthGuard from '@/components/layout/AuthGuard';
 import { getApiUrl } from '@/lib/gateway-client';
+import { DEMO_USER } from '@/lib/demo-data';
 
 interface ShopInfo {
   id: string;
@@ -44,9 +45,15 @@ export default function SettingsPage() {
           setShop(data.shop);
           setName(data.shop.name);
           setStoreMode(data.shop.storeMode as StoreMode || 'marketplace');
+        } else {
+          // 无店铺数据 → 演示模式
+          setResult({ ok: true, message: '演示模式 — 未连接到 OneBound 货源' });
         }
       })
-      .catch((err) => console.error('[SettingsPage] shop fetch error:', err));
+      .catch((err) => {
+        console.error('[SettingsPage] shop fetch error:', err);
+        setResult({ ok: true, message: '演示模式 — 未连接到 OneBound 货源' });
+      });
 
     // Gateway 状态
     fetch(getApiUrl('/api/health'))

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import TopBar from '@/components/layout/TopBar';
 import AuthGuard from '@/components/layout/AuthGuard';
 import { humanApi } from '@/lib/api';
+import { DEMO_MEMORY_NODES } from '@/lib/demo-data';
 
 interface MemoryNode {
   id: string;
@@ -62,16 +63,11 @@ export default function MemoryPage() {
       console.warn('[MemoryPage] loadMemoryGraph fallback to demo data:', err);
       setIsDemo(true);
       setGraph({
-        nodes: [
-          { id: '1', type: 'atom', label: '用户身份', content: 'Alpha-001 已注册', timestamp: new Date().toISOString(), connections: ['2', '3'] },
-          { id: '2', type: 'memory', label: '对话记忆 #1', content: '用户询问过产品推荐', timestamp: new Date().toISOString(), connections: ['1', '4'] },
-          { id: '3', type: 'context', label: '上下文', content: '电商场景', timestamp: new Date().toISOString(), connections: ['1'] },
-          { id: '4', type: 'relation', label: '关联', content: '产品 → 订单', timestamp: new Date().toISOString(), connections: ['2'] },
-        ],
+        nodes: DEMO_MEMORY_NODES.map(n => ({ ...n, source: 'graph' as const })) as MemoryNode[],
         stats: {
-          totalAtoms: 4,
-          totalRelations: 2,
-          totalMemories: 1,
+          totalAtoms: DEMO_MEMORY_NODES.filter(n => n.type === 'atom').length,
+          totalRelations: DEMO_MEMORY_NODES.filter(n => n.type === 'relation').length,
+          totalMemories: DEMO_MEMORY_NODES.filter(n => n.type === 'memory').length,
           layers: 3,
         },
       });
@@ -216,12 +212,12 @@ export default function MemoryPage() {
           )}
 
           {/* 记忆图谱可视化 */}
-          <div className="card">
-            <div className="card-header">
+          <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="card-header" style={{ padding: '16px 20px', borderBottom: '1px solid var(--border-color)' }}>
               <span className="card-title">记忆图谱</span>
               <div className="flex items-center gap-2">
                 {isDemo && (
-                  <span className="text-xs px-2 py-1 rounded-lg" style={{
+                  <span className="text-xs px-2.5 py-1 rounded-lg" style={{
                     background: 'rgba(245,158,11,0.1)',
                     color: '#fbbf24',
                     border: '1px solid rgba(245,158,11,0.2)',
@@ -234,7 +230,7 @@ export default function MemoryPage() {
                   disabled={loading}
                   className="text-xs px-3 py-1.5 rounded-lg transition-all"
                   style={{
-                    background: loading ? 'var(--bg-hover)' : 'var(--bg-hover)',
+                    background: 'var(--bg-hover)',
                     color: loading ? 'var(--text-muted)' : 'var(--text-secondary)',
                     border: '1px solid var(--border-color)',
                     cursor: loading ? 'not-allowed' : 'pointer',
@@ -244,9 +240,10 @@ export default function MemoryPage() {
                 </button>
               </div>
             </div>
-            <div style={{ padding: 24 }}>
+            <div style={{ padding: 20 }}>
               {loading ? (
                 <div style={{ textAlign: 'center', padding: 40 }}>
+                  <div style={{ fontSize: 24, marginBottom: 12, opacity: 0.4 }}>🔗</div>
                   <div className="text-muted">加载记忆图谱...</div>
                 </div>
               ) : graph ? (
@@ -256,21 +253,24 @@ export default function MemoryPage() {
                       key={node.id}
                       className="p-4 rounded-xl cursor-pointer transition-all"
                       style={{
-                        background: 'var(--bg-hover)',
+                        background: selectedNode?.id === node.id ? 'rgba(139,92,246,0.06)' : 'var(--bg-hover)',
                         border: `1px solid ${selectedNode?.id === node.id ? getNodeColor(node.type) : 'var(--border-color)'}`,
-                        boxShadow: selectedNode?.id === node.id ? `0 0 12px ${getNodeColor(node.type)}33` : 'none',
+                        boxShadow: selectedNode?.id === node.id ? `0 0 16px ${getNodeColor(node.type)}22` : 'none',
+                        transform: selectedNode?.id === node.id ? 'translateY(-1px)' : 'none',
                       }}
                       onClick={() => setSelectedNode({ ...node, source: 'graph' })}
                     >
                       <div className="text-2xl mb-2">{getNodeIcon(node.type)}</div>
-                      <div className="text-sm font-medium" style={{ color: 'var(--text-primary)' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 3 }}>
                         {node.label}
                       </div>
-                      <div className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
+                      <div className="text-xs" style={{ color: 'var(--text-muted)', lineHeight: 1.4 }}>
                         {node.content?.slice(0, 60)}{node.content?.length && node.content.length > 60 ? '...' : ''}
                       </div>
-                      <div className="flex gap-1 mt-2">
-                        <span className="badge badge-active" style={{ fontSize: 10 }}>{node.type}</span>
+                      <div className="flex items-center gap-2 mt-3">
+                        <span className="badge" style={{ fontSize: 10, background: `${getNodeColor(node.type)}15`, color: getNodeColor(node.type), border: `1px solid ${getNodeColor(node.type)}25` }}>
+                          {node.type}
+                        </span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>
                           {node.connections.length} 连接
                         </span>

@@ -5,6 +5,7 @@ import CosmicBackground from '@/components/marketing/CosmicBackground';
 import GlassCard from '@/components/shared/GlassCard';
 import Tag from '@/components/shared/Tag';
 import GhostSprite from '@/components/shared/GhostSprite';
+import { DEMO_STATS } from '@/lib/demo-data';
 
 export default function HomePage() {
   return (
@@ -101,10 +102,10 @@ export default function HomePage() {
               }}
             >
               {[
-                { value: '20+', label: '原子点' },
-                { value: '9', label: '能力域' },
-                { value: '6', label: '思维框架' },
-                { value: '90天', label: 'MVP → v1.0' },
+                { value: `${DEMO_STATS.totalAtoms}+`, label: '原子点' },
+                { value: String(DEMO_STATS.capabilityDomains), label: '能力域' },
+                { value: String(DEMO_STATS.thinkingFrameworks), label: '思维框架' },
+                { value: `${DEMO_STATS.mvpDays}天`, label: 'MVP → v1.0' },
               ].map((stat, i) => (
                 <div key={i} style={{ textAlign: 'center' }}>
                   <div

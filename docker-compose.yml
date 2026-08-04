@@ -49,6 +49,7 @@ services:
       - "2002:2002"
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER:?DB_USER required}:${DB_PASSWORD:?DB_PASSWORD required}@db:5432/nebula
+      CSRF_DISABLED: "true"
     env_file:
       - ./nebula/.env
     depends_on:

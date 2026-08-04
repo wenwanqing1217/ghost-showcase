@@ -15,29 +15,22 @@ const NAV_GROUPS = [
       { href: '/', label: '总览', icon: 'overview' as const },
     ],
   },
-    {
-      label: '操作区',
-      items: [
-        { href: '/chat', label: '对话', icon: 'chat' as const },
-        { href: '/memory', label: '记忆图谱', icon: 'memory' as const },
-        { href: '/workflow', label: '工作流', icon: 'workflow' as const },
-        { href: '/doubao', label: '豆包记忆桥', icon: 'bridge' as const },
-        { href: '/dashboard', label: '运营看板', icon: 'dashboard' as const },
-        { href: '/brain', label: '智能大脑', icon: 'brain' as const },
-        { href: '/voice', label: '语音', icon: 'voice' as const },
-      ],
-    },
+  {
+    label: '操作区',
+    items: [
+      { href: '/chat', label: '对话', icon: 'chat' as const },
+      { href: '/memory', label: '记忆图谱', icon: 'memory' as const },
+      { href: '/workflow', label: '工作流', icon: 'workflow' as const },
+      { href: '/dashboard', label: '运营看板', icon: 'dashboard' as const },
+    ],
+  },
   {
     label: '生态',
     items: [
       { href: '/ecosystem', label: '生态总览', icon: 'network' as const },
       { href: '/ecosystem/a2a', label: 'A2A 协议', icon: 'a2a' as const },
       { href: '/ecosystem/obsidian', label: '知识图谱', icon: 'obsidian' as const },
-      { href: '/ecosystem/strategies', label: '策略供应商', icon: 'dashboard' as const },
-      { href: '/ecosystem/tools', label: 'AI 工具', icon: 'tools' as const },
-      { href: '/ecosystem/workbench', label: '个人工作台', icon: 'workbench' as const },
       { href: '/social', label: '社交', icon: 'social' as const },
-      { href: '/demo', label: '演示', icon: 'overview' as const },
     ],
   },
   {

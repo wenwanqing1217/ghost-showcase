@@ -4,6 +4,7 @@ All human-facing interfaces, unified permission control.
 No fixed role binding, users can be consumer/creator/developer at the same time.
 """
 
+import json
 import logging
 from typing import Optional
 
@@ -319,15 +320,26 @@ async def dual_chain_stats(request: Request):
 @router.get("/workflows")
 async def get_workflows(request: Request):
     """Get workflow templates → proxy to Nebula."""
-    data = await proxy_get("/api/v1/workflow/templates", config.NEBULA_URL)
+    fwd = forward_csrf_headers(request)
+    data = await proxy_get("/api/v1/workflow/templates", config.NEBULA_URL, headers=fwd)
     return ok(data, request)
 
 
 @router.post("/workflows/execute")
 async def execute_workflow(request: Request):
     """Execute workflow → proxy to Nebula."""
-    body = await request.json()
-    data = await proxy_post("/api/v1/workflow/execute", config.NEBULA_URL, body=body)
+    try:
+        raw = await request.body()
+        ds_body = json.loads(raw) if raw else {}
+    except Exception:
+        ds_body = {}
+    # Transform DS format {template_id, input} → Nebula format {text, user_id}
+    nebula_body = {
+        "text": ds_body.get("input") or ds_body.get("text") or "",
+        "user_id": ds_body.get("alpha_id") or ds_body.get("user_id") or "default",
+    }
+    fwd = forward_csrf_headers(request)
+    data = await proxy_post("/api/v1/workflow/execute", config.NEBULA_URL, body=nebula_body, headers=fwd)
     return ok(data, request)
 
 

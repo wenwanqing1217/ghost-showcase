@@ -1,14 +1,66 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import TopBar from '@/components/layout/TopBar';
 import AuthGuard from '@/components/layout/AuthGuard';
+import { getApiUrl } from '@/lib/gateway-client';
+import { DEMO_AGENTS } from '@/lib/demo-data';
+
+interface Agent {
+  name: string;
+  role: string;
+  status: string;
+  desc: string;
+}
 
 export default function EcosystemPage() {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isDemo, setIsDemo] = useState(false);
+
+  useEffect(() => {
+    loadAgents();
+  }, []);
+
+  const loadAgents = async () => {
+    try {
+      const res = await fetch(getApiUrl('/v1/human/agents'));
+      const data = await res.json();
+      if (data.agents && data.agents.length > 0) {
+        setAgents(data.agents);
+        setIsDemo(false);
+      } else {
+        throw new Error('empty');
+      }
+    } catch {
+      setIsDemo(true);
+      setAgents(DEMO_AGENTS.map(a => ({ name: a.name, role: a.skills.join(', '), status: a.status, desc: `${a.skills.slice(0, 2).join(' + ')} 能力` })));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <AuthGuard>
       <TopBar title="Agent 网络" subtitle="A2A 协议 · Agent 注册与发现 · 技能市场" />
       <div className="p-6">
         <div className="max-w-5xl mx-auto">
+          {/* 演示模式横幅 */}
+          {isDemo && (
+            <div className="p-3 rounded-xl mb-4 animate-slide-up" style={{
+              background: 'rgba(245,158,11,0.08)',
+              border: '1px solid rgba(245,158,11,0.15)',
+              color: '#fbbf24',
+              fontSize: 13,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#fbbf24', opacity: 0.7 }} />
+              演示模式 — 未连接到 Agent 网络，显示示例智能体数据
+            </div>
+          )}
+
           {/* 快速导航 */}
           <div className="grid md:grid-cols-3 gap-4 mb-6">
             <a href="/ecosystem/a2a" className="card" style={{ padding: 20, textDecoration: 'none', color: 'inherit' }}>
@@ -49,35 +101,32 @@ export default function EcosystemPage() {
 
           {/* Agent 列表 */}
           <div className="grid md:grid-cols-2 gap-4">
-            {[
-              { name: 'Ghost 中枢', role: '路由器', status: 'online', desc: '意图解析 → 技能路由 → 决策树' },
-              { name: 'Alpha-ID', role: '身份层', status: 'online', desc: 'DID 生成 + Ed25519 签名 + 三层记忆' },
-              { name: 'Nebula', role: '工作流', status: 'online', desc: 'DAG 编排 + 多跳推理 + 回溯' },
-              { name: 'Flow', role: '引擎', status: 'online', desc: 'Fastify 工作流执行引擎' },
-              { name: 'Gateway', role: '网关', status: 'online', desc: '统一 API 网关 · 请求路由' },
-              { name: 'Net-Agent', role: '网络', status: 'online', desc: '网络操作 · 数据采集' },
-            ].map((agent, i) => (
-              <div key={i} className="card" style={{ padding: 16 }}>
+            {agents.map((agent, i) => (
+              <div key={i} className="card" style={{ padding: 20, transition: 'all 0.2s ease' }}
+                onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.15)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; }}
+              >
                 <div className="flex-between">
                   <div className="flex items-center gap-3">
                     <div style={{
-                      width: 36, height: 36, borderRadius: 10,
+                      width: 40, height: 40, borderRadius: 12,
                       background: 'linear-gradient(135deg, var(--nebula), var(--cosmic))',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      color: 'white', fontSize: 14, fontWeight: 700
+                      color: 'white', fontSize: 16, fontWeight: 700,
+                      boxShadow: '0 2px 8px rgba(139,92,246,0.25)',
                     }}>
                       {agent.name[0]}
                     </div>
                     <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{agent.name}</div>
-                      <div className="text-muted" style={{ fontSize: 11 }}>{agent.role}</div>
+                      <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--text-primary)' }}>{agent.name}</div>
+                      <div className="text-muted" style={{ fontSize: 12 }}>{agent.role}</div>
                     </div>
                   </div>
-                  <span className={`badge ${agent.status === 'online' ? 'badge-active' : 'badge-pending'}`}>
-                    {agent.status === 'online' ? '在线' : '离线'}
+                  <span className={`badge ${agent.status === 'online' ? 'badge-active' : 'badge-pending'}`} style={{ fontSize: 11 }}>
+                    {agent.status === 'online' ? '● 在线' : '○ 离线'}
                   </span>
                 </div>
-                <p className="text-muted" style={{ fontSize: 12, marginTop: 8 }}>{agent.desc}</p>
+                <p className="text-muted" style={{ fontSize: 13, marginTop: 12, lineHeight: 1.5 }}>{agent.desc}</p>
               </div>
             ))}
           </div>
