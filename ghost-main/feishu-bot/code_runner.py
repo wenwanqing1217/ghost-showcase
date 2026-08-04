@@ -70,6 +70,11 @@ if not logger.handlers:
 # 多后端配置（code_runner 是单一起源，bot.py 从此导入）
 # ============================================================
 BACKENDS = {
+    "echo": {
+        "cmd": "__echo__",
+        "args": ["{prompt}"],
+        "desc": "模拟回复（无需 CLI，用于测试）",
+    },
     "atomcode": {
         "cmd": "atomcode",
         "args": ["-p", "{prompt}", "-y", "--provider", "AtomGit-deepseek-v4-flash"],
@@ -162,6 +167,10 @@ class BackendRunner:
 
             cmd = backend["cmd"]
             args = [a.replace("{prompt}", prompt) for a in backend["args"]]
+
+            # 模拟后端（无需 CLI）
+            if cmd == "__echo__":
+                return f"✅ 模拟回复（echo 后端）:\n\n收到你的消息：{prompt[:200]}\n\n当前是模拟模式，未连接实际 AI 后端。\n可用后端: {', '.join(b for b in BACKENDS if b != 'echo')}"
 
             logger.info("执行: %s %s", cmd, " ".join(a.replace(prompt, "...") for a in args))
 
