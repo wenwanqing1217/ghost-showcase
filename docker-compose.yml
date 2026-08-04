@@ -290,57 +290,6 @@ services:
       retries: 3
       start_period: 15s
 
-  # ── Feishu Bot (飞书 WebSocket Bot) ──
-  feishu-bot:
-    build:
-      context: ./ghost-main/feishu-bot
-      dockerfile: Dockerfile
-    environment:
-      FEISHU_APP_ID: ${FEISHU_APP_ID:?FEISHU_APP_ID required}
-      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:?FEISHU_APP_SECRET required}
-      CODEX_MAX_CONCURRENT: ${CODEX_MAX_CONCURRENT:-3}
-      CODE_RUNNER_DIR: ${CODE_RUNNER_DIR:-/app/workspace}
-    env_file:
-      - ./ghost-main/feishu-bot/.env
-    depends_on:
-      gateway:
-        condition: service_healthy
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "pgrep -f 'python bot.py' || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-
-  # ── Feishu Notification Consumer (Event Bus → Feishu) ──
-  feishu-consumer:
-    build:
-      context: ./ghost-main/feishu-bot
-      dockerfile: Dockerfile
-    environment:
-      FEISHU_APP_ID: ${FEISHU_APP_ID:?FEISHU_APP_ID required}
-      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:?FEISHU_APP_SECRET required}
-      REDIS_URL: redis://redis:6379
-      EVENT_STREAM_PREFIX: alphaid:ecom
-      FEISHU_CONSUMER_GROUP: feishu-notifiers
-      FEISHU_CONSUMER_NAME: feishu-consumer-1
-    env_file:
-      - ./ghost-main/feishu-bot/.env
-    depends_on:
-      redis:
-        condition: service_healthy
-      gateway:
-        condition: service_healthy
-    restart: unless-stopped
-    command: python feishu_consumer.py
-    healthcheck:
-      test: ["CMD-SHELL", "python -c \"import sys; print('consumer running')\" || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
 volumes:
   pgdata:
   redisdata:
