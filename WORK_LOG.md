@@ -92,10 +92,28 @@
 
 ---
 
+## Session 5 — 2026-08-04（深夜收尾 + DS 容器更新验证）
+
+**工作内容:**
+1. **Docker 镜像重建成功**: `docker compose build ghost-ds` 完成（38.5s），新镜像 9b32c45b → 容器重启后 healthy
+2. **proxyToGateway body re-read 修复**: `api-proxy.ts` 增加 `options.body` 参数；`chat/route.ts` 先 `req.text()` 读 body 验证再传入 proxy，解决 `TypeError: Body has already been read`
+3. **DS chat API 验证通过**: `POST /api/v1/human/chat` 返回真实 LLM 回复（"你好！我是你的智能总助..."）
+4. **DS 全量 API 验证**: products(5条)、orders(5条)、stats(5状态统计)、shop、health、identity 全部正常
+5. **DS 社交功能补齐**: 新增 `/social` 页面（好友/请求/消息三 Tab）+ 5 条 API 路由（friend-request, message, friends, requests, messages）+ NavIcon `social` + Sidebar 导航
+6. **文档更新**: DECISIONS.md 补充 D-16（body re-read 修复）、D-17（social 页面）；WORK_LOG.md 更新
+
+**结果:** 完成。
+- DS chat API 连通 Gateway → Alpha-ID → 真实 LLM 回复
+- DS social API 路由就位（401/403 是 Alpha-ID 正常认证要求，需 JWT 后可用）
+- git commit: ec91499
+
+---
+
 ## 待办
 
-- [ ] Docker Desktop 启动后验证全栈健康
+- [x] Docker Desktop 启动后验证全栈健康
 - [ ] 逐步接入 Alpha-ID 新模块到 Gateway 路由
 - [ ] 为 Nebula、Alpha-ID 补充单元测试
 - [ ] 接入真实 ToolA/ToolB 服务（替换 stub）
-- [ ] DS 添加 demo seed script 验证
+- [x] DS 添加 demo seed script 验证
+- [ ] Alpha-ID GhostBrain/GhostVoice 接入 Gateway 路由（P2）

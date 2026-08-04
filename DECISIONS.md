@@ -392,6 +392,31 @@
 
 ---
 
-*最后更新: 2026-08-04
+### D-20260804-16: DS API 代理层 proxyToGateway 支持透传请求体
 
-*最后更新: 2026-08-04*
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** `proxyToGateway()` 内部无条件调用 `req.text()` 读取 body，导致调用方若先用 `req.json()` 验证请求体，第二次读取时报错 `TypeError: Body is unusable: Body has already been read`  
+**选项:** 
+1. 每个调用方自行实现 proxy 逻辑（重复代码）
+2. proxyToGateway 增加 `options.body` 参数，调用方先读一次 body 再传入
+3. 使用 `req.clone()` 克隆请求
+**决定:** 方案 2 — proxyToGateway 增加 `body?: string` 参数，调用方读取 body 后传入  
+**后果:** chat route 先 `req.text()` 验证再透传，TypeError 消失，DS chat API 正常工作
+
+---
+
+### D-20260804-17: DS 新增 /social 前端页面 + 5 条 API 路由
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** Gateway human.py 已有 6 条 social 路由（friend-request, friends, requests, message, messages），但 DS 前端无对应页面，Alpha-ID social 功能无法通过看板访问  
+**决定:** 
+1. 新增 `DS/src/app/social/page.tsx`（好友列表/请求/消息三 Tab 页面）
+2. 新增 5 条 DS API 路由代理到 Gateway /v1/human/social/*
+3. 新增 NavIcon `social` 图标 + Sidebar 导航入口
+**后果:** DS 侧边栏"社交"入口连通，用户可通过看板使用 Alpha-ID 社交功能
+
+---
+
+*最后更新: 2026-08-04
