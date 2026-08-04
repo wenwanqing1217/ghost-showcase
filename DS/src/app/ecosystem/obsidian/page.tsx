@@ -19,6 +19,7 @@ export default function ObsidianPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [searching, setSearching] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'strategies' | 'suppliers'>('all');
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -39,7 +40,8 @@ export default function ObsidianPage() {
     const fetchCards = async () => {
       setLoading(true);
       try {
-        const res = await fetch('/api/v1/obsidian/cards?limit=50');
+        const base = filter === 'all' ? '' : `?type=${filter}`;
+        const res = await fetch(`/api/v1/obsidian/cards${base}&limit=50`);
         if (res.ok) {
           const data = await res.json();
           setCards(data.data?.cards || data.data || []);
@@ -51,7 +53,7 @@ export default function ObsidianPage() {
       }
     };
     fetchCards();
-  }, []);
+  }, [filter]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -98,6 +100,26 @@ export default function ObsidianPage() {
 
           {/* 搜索栏 */}
           <div className="card mb-6" style={{ padding: 16 }}>
+            <div className="flex gap-2 mb-3">
+              <button
+                onClick={() => setFilter('all')}
+                className={`btn btn-sm ${filter === 'all' ? 'btn-primary' : ''}`}
+              >
+                全部
+              </button>
+              <button
+                onClick={() => setFilter('strategies')}
+                className={`btn btn-sm ${filter === 'strategies' ? 'btn-primary' : ''}`}
+              >
+                策略笔记
+              </button>
+              <button
+                onClick={() => setFilter('suppliers')}
+                className={`btn btn-sm ${filter === 'suppliers' ? 'btn-primary' : ''}`}
+              >
+                供应商画像
+              </button>
+            </div>
             <div className="flex gap-2">
               <input
                 className="input flex-1"
@@ -116,10 +138,7 @@ export default function ObsidianPage() {
               </button>
               {searchQuery && (
                 <button
-                  onClick={() => {
-                    setSearchQuery('');
-                    window.location.reload();
-                  }}
+                  onClick={() => { setSearchQuery(''); window.location.reload(); }}
                   className="btn"
                 >
                   清除
