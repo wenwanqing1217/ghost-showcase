@@ -215,17 +215,35 @@ async def proxy_doubao(request: Request):
 # feishu_webhook.py 和 demo UI 使用 /v1/chat，实际处理在 /v1/human/chat
 @app.post("/v1/chat")
 async def proxy_legacy_chat(request: Request):
-    """代理旧版 /v1/chat → /v1/human/chat（内部代理用 127.0.0.1，避免 0.0.0.0 不可路由）"""
+    """代理旧版 /v1/chat → /v1/human/chat（内部代理用 127.0.0.1，避免 0.0.0.0 不可路由）
+
+    关键：内部代理必须携带租户身份（X-Tenant-ID / Authorization / alpha_id），
+    否则 /v1/human/chat 的 TenantMiddleware 会拒绝请求。
+    """
     from starlette.responses import JSONResponse
     body = await request.json()
     # 内部代理必须用 loopback 地址，0.0.0.0 仅作 bind 地址，不可作为目标
     internal_url = f"http://127.0.0.1:{config.GATEWAY_PORT}/v1/human/chat"
+
+    # 转发租户身份到内部代理，确保 /v1/human/chat 的 TenantMiddleware 放行
+    proxy_headers = {"Content-Type": "application/json"}
+    tenant_header = request.headers.get("X-Tenant-ID", "").strip()
+    if tenant_header:
+        proxy_headers["X-Tenant-ID"] = tenant_header
+    auth_header = request.headers.get("authorization", "").strip()
+    if auth_header:
+        proxy_headers["Authorization"] = auth_header
+    # 如果请求体包含 alpha_id，也作为 tenant 身份转发
+    alpha_id_from_body = body.get("alpha_id", "").strip()
+    if alpha_id_from_body and not tenant_header:
+        proxy_headers["X-Tenant-ID"] = alpha_id_from_body
+
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             resp = await client.post(
                 internal_url,
                 json=body,
-                headers={"Content-Type": "application/json"},
+                headers=proxy_headers,
             )
             return JSONResponse(content=resp.json(), status_code=resp.status_code)
         except Exception as e:
