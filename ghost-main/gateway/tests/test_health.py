@@ -8,6 +8,7 @@ Validates:
 """
 
 import pytest
+import config as _config
 
 
 @pytest.mark.anyio
@@ -26,8 +27,8 @@ async def test_health_all_backends_healthy(gateway_client, mock_client):
 async def test_health_alphaid_down_reports_error(gateway_client, mock_client):
     """Health reports alphaid error when unreachable (overall: degraded)."""
 
-    def mock_get(url, **kwargs):
-        if "8000" in url:
+    async def mock_get(url, **kwargs):
+        if str(_config.ALPHAID_URL) in url:
             raise ConnectionError("Connection refused")
         from tests.conftest import _make_response
 
@@ -46,8 +47,8 @@ async def test_health_alphaid_down_reports_error(gateway_client, mock_client):
 async def test_health_netagent_down_reports_error(gateway_client, mock_client):
     """Health reports netagent error when unreachable."""
 
-    def mock_get(url, **kwargs):
-        if "18180" in url:
+    async def mock_get(url, **kwargs):
+        if str(_config.NETAGENT_URL) in url:
             raise ConnectionError("Connection refused")
         from tests.conftest import _make_response
 
@@ -66,7 +67,7 @@ async def test_health_netagent_down_reports_error(gateway_client, mock_client):
 async def test_health_all_down_reports_errors(gateway_client, mock_client):
     """Health reports all backends error when all unreachable."""
 
-    def mock_get(url, **kwargs):
+    async def mock_get(url, **kwargs):
         raise ConnectionError("Connection refused")
 
     mock_client.get.side_effect = mock_get

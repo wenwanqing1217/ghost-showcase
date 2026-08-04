@@ -144,6 +144,7 @@ class FeishuNotificationConsumer:
 
                 if not result:
                     _backoff = 1.0  # 正常空轮询，重置退避
+                    await asyncio.sleep(0)  # yield control so running flag can be checked
                     continue
 
                 _backoff = 1.0

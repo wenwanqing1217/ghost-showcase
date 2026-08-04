@@ -178,9 +178,11 @@ core/
 # 支付宝密钥源文件（公钥已提取到 .pem）
 alipayPublicKey_RSA2*.txt
 
-# 飞书机器人残留（保留 README）
+# 飞书机器人残留（保留 README + 核心代码 + 测试）
 ghost-main/feishu-bot/
 !ghost-main/feishu-bot/README.md
+!ghost-main/feishu-bot/feishu_consumer.py
+!ghost-main/feishu-bot/tests/
 
 # 阿里云密钥备份
 1784806729763.txt

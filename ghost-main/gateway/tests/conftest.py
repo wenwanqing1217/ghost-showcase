@@ -32,7 +32,11 @@ async def gateway_client(mock_client):
     ensuring the module-level ``client`` is the mock (not a real httpx.AsyncClient).
     """
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://test",
+        headers={"X-Tenant-ID": "test-tenant"},
+    ) as ac:
         yield ac
 
 

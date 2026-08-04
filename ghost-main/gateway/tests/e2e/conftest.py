@@ -57,6 +57,6 @@ def real_flow(flow_url):
 
 @pytest.fixture
 def http_client():
-    """Shared httpx client for E2E requests."""
-    with httpx.Client(timeout=10.0) as client:
+    """Shared httpx client for E2E requests with default tenant header."""
+    with httpx.Client(timeout=10.0, headers={"X-Tenant-ID": "e2e-test-tenant"}) as client:
         yield client

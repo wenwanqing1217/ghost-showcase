@@ -26,13 +26,13 @@ async def test_consume_loop_empty_result_resets_backoff():
     redis_mock.xreadgroup = AsyncMock(return_value=[])
 
     consumer = FeishuNotificationConsumer(redis_mock)
-    consumer.running = True
+    consumer.running = False  # let start() set it True
 
-    # Run 3 iterations, each returning empty result
-    task = asyncio.create_task(consumer.start())
-    await asyncio.sleep(0.1)
+    # Run start() with a timeout so it doesn't spin forever
+    start_task = asyncio.create_task(consumer.start())
+    await asyncio.sleep(0.3)
     consumer.running = False
-    await task
+    await start_task
 
     # xgroup_create called for each event type (9 events)
     assert redis_mock.xgroup_create.call_count == 9
@@ -54,20 +54,24 @@ async def test_consume_loop_real_error_triggers_backoff():
         if call_count == 1:
             # First call: simulate a real error (not timeout)
             raise ConnectionError("Redis connection lost")
-        # Second call: empty result to exit loop
+        # Second call: empty result to continue loop
         return []
 
     redis_mock.xreadgroup = AsyncMock(side_effect=fake_xreadgroup)
 
     consumer = FeishuNotificationConsumer(redis_mock)
-    consumer.running = True
+    consumer.running = False  # let start() set it True
 
     with patch("feishu_consumer.logger") as mock_logger:
-        task = asyncio.create_task(consumer.start())
-        await asyncio.sleep(0.2)
+        start_task = asyncio.create_task(consumer.start())
+        # Wait for: xgroup_create (9) + xreadgroup (error + backoff sleep + empty)
+        await asyncio.sleep(3.0)
         consumer.running = False
-        await task
+        await start_task
 
-    # Should have logged the error
+    # Should have logged the error (not as debug timeout)
     error_calls = [c for c in mock_logger.error.call_args_list if "Consume loop error" in str(c)]
     assert len(error_calls) >= 1
+    # Should NOT have logged it as debug timeout
+    debug_calls = [c for c in mock_logger.debug.call_args_list if "timeout" in str(c).lower()]
+    assert len(debug_calls) == 0

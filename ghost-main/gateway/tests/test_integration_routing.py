@@ -12,13 +12,32 @@ import pytest
 from tests.conftest import _make_response
 
 
+def _all_route_paths(app):
+    """Flatten all routes including those inside IncludedRouters (newer Starlette/FastAPI)."""
+    paths = set()
+    for route in app.routes:
+        if hasattr(route, "path"):
+            paths.add(route.path)
+        elif hasattr(route, "original_router"):
+            # _IncludedRouter — recurse into original_router.routes
+            for sub in getattr(route.original_router, "routes", []):
+                if hasattr(sub, "path"):
+                    paths.add(sub.path)
+        elif hasattr(route, "routes"):
+            # Fallback for older structure
+            for sub in route.routes:
+                if hasattr(sub, "path"):
+                    paths.add(sub.path)
+    return paths
+
+
 @pytest.mark.anyio
 async def test_all_route_prefixes_mounted(gateway_client):
     """Gateway has all expected route prefixes registered."""
     # Access the FastAPI app via the ASGITransport
     from app import app
 
-    routes = {route.path for route in app.routes}
+    routes = _all_route_paths(app)
     # Check that key routes exist
     assert "/health" in routes
     # Human routes
@@ -62,7 +81,9 @@ async def test_human_chat_proxies_to_alphaid(gateway_client, mock_client):
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
-    assert "/api/v1/agent/chat" in captured[0][0]
+    # quick-register happens first, /api/v1/agent/chat is the actual chat call
+    chat_urls = [url for url, _ in captured if "/api/v1/agent/chat" in url]
+    assert len(chat_urls) >= 1, f"Expected /api/v1/agent/chat call, got: {captured}"
 
 
 @pytest.mark.anyio
@@ -106,7 +127,9 @@ async def test_internal_doubao_proxies_to_alphaid(gateway_client, mock_client):
     assert response.status_code == 200
     data = response.json()
     assert data["success"] is True
-    assert "/api/v1/dual-chain/save" in captured[0][0]
+    # dual-chain/save is the final POST (after login/register auth calls)
+    dual_chain_urls = [url for url, _ in captured if "/api/v1/dual-chain/save" in url]
+    assert len(dual_chain_urls) >= 1, f"Expected dual-chain/save call, got: {captured}"
 
 
 @pytest.mark.anyio
@@ -166,7 +189,7 @@ async def test_flow_routes_mounted(gateway_client):
     """Flow routes are registered under /v1/agent/flow/*."""
     from app import app
 
-    routes = {route.path for route in app.routes}
+    routes = _all_route_paths(app)
     # Verify key Flow routes exist
     assert "/v1/agent/flow/health" in routes
     assert "/v1/agent/flow/templates" in routes

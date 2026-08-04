@@ -254,7 +254,9 @@ async def doubao_capture(request: Request):
 
     # 调用 dual-chain/save（带 JWT Token + CSRF 头）
     from urllib.parse import urlparse
-    _alphaid_origin = urlparse(config.ALPHAID_URL).origin
+
+    _parsed = urlparse(config.ALPHAID_URL)
+    _alphaid_origin = f"{_parsed.scheme}://{_parsed.netloc}"
     _headers = {
         "X-Requested-With": "XMLHttpRequest",  # Alpha-ID CSRF 防护要求
         "Origin": _alphaid_origin,              # Alpha-ID 允许的来源
