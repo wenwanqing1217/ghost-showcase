@@ -302,3 +302,4 @@ nebula/test_lark_event.py
 
 # 子模块（不应在此仓库追踪）
 alphaid/projects
+.zcode/plans/
