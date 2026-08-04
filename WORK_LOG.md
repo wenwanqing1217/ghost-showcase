@@ -1,0 +1,76 @@
+# Ghost Platform — 工作日志
+
+> **格式**: 日期 + 会话编号 + 工作内容 + 结果  
+> **关联**: 决策见 `DECISIONS.md`，状态见 `PROJECT_STATUS_REPORT.md`
+
+---
+
+## 2026-08-04
+
+### 会话 1：项目级诊断 + 基础设施修复
+
+**工作内容:**
+- 逐行阅读 Ghost Platform 所有服务代码（Gateway, Alpha-ID, Nebula, DS, Orchestrator, Feishu-bot, Net-Agent）
+- 发现并修复 /v1/chat 端到端链路断裂（GATEWAY_HOST 0.0.0.0 不可路由 + TenantMiddleware 阻断）
+- 修复 feishu-consumer XREADGROUP 超时噪音日志（block timeout 误报为 ERROR）
+- 修复 feishu-bot healthcheck（procps 缺失导致 pgrep 不可用）
+- 修复 DS Prisma 迁移失败（手动 resolve applied migration）
+- 修复 DS Dockerfile Prisma CLI 缺失（COPY node_modules from builder）
+- 安装 Python 3.12 测试环境（C:\Program Files\Python312\）
+- 为 Gateway 新增 4 个 /v1/chat proxy 测试
+- 为 Orchestrator 新增 7 个 retry/timeout 测试
+- 为 Feishu Consumer 新增 2 个 backoff 测试
+- 创建 9 个缺失的服务 README
+- 重写 README.md 为项目入口页
+- 修复 GHOST.md 中 9 个不存在文件引用
+- 创建 CODEOWNERS + CONTRIBUTING.md
+- 创建根 Makefile（统一 up/test/lint/fmt 命令）
+
+**结果:** 部分完成。代码级修复已验证，Docker Desktop 未运行，全栈验证待进行。
+
+---
+
+### 会话 2：测试修复 + 文档同步
+
+**工作内容:**
+- 修复 Gateway 53 个单测中的 36 个 401 失败（conftest 默认带 X-Tenant-ID）
+- 修复 Python 3.12 ParseResult.origin 移除兼容（手拼 scheme://netloc）
+- 修复 Gateway _IncludedRouter 结构变化（original_router 递归）
+- 修复 feishu-bot 测试无限挂起（空轮询加 asyncio.sleep(0)）
+- 修复 test_health URL 匹配（用 config.ALPHAID_URL 精确匹配）
+- 修复 doubao/human chat 测试（筛选目标 URL 跳过 login 调用）
+- 更新 GHOST.md 为实际状态（非计划状态）
+- 创建 PROJECT_STATUS_REPORT.md（真实服务健康 + 测试覆盖 + 阻塞项）
+- 盘活 DS EventBus 死代码（layout.tsx 全局 import eventbus-init）
+- 更新 .gitignore 新增 feishu-bot 例外
+- git commit: d8fad42（测试修复）+ b2f76a4（文档同步）
+
+**结果:** 完成。
+- Gateway: 53/53 passed
+- Orchestrator: 7/7 passed
+- Feishu-bot: 2/2 passed
+
+---
+
+### 会话 3：死代码盘活 + 文档完善（进行中）
+
+**工作内容:**
+- 分析 DS EventBus 死代码：仅 health/route.ts import，改为 layout.tsx 全局初始化
+- 分析 Alpha-ID 死代码：agent.py 未被任何活跃模块 import（SDK 入口，保留）
+- 分析 WeChatAdapter：已从 __all__ 移除，文件保留待实现
+- 更新 GHOST.md 第 8 节新增 5 条已修复问题
+- 更新 GHOST.md 第 3/5/6 节为实际状态
+- 新增 P0 阻塞项（Docker Desktop 未运行）
+- 创建 PROJECT_STATUS_REPORT.md
+
+**结果:** 进行中。待继续盘活更多死代码 + WORK_LOG.md 完善。
+
+---
+
+## 待办
+
+- [ ] Docker Desktop 启动后验证全栈健康
+- [ ] 逐步接入 Alpha-ID 新模块到 Gateway 路由
+- [ ] 为 Nebula、Alpha-ID 补充单元测试
+- [ ] 接入真实 ToolA/ToolB 服务（替换 stub）
+- [ ] DS 添加 demo seed script 验证

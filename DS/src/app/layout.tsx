@@ -2,6 +2,11 @@ import type { Metadata } from 'next';
 import './globals.css';
 import Sidebar from '@/components/layout/Sidebar';
 
+// TERM: EventBus — Redis Streams 跨服务事件总线
+// 在服务器启动时初始化 EventBus，确保事件处理程序注册 + consumer loop 启动
+// 之前仅在 health/route.ts import，导致只有访问 /api/health 时才初始化
+import '@/lib/eventbus-init';
+
 export const metadata: Metadata = {
   title: {
     default: 'Ghost Platform — Web4.0 人机共生基础设施',

@@ -101,6 +101,7 @@ DS/
 !DS/src/lib/onebound.ts
 !DS/src/lib/gateway-client.ts
 !DS/src/lib/eventbus-init.ts
+!DS/src/app/layout.tsx
 !DS/scripts/apply-migration.bat
 !DS/src/app/api/webhook/shoplazza/route.ts
 flow/
