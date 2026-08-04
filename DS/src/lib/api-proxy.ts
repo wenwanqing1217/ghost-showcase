@@ -45,13 +45,16 @@ export async function proxyToGateway(
   options?: {
     method?: string;
     timeout?: number;
+    body?: string;
   },
 ): Promise<Response> {
   const method = options?.method || req.method;
   const timeout = options?.timeout || REQUEST_TIMEOUT_MS;
 
   let body: BodyInit | undefined;
-  if (method !== 'GET' && method !== 'HEAD') {
+  if (options?.body !== undefined) {
+    body = options.body;
+  } else if (method !== 'GET' && method !== 'HEAD') {
     body = await req.text();
   }
 
