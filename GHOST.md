@@ -1,8 +1,8 @@
 # Ghost Platform — 项目总览
 
-> **版本**: 3.0 | **最后验证**: 2026-08-04  
-> **原则**: 一个真相，一份文档，一个节奏。所有信息在此统一，不分散到多份文档。  
-> **工程铁律**: 死代码是用来盘活的，优化才是王道。不做简单归档，做全方面换血。  
+> **最后验证**: 2026-08-04 | **测试状态**: Gateway 53 passed, Orchestrator 7 passed, Feishu-bot 2 passed
+> **原则**: 一个真相，一份文档，一个节奏。所有信息在此统一，不分散到多份文档。
+> **工程铁律**: 死代码是用来盘活的，优化才是王道。不做简单归档，做全方面换血。
 > **验证标准**: 以下所有状态均经过 Docker 运行时验证或逐行代码阅读确认。
 
 ---
@@ -74,13 +74,13 @@ flowchart TB
 
 | 层级 | 核心服务 | 关键技术 | 职责 | 验证状态 |
 |:----:|:--------|:--------|:-----|:--------:|
-| L1 | 飞书 Bot / Web / NURO / Doubao | WebSocket, HTTP, CLI | 多渠道输入接入 | ✅ |
-| L2 | Alpha-ID (:8000) | FastAPI, TwinBrain, DualChain, A2A | DID 身份、双链记忆、AgentLoop | ✅ |
-| L3 | Nebula (:2002) | FastAPI, 10+ route groups | 工作流引擎、飞书WS、微信验证 | ✅ |
-| L4 | Orchestrator (:19090) | OrchestratorEngine, ThreadPool | ToolA/ToolB 串行/并行调度 | ⚠️ |
-| L5 | Gateway (:18080) | FastAPI, 4 route groups | 统一 API 入口、限流、JWT | ✅ |
-| L6 | Ghost DS (:3001) | Next.js 14, Prisma, PostgreSQL | 电商看板、订单/商品管理 | ✅ |
-| L7 | MemoryGraph / Obsidian | Redis Streams, Obsidian API | 知识图谱、本地笔记同步 | ✅ |
+| L1 | 飞书 Bot / Web / NURO / Doubao | WebSocket, HTTP, CLI | 多渠道输入接入 | ✅ 代码已读 |
+| L2 | Alpha-ID (:8000) | FastAPI, TwinBrain, DualChain, A2A | DID 身份、双链记忆、AgentLoop | ⚠️ 35% 有效代码 |
+| L3 | Nebula (:2002) | FastAPI, 10+ route groups | 工作流引擎、飞书WS、微信验证 | ⚠️ 需 Docker 验证 |
+| L4 | Orchestrator (:19090) | OrchestratorEngine, ThreadPool | ToolA/ToolB 串行/并行调度 | ⚠️ 30% 有效代码 |
+| L5 | Gateway (:18080) | FastAPI, 4 route groups | 统一 API 入口、限流、JWT | ✅ 53 passed |
+| L6 | Ghost DS (:3001) | Next.js 14, Prisma, PostgreSQL | 电商看板、订单/商品管理 | ⚠️ 需 Docker 验证 |
+| L7 | MemoryGraph / Obsidian | Redis Streams, Obsidian API | 知识图谱、本地笔记同步 | ⚠️ 需 Docker 验证 |
 
 ### 服务间通信（已验证路径）
 
@@ -108,21 +108,22 @@ flowchart TB
 
 ## 3. 服务清单（实时状态）
 
-| 服务 | 端口 | 框架 | 职责 | 有效代码率 | Docker 状态 |
-|:-----|-----:|:-----|:-----|:---------:|:-----------:|
-| Gateway | 18080 | FastAPI | 统一 API 网关，四层路由 + 限流 + JWT | ~85% | ✅ healthy |
-| Alpha-ID | 8000 | FastAPI | DID 身份、双链记忆、A2A、新模块 | ~35% | ✅ healthy |
-| Nebula | 2002 | FastAPI | 工作流引擎、飞书WS、10+ route groups | ~70% | ✅ healthy |
-| Ghost DS | 3001 | Next.js 14 | 电商看板、Prisma/PostgreSQL | ~80% | ✅ healthy |
-| Orchestrator | 19090 | FastAPI | ToolA/ToolB 串行/并行调度 | ~30% | ✅ healthy |
-| Feishu Bot | — | Python | 飞书 WebSocket + echo/atomcode/codex 后端 | ~75% | ⚠️ unhealthy (echo模式正常) |
-| Feishu Consumer | — | Python | Redis Streams → 飞书通知 | ~60% | ⚠️ unhealthy (XREADGROUP 已修复，等待事件) |
-| Net-Agent | 18180 | FastAPI | 路由器管理 + AES-GCM 凭证加密 | ~55% | ✅ healthy |
-| Flow | 3036 | Fastify | 工作流前端门户 | ~40% | ✅ healthy |
-| Redis | 6379 | — | 缓存 + 事件总线 + 任务队列 | ~95% | ✅ healthy |
-| PostgreSQL | 5432 | — | 共享数据库 (ghost + nebula + ds schema) | ~90% | ✅ healthy |
+| 服务 | 端口 | 框架 | 职责 | 有效代码率 | 测试状态 |
+|:-----|-----:|:-----|:-----|:---------:|:--------:|
+| Gateway | 18080 | FastAPI | 统一 API 网关，四层路由 + 限流 + JWT | ~85% | ✅ 53 passed |
+| Alpha-ID | 8000 | FastAPI | DID 身份、双链记忆、A2A、新模块 | ~35% | ⚠️ 部分测试可用 |
+| Nebula | 2002 | FastAPI | 工作流引擎、飞书WS、10+ route groups | ~70% | ⚠️ 需独立运行验证 |
+| Ghost DS | 3001 | Next.js 14 | 电商看板、Prisma/PostgreSQL | ~80% | ⚠️ 需 Docker 验证 |
+| Orchestrator | 19090 | FastAPI | ToolA/ToolB 串行/并行调度 | ~30% | ✅ 7 passed |
+| Feishu Bot | — | Python | 飞书 WebSocket + echo/atomcode/codex 后端 | ~75% | ⚠️ 需 Docker 验证 |
+| Feishu Consumer | — | Python | Redis Streams → 飞书通知 | ~60% | ✅ 2 passed |
+| Net-Agent | 18180 | FastAPI | 路由器管理 + AES-GCM 凭证加密 | ~55% | ⚠️ 需独立运行验证 |
+| Flow | 3036 | Fastify | 工作流前端门户 | ~40% | ⚠️ 需 Docker 验证 |
+| Redis | 6379 | — | 缓存 + 事件总线 + 任务队列 | ~95% | ⚠️ 需 Docker 验证 |
+| PostgreSQL | 5432 | — | 共享数据库 (ghost + nebula + ds schema) | ~90% | ⚠️ 需 Docker 验证 |
 
 > **有效代码率说明**: 指代码中被活跃调用链覆盖的比例。Alpha-ID 的 35% 是因为新模块（OrchestratorEngine, MCP Tools, Smart Capture 等）已实现但部分路由未接入。
+> **测试状态说明**: Docker Desktop 当前未运行，服务级健康检查待验证。单元测试已验证通过。
 
 ---
 
@@ -216,7 +217,7 @@ Doubao Reader（桌面日志解析）
   → Alpha-ID dual-chain/save（记忆存储）
   → Obsidian vault（本地笔记）
 ```
-**状态**: ⚠️ 框架已建，Doubao Reader 需手动触发扫描
+**状态**: ⚠️ 框架已建，Doubao Reader 需手动触发扫描；Gateway → Alpha-ID 链路代码已验证
 
 ### 飞书助理线
 ```
@@ -226,7 +227,7 @@ Doubao Reader（桌面日志解析）
   → Alpha-ID /api/v1/agent/chat (TwinBrain + AgentLoop)
   → 飞书回复
 ```
-**状态**: ✅ 端到端已验证（返回 Alpha-ID + brain_state=sleep）
+**状态**: ✅ 端到端代码已验证（Gateway → Alpha-ID 代理链路已修复并测试通过）
 
 ### Ghost DS 电商线
 ```
@@ -235,7 +236,7 @@ OneBound/Shoplazza（货源/店铺）
   → Redis Streams（ORDER_CREATED, ORDER_PAID, ORDER_FULFILLED）
   → Feishu Consumer（飞书通知）
 ```
-**状态**: ✅ DS API 正常，Prisma schema 已同步，Redis Streams consumer 已激活
+**状态**: ✅ DS API 代码已读，Redis Streams + Feishu Consumer 代码已激活，待 Docker 运行时验证
 
 ---
 
@@ -264,25 +265,31 @@ OneBound/Shoplazza（货源/店铺）
 | DS Prisma 迁移失败 | `prisma migrate resolve --applied 20250804_add_tenant_storemode` | PostgreSQL ds schema 5 表已创建 |
 | DS Dockerfile Prisma CLI 缺失 | `COPY --from=builder /app/node_modules ./node_modules` | `npx prisma migrate deploy` 成功 |
 | feishu-consumer XREADGROUP 参数错误 | `streams=stream_keys` → `streams={k: ">" for k in stream_keys}` | 错误从 XREADGROUP 变为正常 timeout |
-| /v1/chat 链路断裂 | Gateway 加 `/chat` 别名路由 | 端到端返回 Alpha-ID 回复 |
+| /v1/chat 链路断裂 | Gateway 加 `/chat` 别名路由 + tenant 转发 | 端到端返回 Alpha-ID 回复 |
 | Redis Streams 消费休眠 | `eventbus-init.ts` 加 `startConsuming()` | DS 日志显示 worker 启动 |
 | 两个 MasterOrchestrator 冲突 | 合并为 `OrchestratorEngine`，旧类为兼容层 | Python import 正常 |
 | EventBus blinker ↔ TS 不互通 | Python 改用 Redis Streams，接口不变 | 跨服务事件可达 |
 | `/v1/agent/topology` 404 | Gateway 加 `/v1/agent/topology` 代理路由 | 返回 Alpha-ID A2A graph 数据 |
 | Nebula `/health` 404 | 添加 308 重定向到 `/health/` | `curl /health` 正常返回 |
 | Alpha-ID 12 条死代码（social/risk/gdpr/observability） | Gateway 新增代理路由 | 路由可达，返回 Alpha-ID 原生响应 |
+| Python 3.12 `.origin` 移除 | `urlparse(...).origin` → 手拼 `scheme://netloc` | Gateway 单测通过 |
+| Gateway 单测 36 个 401 | conftest 默认带 `X-Tenant-ID` | 53/53 passed |
+| feishu-bot 测试无限挂起 | 空轮询加 `await asyncio.sleep(0)` + 测试 sleep → running=False | 2/2 passed, 3.3s |
+| Gateway `_IncludedRouter` 兼容 | `_all_route_paths()` 支持 `original_router` | 路由测试通过 |
 
 ### 仍待修复
 
 | 优先级 | 问题 | 影响 | 建议方案 |
 |:------:|:-----|:-----|:---------|
+| P0 | Docker Desktop 未运行 | 全栈无法验证 | 启动 Docker 后运行 `make up` + `make test` |
 | P1 | Orchestrator ToolA/ToolB 为 stub | 代码调度不可用 | 接入真实生成/优化服务 |
 | P1 | DS 无种子数据 | 看板为空 | 添加 demo seed script |
+| P1 | 测试覆盖率 ~10% | 重构风险高 | 核心模块写 pytest（Gateway 已 53 个） |
 | P2 | Feishu bot unhealthy | 容器健康检查失败 | 添加 WebSocket 心跳检测 |
 | P2 | Feishu consumer unhealthy | 容器健康检查超时 | 添加 events:ping 心跳 |
 | P2 | Alpha-ID 35% 有效代码 | 新模块未全部接入 | 逐步接入 AgentFeed → TwinBrain |
 | P3 | Nebula wechat 模块未验证 | 微信 webhook 可能断链 | 运行 wechat 验证脚本 |
-| P3 | 测试覆盖率 ~5% | 重构风险高 | 核心模块写 pytest |
+| P3 | DS EventBus 仅在 health 触发 | consumer 不自动启动 | 在 layout 或 middleware 中 import |
 
 ---
 
