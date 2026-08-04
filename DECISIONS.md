@@ -466,4 +466,31 @@
 
 ---
 
+### D-20260804-21: 盘活 WeChatAdapter 死代码（stub → EventBus 发布）
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** `alphaid/projects/src/core/action_engine/adapters/wechat.py` 是纯 stub（返回"微信适配器未实现"），WeChatAdapter 未被 TwinBrain 注册，行动引擎无法通过微信平台执行任何行动
+**决定:** 
+1. WeChatAdapter.execute() 改为通过 EventBus.emit() 发布 `SOCIAL_MESSAGE` 事件（携带 platform=wechat、action_type、payload）
+2. TwinBrain.actions 属性注册 WeChatAdapter（与 ConsoleAdapter 并列）
+3. 通过 EventBus 跨服务分发，Gateway /webhook/wechat 或其他消费者可实际执行微信调用
+**后果:** WeChatAdapter 从死代码变为可工作的 EventBus 事件发布器，行动引擎可通过 wechat 平台发布行动
+
+---
+
+### D-20260804-22: Alpha-ID 启动 EventBus 跨服务消费（XREADGROUP）
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** EventBus 类已实现完整的 XADD/XREADGROUP 逻辑，但 Alpha-ID 服务从未调用 `start_consuming()`，跨服务事件无法被消费
+**选项:**
+1. 在 main.py lifespan 中启动 EventBus 消费（后台线程）
+2. 在 API 路由中按需启动
+3. 保持现状（仅本地 emit/on）
+**决定:** 在 main.py lifespan 启动阶段调用 `event_bus.start_consuming()`，将 EventBus 实例存入 app.state
+**后果:** Alpha-ID 启动后自动消费 Redis Streams 跨服务事件，WeChatAdapter 等发布的事件可被其他服务消费
+
+---
+
 *最后更新: 2026-08-04
