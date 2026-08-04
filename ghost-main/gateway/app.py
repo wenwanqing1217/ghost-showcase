@@ -184,6 +184,8 @@ app.mount("/workbench", StaticFiles(directory="static", html=True), name="workbe
 # ghost.js 使用 /v1/register/* 而非 /v1/human/register/*
 # 添加通配转发路由，将 /v1/register/{action} 代理到 /v1/human/register/{action}
 
+# TERM: Gateway — 统一 API 网关（端口 :18080），四层路由 /v1/human /v1/agent /v1/internal /v1/net
+
 
 @app.post("/v1/register/{action}")
 async def proxy_legacy_register(action: str, request: Request):

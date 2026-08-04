@@ -209,26 +209,56 @@ async def sync_to_gateway(content: str, category: str = "orchestrator") -> None:
 
 
 def _execute_task(task: Task) -> None:
-    """Run in thread pool. Updates task via manager (thread-safe)."""
+    """Run in thread pool. Calls ToolA + ToolB via HTTP when configured."""
     try:
         logger.info("Executing task %s (%s mode)", task.id, task.mode)
 
-        # NOTE: ToolA/ToolB 尚未接入真实服务，执行端点返回 not_implemented
-        # 配置 TOOL_A_URL / TOOL_B_URL 环境变量后，可在此处接入真实调用
+        # TERM: ToolA — 生成器服务（代码/内容生成），端口 :8081
+        # TERM: ToolB — 校验优化服务（代码审查/优化），端口 :8082
+        # 当 TOOL_A_URL / TOOL_B_URL 配置时，实际调用 HTTP 服务
+        tool_a_result = None
+        tool_b_result = None
+
+        # Use sync httpx client for thread pool execution
+        with httpx.Client(timeout=30.0) as client:
+            if TOOL_A:
+                try:
+                    resp = client.post(
+                        f"{TOOL_A}/v1/generate",
+                        json={"requirement": task.requirement, "task_id": task.id},
+                    )
+                    if resp.status_code == 200:
+                        tool_a_result = resp.json()
+                    else:
+                        tool_a_result = {"status": "error", "message": f"ToolA returned {resp.status_code}"}
+                except Exception as e:
+                    tool_a_result = {"status": "error", "message": f"ToolA unreachable: {e}"}
+            else:
+                tool_a_result = {"status": "not_configured", "message": "ToolA URL not configured"}
+
+            if task.mode == "parallel" and TOOL_B:
+                try:
+                    resp = client.post(
+                        f"{TOOL_B}/v1/optimize",
+                        json={"requirement": task.requirement, "task_id": task.id, "tool_a_result": tool_a_result},
+                    )
+                    if resp.status_code == 200:
+                        tool_b_result = resp.json()
+                    else:
+                        tool_b_result = {"status": "error", "message": f"ToolB returned {resp.status_code}"}
+                except Exception as e:
+                    tool_b_result = {"status": "error", "message": f"ToolB unreachable: {e}"}
+            else:
+                tool_b_result = {"status": "skipped", "message": "ToolB not configured or serial mode"}
+
         task_manager.update(
             task.id,
-            tool_a_result={
-                "status": "not_implemented",
-                "message": "ToolA 未配置（设置 TOOL_A_URL 环境变量接入）",
-            },
-            tool_b_result={
-                "status": "not_implemented",
-                "message": "ToolB 未配置（设置 TOOL_B_URL 环境变量接入）",
-            },
+            tool_a_result=tool_a_result,
+            tool_b_result=tool_b_result,
             status="completed",
             completed_at=time.time(),
         )
-        logger.info("Task %s completed (no real tools wired)", task.id)
+        logger.info("Task %s completed", task.id)
     except Exception as e:
         task_manager.update(task.id, status="failed", error=str(e))
         logger.error("Task %s failed: %s", task.id, e)
