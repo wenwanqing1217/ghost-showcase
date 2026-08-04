@@ -1,10 +1,13 @@
 """
-AgentOrchestrator — 双编程工具协同调度中枢
+OrchestratorEngine — Ghost 平台统一调度引擎（入口文件）
+
+# TERM: OrchestratorEngine — 统一后台循环管理（合并自 alpha_id/orchestrator.py + core/orchestrator.py）
+# TERM: EventBus — Redis Streams 跨服务事件总线
 
 架构：
-  Gateway (:18080) → Orchestrator (:19090)
-    → ToolA (生成器, :8081)
-    → ToolB (校验优化, :8082)
+  Gateway (:18080) → OrchestratorEngine (:19090)
+    → Gateway Proxy → ToolA (生成器, :8081)
+    → Gateway Proxy → ToolB (校验优化, :8082)
     → Alpha-ID MemoryStore (:8000)
     → Obsidian
 
@@ -390,8 +393,8 @@ async def tools_status():
     client = get_http_client()
     results = {"tool_a": None, "tool_b": None}
     for name, url, timeout in [
-        ("tool_a", f"{TOOL_A}/health" if TOOL_A else None, TOOL_A_TIMEOUT),
-        ("tool_b", f"{TOOL_B}/health" if TOOL_B else None, TOOL_B_TIMEOUT),
+        ("tool_a", f"{TOOL_A_GATEWAY}/health" if TOOL_A_GATEWAY else None, TOOL_A_TIMEOUT),
+        ("tool_b", f"{TOOL_B_GATEWAY}/health" if TOOL_B_GATEWAY else None, TOOL_B_TIMEOUT),
     ]:
         if not url:
             results[name] = {"configured": False}
