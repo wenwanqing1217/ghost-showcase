@@ -72,10 +72,13 @@ services:
     environment:
       DATABASE_URL: postgresql://${DB_USER:?DB_USER required}:${DB_PASSWORD:?DB_PASSWORD required}@db:5432/alpha_id
       AID_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8000,http://localhost:18080,http://127.0.0.1:3000,http://127.0.0.1:8000,http://127.0.0.1:18080"
+      REDIS_URL: redis://redis:6379
     env_file:
       - ./alphaid/projects/.env
     depends_on:
       db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
