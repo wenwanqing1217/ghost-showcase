@@ -66,15 +66,26 @@ async def optimize(req: OptimizeRequest):
                     "max_tokens": 2048,
                 },
             )
-            data = resp.json()
-            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            return OptimizeResponse(
-                task_id=req.task_id,
-                original_code=original_code,
-                optimized_code=content or original_code,
-                suggestions=["Optimization applied via LLM"],
-                status="optimized",
-            )
+            text = resp.text[:500]
+            try:
+                data = resp.json()
+                content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                return OptimizeResponse(
+                    task_id=req.task_id,
+                    original_code=original_code,
+                    optimized_code=content or original_code,
+                    suggestions=["Optimization applied via LLM"],
+                    status="optimized",
+                )
+            except Exception:
+                logger.error("ToolB LLM returned non-JSON (status=%s): %s", resp.status_code, text)
+                return OptimizeResponse(
+                    task_id=req.task_id,
+                    original_code=original_code,
+                    optimized_code=original_code,
+                    suggestions=[f"LLM error (HTTP {resp.status_code}): {text[:200]}"],
+                    status="error",
+                )
     except Exception as e:
         logger.error("ToolB optimization failed: %s", e)
         return OptimizeResponse(

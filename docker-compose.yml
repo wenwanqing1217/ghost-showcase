@@ -209,7 +209,7 @@ services:
       - "8081:8081"
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.deepseek.com}
+      OPENAI_BASE_URL: ${TOOL_A_BASE_URL:-https://api.deepseek.com}
       TOOL_A_MODEL: ${TOOL_A_MODEL:-deepseek-chat}
     restart: unless-stopped
     healthcheck:
@@ -228,7 +228,7 @@ services:
       - "8082:8082"
     environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.deepseek.com}
+      OPENAI_BASE_URL: ${TOOL_B_BASE_URL:-https://api.deepseek.com}
       TOOL_B_MODEL: ${TOOL_B_MODEL:-deepseek-chat}
     restart: unless-stopped
     healthcheck:

@@ -61,14 +61,24 @@ async def generate(req: GenerateRequest):
                     "max_tokens": 2048,
                 },
             )
-            data = resp.json()
-            code = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-            return GenerateResponse(
-                task_id=req.task_id,
-                code=code or f"# Empty response for: {req.requirement}",
-                language="python",
-                status="generated",
-            )
+            text = resp.text[:500]
+            try:
+                data = resp.json()
+                code = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+                return GenerateResponse(
+                    task_id=req.task_id,
+                    code=code or f"# Empty response for: {req.requirement}",
+                    language="python",
+                    status="generated",
+                )
+            except Exception:
+                logger.error("ToolA LLM returned non-JSON (status=%s): %s", resp.status_code, text)
+                return GenerateResponse(
+                    task_id=req.task_id,
+                    code=f"# LLM error (HTTP {resp.status_code}): {text[:200]}",
+                    language="python",
+                    status="error",
+                )
     except Exception as e:
         logger.error("ToolA generation failed: %s", e)
         return GenerateResponse(
