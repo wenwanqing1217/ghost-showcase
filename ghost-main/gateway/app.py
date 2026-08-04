@@ -46,6 +46,10 @@ from routes.agent import router as agent_router  # noqa: E402
 from routes.internal import router as internal_router  # noqa: E402
 from routes.net import router as net_router  # noqa: E402
 from routes.flow import router as flow_router  # noqa: E402
+from routes.ecom import router as ecom_router  # noqa: E402
+from routes.notify import router as notify_router  # noqa: E402
+from routes.obsidian_bridge import router as obsidian_bridge_router  # noqa: E402
+from middleware.tenant import TenantMiddleware  # noqa: E402
 
 # ============================================================
 # Structured Logger
@@ -71,11 +75,12 @@ async def lifespan(app: FastAPI):
         limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
     )
     logger.info(
-        "Gateway started — Alpha-ID=%s Nebula=%s Flow=%s Net-Agent=%s",
+        "Gateway started — Alpha-ID=%s Nebula=%s Flow=%s Net-Agent=%s DS=%s",
         config.ALPHAID_URL,
         config.NEBULA_URL,
         config.FLOW_URL,
         config.NETAGENT_URL,
+        os.getenv("DS_URL", config.DS_URL),
     )
 
     # 启动豆包桌面日志扫描器（默认启用，设置 ENABLE_DOUBAO_SCANNER=0 可禁用）
@@ -104,8 +109,12 @@ tags_metadata = [
         "description": "Workflow engine — templates, execution, AID sessions, map/POI, computer-use. Proxied to Flow :3036.",
     },
     {
+        "name": "ecom",
+        "description": "E-commerce operations — products, orders, sync, fulfillment, AI copywriting. Proxied to DS :3001.",
+    },
+    {
         "name": "internal",
-        "description": "Internal operations — Doubao capture, Obsidian vault, orchestrator.",
+        "description": "Internal operations — Doubao capture, Obsidian, orchestrator.",
     },
     {
         "name": "net",
@@ -148,6 +157,10 @@ async def _correlation_wrapper(request: Request, call_next):
     return response
 
 
+# Tenant isolation middleware — extracts tenant_id from JWT/header
+app.add_middleware(TenantMiddleware)
+
+
 # ============================================================
 # Route Mounting
 # ============================================================
@@ -156,6 +169,9 @@ app.include_router(agent_router)
 app.include_router(internal_router)
 app.include_router(net_router)
 app.include_router(flow_router)
+app.include_router(ecom_router)
+app.include_router(notify_router)
+app.include_router(obsidian_bridge_router)
 
 # Ghost Workbench (extracted from inline _GHOST_PAGE)
 # 静态文件服务：/workbench → ghost-main/gateway/static/
@@ -177,7 +193,7 @@ async def proxy_legacy_register(action: str, request: Request):
     async with httpx.AsyncClient(timeout=30.0) as client:
         try:
             resp = await client.post(
-                f"http://localhost:{config.GATEWAY_PORT}/v1/human/register/{action}",
+                f"http://{config.GATEWAY_HOST or '0.0.0.0'}:{config.GATEWAY_PORT}/v1/human/register/{action}",
                 content=body,
                 headers={"Content-Type": request.headers.get("content-type", "application/json")},
             )
@@ -191,6 +207,25 @@ async def proxy_doubao(request: Request):
     """前端 iframe 使用 /v1/doubao，实际页面在 /v1/internal/doubao"""
     from starlette.responses import RedirectResponse
     return RedirectResponse(url="/v1/internal/doubao", status_code=307)
+
+
+# ── Legacy Chat Alias ──
+# feishu_webhook.py 和 demo UI 使用 /v1/chat，实际处理在 /v1/human/chat
+@app.post("/v1/chat")
+async def proxy_legacy_chat(request: Request):
+    """代理旧版 /v1/chat → /v1/human/chat"""
+    from starlette.responses import JSONResponse
+    body = await request.json()
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        try:
+            resp = await client.post(
+                f"http://{config.GATEWAY_HOST or '0.0.0.0'}:{config.GATEWAY_PORT}/v1/human/chat",
+                json=body,
+                headers={"Content-Type": "application/json"},
+            )
+            return JSONResponse(content=resp.json(), status_code=resp.status_code)
+        except Exception as e:
+            return JSONResponse(content={"success": False, "error": str(e)}, status_code=502)
 
 
 # ============================================================
@@ -275,6 +310,24 @@ async def api_docs(request: Request):
                         "GET  /v1/agent/flow/computer-use/tasks",
                         "GET  /v1/agent/flow/computer-use/tasks/{id}",
                         "POST /v1/agent/flow/computer-use/screenshot",
+                    ],
+                },
+                "ecom": {
+                    "prefix": "/v1/ecom/*",
+                    "description": "E-commerce operations — products, orders, sync, fulfillment, AI copy. Proxied to DS :3001.",
+                    "backend": "Ghost DS :3001",
+                    "key_routes": [
+                        "GET  /v1/ecom/products",
+                        "GET  /v1/ecom/products/{id}",
+                        "POST /v1/ecom/sync",
+                        "GET  /v1/ecom/orders",
+                        "POST /v1/ecom/orders/{id}/fulfill",
+                        "GET  /v1/ecom/stats",
+                        "POST /v1/ecom/ai/copy",
+                        "GET  /v1/ecom/ai/status",
+                        "GET  /v1/ecom/shop",
+                        "POST /v1/ecom/shop/connect",
+                        "DELETE /v1/ecom/shop/disconnect",
                     ],
                 },
                 "internal": {
@@ -567,12 +620,13 @@ async def health(request: Request):
         except Exception:
             return False
 
-    alphaid_ok, nebula_ok, orchestrator_ok, netagent_ok, flow_ok = await asyncio.gather(
+    alphaid_ok, nebula_ok, orchestrator_ok, netagent_ok, flow_ok, ds_ok = await asyncio.gather(
         _check(config.ALPHAID_URL),
         _check(config.NEBULA_URL),
         _check(config.ORCHESTRATOR_URL),
         _check(config.NETAGENT_URL),
         _check(config.FLOW_URL),
+        _check(f"{config.DS_URL}/api/health"),
     )
 
     # Obsidian vault check (local filesystem) — 使用服务层的路径，避免硬编码不一致
@@ -588,8 +642,9 @@ async def health(request: Request):
     set_backend_health("obsidian", obsidian_ok)
     set_backend_health("netagent", netagent_ok)
     set_backend_health("flow", flow_ok)
+    set_backend_health("ghost-ds", ds_ok)
 
-    all_ok = all([alphaid_ok, nebula_ok, netagent_ok, flow_ok])
+    all_ok = all([alphaid_ok, nebula_ok, netagent_ok, flow_ok, ds_ok])
 
     return ok(
         {
@@ -601,6 +656,7 @@ async def health(request: Request):
             "obsidian": "ok" if obsidian_ok else "not_found",
             "netagent": "ok" if netagent_ok else "error",
             "flow": "ok" if flow_ok else "error",
+            "ghost-ds": "ok" if ds_ok else "error",
         },
         request,
     )

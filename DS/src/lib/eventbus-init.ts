@@ -50,6 +50,9 @@ async function initialize() {
 
     // Connect to Redis
     await redis.connect();
+
+    // Start consuming events (activates consumer groups + XREADGROUP loop)
+    await eventBus.startConsuming();
     
     initialized = true;
     console.log('[EventBus] Server-side initialization complete');
