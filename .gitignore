@@ -97,6 +97,11 @@ secrets/
 # ── 非核心项目（独立仓库，不在此 monorepo 中跟踪） <longcat_arg_value>
 
 DS/
+!DS/src/lib/onebound.ts
+!DS/src/lib/gateway-client.ts
+!DS/src/lib/eventbus-init.ts
+!DS/scripts/apply-migration.bat
+!DS/src/app/api/webhook/shoplazza/route.ts
 flow/
 obsidian-plugin/
 profile-readme/
@@ -273,9 +278,8 @@ resume_v7.py
 _check_eval.py
 scripts/
 
-# 个人文档
-GHOST.md
-ARCHITECTURE.md
+# 个人文档（临时/实验性文档，非项目核心）
+# GHOST.md 和 ARCHITECTURE.md 现在是项目核心文档，不再忽略
 PORTS.md
 
 # assets（如果是个人素材）

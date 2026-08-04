@@ -1,74 +1,79 @@
 # Ghost Platform — 项目状态报告
 
-> **最后更新:** 2026-08-04（代码级深度审计后）  
+> **最后更新:** 2026-08-04（代码级深度审计 + 战略定位整合后）  
 > **当前分支:** master @ `248f66b`  
 > **Docker 状态:** 12 容器运行中，2 容器 unhealthy  
 > **Git 状态:** 77 个文件有未提交变更（主要为 unstaged）  
-> **目标:** 所有组件统一到 Ghost Platform，完成 AlphaID 电商平台 7 层架构
+> **战略定位:** Web4.0 AtoA (Agent-to-Anything) 全域自主智能体操作系统  
+> **参考文档:** `1.md.md` (AlphaID跨境全链路一体化平台) | `2.md.md` (从AI外置大脑到Web4.0 AtoA)
 
 ---
 
-## 一、架构总览（AlphaID 电商平台）
+## 一、三层终极堆栈（战略定位）
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                      Ghost Platform + AlphaID 统一架构                    │
-├─────────────────────────────────────────────────────────────────────────┤
-│                                                                         │
-│  ┌─────────────┐    ┌─────────────┐    ┌─────────────┐                 │
-│  │  Ghost DS   │    │  NURO Ghost │    │  Obsidian   │                 │
-│  │  (Next.js)  │    │  (Desktop)  │    │   Vault     │                 │
-│  │  Port 3001 │    │  (Local)    │    │   (Local)   │                 │
-│  └──────┬──────┘    └──────┬──────┘    └──────┬──────┘                 │
-│         │                  │                  │                         │
-│         └──────────────────┼──────────────────┘                         │
-│                            │                                           │
-│                    ┌───────▼────────┐                                   │
-│                    │   Gateway      │  Port 18080                        │
-│                    │  (FastAPI)     │  ── 统一 API 网关 ──              │
-│                    └───────┬────────┘                                   │
-│                            │                                           │
-│         ┌──────────────────┼──────────────────┐                         │
-│         │                  │                  │                         │
-│  ┌──────▼──────┐   ┌──────▼──────┐   ┌──────▼──────┐                  │
-│  │  Alpha-ID   │   │   Nebula    │   │    Flow     │                   │
-│  │  Port 8000  │   │  Port 2002  │   │  Port 3036  │                   │
-│  │ (Identity)  │   │ (Workflow)  │   │ (Workflow)  │                   │
-│  └─────────────┘   └─────────────┘   └─────────────┘                   │
-│                                                                         │
-│  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐                  │
-│  │ Net-Agent   │   │Orchestrator │   │  Feishu     │                  │
-│  │ Port 18180  │   │ Port 19090  │   │   Bot       │                  │
-│  │ (Network)   │   │ (Dual-Tool) │   │ (Feishu)    │                  │
-│  └─────────────┘   └─────────────┘   └─────────────┘                  │
-│                                                                         │
-│  ┌──────────────────────────────────────────────────────┐               │
-│  │              PostgreSQL (Port 5432) + Redis (6379)   │               │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌────────┐ │               │
-│  │  │  nebula  │ │ alpha_id │ │ gateway  │ │  ds    │ │ ...            │
-│  │  └──────────┘ └──────────┘ └──────────┘ └────────┘ │               │
-│  └──────────────────────────────────────────────────────┘               │
-│                                                                         │
-│  ┌──────────────────────────────────────────────────────┐               │
-│  │              Observability Stack                       │               │
-│  │  Prometheus :9090 → Grafana :3005 → Loki :3100       │               │
-│  │  Promtail (log collector → Loki)                      │               │
-│  └──────────────────────────────────────────────────────┘               │
-└─────────────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│  理念层 (外置大脑)                                                │
+│  Denny AI ── 人机共生哲学、智能体行为规范、商业伦理               │
+├─────────────────────────────────────────────────────────────────┤
+│  系统中枢 (Alpha-ID)                                             │
+│  个人终身DID身份 + 双链记忆 + Agent生态 + Skill市场               │
+│  ~35K+ 行 Python / 150+ 文件                                     │
+├─────────────────────────────────────────────────────────────────┤
+│  底层网络 (Ghost AtoA)                                           │
+│  Gateway + Nebula + Orchestrator + Net-Agent + Feishu Bot        │
+│  + Ghost DS + 监控栈                                             │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-> **参考:** 完整架构细节见 `ARCHITECTURE.md`，项目宪法见 `GHOST.md`
+> 来源: `2.md.md` — "从AI外置大脑到Web4.0 AtoA全域智能体"  
+> 电商是 MVP 场景，非最终形态。最终形态是 AtoA 全域自主智能体操作系统。
 
 ---
 
-## 二、项目宪法（GHOST.md 摘要）
+## 二、项目宪法（GHOST.md 摘要 + 战略定位）
+
+### 2.1 三层终极堆栈（来自 2.md.md）
+
+| 层 | 名称 | 组成 | 说明 |
+|:--:|:-----|:-----|:-----|
+| L理念 | 理念层 (外置大脑) | Denny AI | 人机共生哲学、智能体行为规范、商业伦理 |
+| L中枢 | 系统中枢 | Alpha-ID | 个人终身DID身份 + 双链记忆 + Agent生态 + Skill市场 |
+| L网络 | 底层网络 | Ghost AtoA | Gateway + Nebula + Orchestrator + Net-Agent + Feishu Bot + Ghost DS |
+
+### 2.2 七层系统架构（来自 1.md.md）
+
+| 层 | 名称 | 服务 | 状态 |
+|:--:|:-----|:-----|:----:|
+| L7 | 知识协同层 | Obsidian + 飞书多维表格 + Ghost DS 看板 | ⚠️ 部分完成 |
+| L6 | 业务展现层 | Ghost DS (电商) + Feishu Bot (4合1) | ✅ 高 |
+| L5 | 统一网关层 | Gateway (:18080) 9路由 + 代理重试 | ✅ 95% |
+| L4 | 智能调度层 | Orchestrator (:19090) + Redis Streams | ⚠️ 20% |
+| L3 | 工作流引擎层 | Nebula (:2002) + 7层中间件 | ✅ 85% |
+| L2 | 身份与权限层 | Alpha-ID (:8000) + Net-Agent (:18180) | ✅ 95% |
+| L1 | 感知与接入层 | Docker Compose + 数据采集 | ✅ |
+
+### 2.3 项目基调
 
 | 维度 | 定位 |
 |:-----|:------|
 | **做什么** | 让人类与AI智能体共同成为互联网原生网络公民，收回个人数字数据主权 |
 | **不做什么** | 不碰区块链/虚拟币/NFT，不发代币，所有数据部署国内服务器，遵循《个人信息保护法》 |
 | **最终形态** | 一人一生唯一Alpha-ID + 双链记忆 + A2A智能体协同 + Obsidian知识闭环 + 合规双边商业生态 |
+| **电商定位** | MVP 场景，不是最终形态。通过电商验证 AtoA 生态可行性。 |
+| **商业模式** | 算力租赁 + Skill分成 + 行业私有化部署 + Web4.0身份订阅 |
 | **总纲** | 身份→记忆→调度→网关→通信，五层地基打通后才是业务和商业 |
+
+### 2.4 四条主线
+
+| 主线 | 入口 | 调用链路 | 功能 |
+|:-----|:-----|:---------|:-----|
+| A | 豆包 | LevelDB → 豆包阅读器 → Gateway → Alpha-ID + Obsidian | 知识自动沉淀 |
+| B | 飞书 | WebSocket → Gateway → Alpha-ID / Nebula / Net-Agent | 总对话助理，调全平台能力 |
+| C | Ghost DS | 浏览器 → Next.js → Prisma → PostgreSQL | 电商看板 + 订单/产品管理 |
+| D | Ghost.html | 浏览器 → Gateway → Alpha-ID | 注册 + 仪表盘 + 聊天 |
+| E | NURO | 本地 Ollama + 双链记忆 + MCP | 桌面精灵 (纯本地) |
+| F | Orchestrator | Redis Streams → 任务队列 → 各服务 | 自动化调度 (待实现) |
 
 ---
 
@@ -86,9 +91,9 @@
 | mw-gateway-1 | Gateway | ✅ healthy | 18080 | 统一 API 网关 |
 | mw-netagent-1 | Net-Agent | ✅ healthy | 18180 | 路由器管理 |
 | mw-orchestrator-1 | Orchestrator | ✅ healthy | 19090 | 任务编排 |
-| mw-ghost-ds-1 | Ghost DS | ✅ healthy | 3001→3000 | 电商看板 |
+| mw-ghost-ds-1 | Ghost DS | ✅ healthy | 3004 | 电商看板 |
 | ghost-prometheus | Prometheus | ✅ up | 9090 | 监控 |
-| ghost-grafana | Grafana | ✅ up | 3005→3000 | 监控面板 |
+| ghost-grafana | Grafana | ✅ up | 3000 | 监控面板 |
 | mw-feishu-bot-1 | Feishu Bot | ⚠️ unhealthy | 8080 | 健康检查失败 |
 | mw-feishu-consumer-1 | Feishu Consumer | ⚠️ unhealthy | 8080 | 健康检查失败 |
 
@@ -466,16 +471,16 @@ Docker 容器已运行，可直接访问：
 ```bash
 # 健康检查
 curl http://localhost:18080/health  # Gateway
-curl http://localhost:3001/api/health  # Ghost DS
+curl http://localhost:3004/api/health  # Ghost DS
 curl http://localhost:8000/health  # Alpha-ID
 curl http://localhost:2002/health/livez  # Nebula
 curl http://localhost:19090/health  # Orchestrator
 curl http://localhost:18180/health  # Net-Agent
 curl http://localhost:9090/-/healthy  # Prometheus
-curl http://localhost:3005/api/health  # Grafana
+curl http://localhost:3000/api/health  # Grafana
 
 # 监控面板
-open http://localhost:3005  # Grafana (admin / admin)
+open http://localhost:3000  # Grafana (admin / admin)
 open http://localhost:9090  # Prometheus
 
 # 本地开发 DS 前端

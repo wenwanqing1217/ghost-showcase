@@ -1,20 +1,24 @@
 ﻿# Ghost 项目 -- 完整框架与现状实录
 
-> **版本 4.1** | **2026-07-27**
-> **项目宪法：** 不做单点AI工具、不做工作流编排、不局限于技能市场。打造**国内合规、以人为核心的Web4.0人机共生基础设施**。
-> **核心载体：** Alpha-ID（个人终身DID身份）
-> **总纲：** 身份->记忆->调度->网关->通信，五层地基打通后才是业务和商业。
+> **版本 5.0** | **2026-08-04**  
+> **项目宪法：** 不做单点AI工具、不做工作流编排、不局限于技能市场。打造**国内合规、以人为核心的Web4.0人机共生基础设施**。  
+> **终极定位：** Web4.0 AtoA（Agent-to-Anything）全域自主智能体操作系统  
+> **核心载体：** Alpha-ID（个人终身DID身份 + AI外置大脑调度中枢）  
+> **底层网络：** Ghost（A2A万物互联协议层）  
+> **MVP场景：** 跨境电商全自动铺货履约（验证自动化闭环）  
+> **总纲：** 身份→记忆→调度→网关→通信，五层地基打通后才是业务和商业。
 
 ---
 
-## 项目基调（来自基准文档 Ghost Web4.0.md）
+## 项目基调（来自基准文档 Ghost Web4.0.md + 终版架构复盘 1.md & 2.md）
 
 ### 核心理念
 | 维度 | 定位 |
 |:-----|:------|
-| 做什么 | 让人类与AI智能体共同成为互联网原生网络公民，收回个人数字数据主权 |
-| 不做什么 | 不碰区块链/虚拟币/NFT，不发代币，所有数据部署国内服务器，遵循《个人信息保护法》 |
-| 最终形态 | 一人一生唯一Alpha-ID + 双大脑架构 + 机器可读资讯生态 + MCP技能统一适配 + Obsidian知识闭环 + 合规双边商业生态 |
+| **做什么** | 搭建一套「可以替人类自动上网、自动对接一切系统、自动执行全流程、自动决策、多智能体互联协作的Web4.0操作系统」 |
+| **不做什么** | 不碰区块链/虚拟币/NFT，不发代币，所有数据部署国内服务器，遵循《个人信息保护法》 |
+| **电商的定位** | 不是项目主体，是验证「人机自动化商业闭环」的最小MVP场景。货源→铺货→售卖→履约→数据协同闭环 |
+| **最终形态** | 一人一生唯一Alpha-ID + 双链记忆 + A2A智能体协同 + Skill插件生态 + Obsidian知识闭环 + 合规双边商业生态 |
 
 ### 四代互联网定位
 | 时代 | 痛点 | Ghost 的突破 |
@@ -23,6 +27,22 @@
 | Web2.0 | 账号/数据归属平台，网页充斥广告机器难解析 | 搭建脱离Web2杂乱网页的机器可读内容生态 |
 | Web3.0 | 侧重链上资产，缺AI自动化 | 以DID身份为根基，叠加A2A智能体协同 |
 | Web4.0 | 工具孤岛、权限混乱、记忆碎片化 | Alpha-ID + 双链记忆 + A2A + 标准工作流 + 商业生态 |
+
+### 三层终极堆栈
+| 层 | 名称 | 本质 |
+|:--:|:-----|:-----|
+| 顶层 | **理念层：Denny AI外置大脑范式** | 人类只做顶层目标决策，99%信息处理/执行/迭代/运营交给AI智能体集群 |
+| 中层 | **系统中枢：AlphaID 多智能体操作系统** | 租户隔离 + Skill生态市场 + 智能任务编排 + 业务场景层 + 数据中台 |
+| 底层 | **Web4.0基建：Ghost AtoA 万物互联层** | 全网穿透接入 + 浏览器自主Agent执行 + 分布式微服务网关 + 所有外部系统统一接入总线 |
+
+### 三条主线
+| 主线 | 入口 | 调用链路 | 工具数 |
+|:----:|:-----|:---------|:------:|
+| A | 知识进 | 豆包聊天 → LevelDB扫描 → 豆包阅读器 → Gateway → Alpha-ID双链记忆 + Obsidian卡片 | 5 |
+| B | 能力用 | 对话飞书 → feishu.py → Gateway → 调整个平台能力（身份/记忆/业务/聊天/查询） | 14 |
+| C | 统一看 | Ghost.html / Ghost DS → Gateway → 后端 | - |
+| D | 桌面伴 | NURO桌宠 → 本地Ollama + 双链记忆 + MCP | 7+ |
+| E | 自进化 | Orchestrator → Feed + Capture + Evolution + Obsidian + NURO | 18+ |
 
 ---
 
@@ -104,89 +124,60 @@
 20. [参考文档 & 旧档说明](#20-参考文档)
 
 ---
-## 1. 架构全景
+## 1. 架构全景（7层架构 · 终版定稿）
 
-> 图例：✅ 可用 | ⚠️ 半通 | ❌ 未实现 | 箭头 ↓ = 上层调用下层
+> 图例：✅ 可用 | ⚠️ 半通 | ❌ 未实现 | 🔄 进行中  
+> 参考：`ARCHITECTURE.md`（详细架构）、`SYSTEM_MAP.md`（系统全景+调用链）
+
+### 1.1 七层架构总览
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│  🖥️  L1  用户交互层                                     ~7.3K 行 / 9文件        │
-│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐  │
-│  │ Ghost.html  2.5K     │  │ 飞书 WS长连接        │  │ NURO 桌宠  1.7K      │  │
-│  │ ✅ 注册+仪表盘+聊天  │  │ ✅ 全平台能力        │  │ ✅ 本地AI贾维斯      │  │
-│  └──────────────────────┘  └──────────────────────┘  └──────────────────────┘  │
-│  ┌──────────────────────┐  ┌──────────────────────┐  ┌──────────────────────┐  │
-│  │ 豆包阅读器 1.1K      │  │ MindFlow代理 1.8K    │  │ 微信适配器  483L     │  │
-│  │ ✅ LevelDB→Obsidian  │  │ ⚠️ 路径未通          │  │ ⚠️ 代码有 未接入     │  │
-│  └──────────────────────┘  └──────────────────────┘  └──────────────────────┘  │
-├────────────────────────────────┬────────────────────────────────────────────────┤
-│  🆔  L2  身份管理层 — Alpha-ID │  ~35K+ 行 / 150+文件                          │
-│  ┌──────────────────────────┐  │  ┌──────────────────────────────────────────┐  │
-│  │ DID核心 + 签名  ~2.1K    │  │  │ JWT认证  295L  ✅                         │  │
-│  │ ✅ 完整可用              │  │  │ 采集器×9  ~1.2K  ⚠️                      │  │
-│  └──────────────────────────┘  │  │ CLI×7    ~1.5K    ✅                     │  │
-│  ┌──────────────────────────┐  │  │ 用户画像  ~800     ✅                     │  │
-│  │ Agent网络  ~1.5K         │  │  │ Skill仓库 ~800     ⚠️                     │  │
-│  │ ⚠️ 本地模拟 A2A          │  │  └──────────────────────────────────────────┘  │
-│  └──────────────────────────┘  │                                               │
-│  ┌──────────────────────────┐  │  ┌──────────────────────────────────────────┐  │
-│  │ 支付宝人脸+短信          │  │  │ Agent SDK入口  ~500L  ✅                  │  │
-│  │ ✅ 已迁移至alphaid :8000 │  │  │ 新模块(2026-07-27)  ~141K  ✅            │  │
-│  └──────────────────────────┘  │  │ Orchestrator/Feed/Capture/Evolution/Tool │  │
-│                                │  │ Orchestrator/CodexAPI/BaiduMap            │  │
-│                                │  │ MCPTools(24工具)/OrchestratorCLI          │  │
-│                                │  └──────────────────────────────────────────┘  │
-├────────────────────────────────┴────────────────────────────────────────────────┤
-│  🧠  L3  记忆知识库层                                   ~1.6K+ 行              │
-│  ┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────────────┐│
-│  │ 双链记忆  413L  ✅  │ │ TwinBrain 685L  ✅  │ │ Coala记忆 507L  ⚠️         ││
-│  │ 私链+知链 SQLite    │ │ 状态机+可见度+生命  │ │ 记忆防御  461L  ⚠️         ││
-│  └─────────────────────┘ └─────────────────────┘ │ 双后端存储 601L  ✅         ││
-│                                                  │ JSON + SQLite + Postgres    ││
-│                                                  └─────────────────────────────┘│
-│  ┌─────────────────────┐ ┌─────────────────────┐ ┌─────────────────────────────┐│
-│  │ 知识整理引擎        │ │ ObsidianBridge 10K  │ │ 笔记变更=反馈给Alpha-ID  ✅ ││
-│  │ ✅ Gateway内已实现  │ │ ✅ 写入+读取+链接   │ │ 双向同步+自动链接+沉淀     ││
-│  └─────────────────────┘ └─────────────────────┘ └─────────────────────────────┘│
+│  L7 知识协同层 — 企业协同 + 知识闭环                                              │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────────────────────────┐   │
+│  │ 飞书多维表格  │  │ Obsidian Vault│  │ Ghost DS 电商看板                    │   │
+│  │ 全域数据同步  │  │ 8类知识卡片   │  │ (Next.js :3001)                     │   │
+│  │ ✅ 飞书Consumer│  │ ✅ 豆包→Obs  │  │ 🔄 全面重写中                        │   │
+│  └──────────────┘  └──────────────┘  └──────────────────────────────────────┘   │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│  ⚙️  L4  Agent调度层                                    ~7.4K+ 行 / 32+文件    │
-│  ┌───────────────────────────────────┐  ┌─────────────────────────────────────┐  │
-│  │       核心运行时                   │  │       横切能力                      │  │
-│  │  AgentLoop 754L  ✅  主循环       │  │  风控引擎   358L  ✅                 │  │
-│  │  MasterOrch   24K   ✅  总调度器  │  │  信誉系统   310L  ✅                 │  │
-│  │  事件总线     261L  ✅  解耦      │  │  故障恢复   534L  ✅                 │  │
-│  │  A2A协议     410L  ⚠️ 本地模拟   │  │  可观测性   553L  ✅                 │  │
-│  │  多租户      281L  ✅  隔离+配额  │  │  基准测试   418L  ⚠️                 │  │
-│  └───────────────────────────────────┘  └─────────────────────────────────────┘  │
-│  ┌───────────────────────────────────┐  ┌─────────────────────────────────────┐  │
-│  │       新模块(2026-07-27)           │  │       桥接层                         │  │
-│  │  AgentFeed     12K   ✅  资讯采集 │  │  NUROBridge    7.6K  ✅  桌宠连接  │  │
-│  │  SmartCapture  15K   ✅  智能采集 │  │  FeishuBridge  12K   ✅  飞书+代码 │  │
-│  │  SelfEvolution 10K   ✅  自进化   │  │  MCPTools      18K   ✅  24工具    │  │
-│  └───────────────────────────────────┘  └─────────────────────────────────────┘  │
-│  ┌───────────────────────────────────┐  ┌─────────────────────────────────────┐  │
-│  │  ToolOrchestrator  8K   ✅  编程调度│  │  CodexAPI         6K   ✅  CLI接口 │  │
-│  │  BaiduMap          7K   ✅  地图AI │  │                                     │  │
-│  └───────────────────────────────────┘  └─────────────────────────────────────┘  │
-│  ┌───────────────────────────────────┐  ┌─────────────────────────────────────┐  │
-│  │       行动引擎                     │  │       Skill体系                     │  │
-│  │  approval + engine + adapters     │  │  skill_repository  ⚠️               │  │
-│  │  ~1.1K  ✅   console+微信        │  │  skill_signer      ⚠️               │  │
-│  └───────────────────────────────────┘  └─────────────────────────────────────┘  │
+│  L6 业务展现层 — 双模电商 + 展示                                                 │
+│  ┌──────────────────────────┐  ┌──────────────────────────────────────────┐     │
+│  │ Ghost DS (电商看板)       │  │ Ghost.html (品牌展示)                    │     │
+│  │ 🔄 商品/订单/同步/履约    │  │ ✅ 注册+仪表盘+聊天                      │     │
+│  │ 17 API路由 + Prisma      │  │ 2,515行 TailwindCSS                      │     │
+│  │ 事件总线 + 履约中台       │  │ 2视图(A2A生态+Mindflow)                  │     │
+│  └──────────────────────────┘  └──────────────────────────────────────────┘     │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│  🚪  L5  网关管控层 — Gateway :18080                    1,857 行 / 17文件       │
+│  L5 网关管控层 — Gateway :18080 统一入口                                         │
 │  ┌──────────────────────────────────────────────────────────────────────────┐   │
-│  │  /v1/human/*  ✅   /v1/agent/*  ✅   /v1/internal/*  ✅   /v1/net/*  ✅  │   │
-│  │  四层路由: human(用户) agent(生态) internal(内部) net(网络)               │   │
-│  └──────────────────────────────────────────────────────────────────────────┘   │
-│  ┌──────────────────────────────────────────────────────────────────────────┐   │
-│  │  基础设施: CORS白名单 | Correlation ID | 滑动窗口限流 | 统一信封 | 指标  │   │
+│  │  human(364L) agent(129L) ecom(249L) flow(236L) net(37L)                │   │
+│  │  notify(229L) obsidian_bridge(257L) internal(335L)                      │   │
+│  │  中间件: CORS→关联ID→限流→租户提取→Prometheus                            │   │
+│  │  代理: httpx连接池+重试+超时+统一信封                                     │   │
 │  └──────────────────────────────────────────────────────────────────────────┘   │
 ├─────────────────────────────────────────────────────────────────────────────────┤
-│  📡  L6  底层通信层                                                             │
-│  ┌──────────────────────────────────────────────────────────────────────────┐   │
-│  │  AI Mesh libp2p  ❌ 未开发 — 先不碰                                       │   │
-│  └──────────────────────────────────────────────────────────────────────────┘   │
+│  L4 智能调度层 — Alpha-ID Agent调度 + Orchestrator                              │
+│  ┌───────────────────────────────────┐  ┌─────────────────────────────────────┐  │
+│  │ Alpha-ID 核心 (~35K行/150+文件)   │  │ Orchestrator (:19090)               │  │
+│  │ AgentLoop + TwinBrain + 双链记忆  │  │ ⚠️ 骨架（TaskA/ToolB为stub）         │  │
+│  │ 多租户引擎 + 风控 + 故障恢复       │  │ ThreadPool + 内存任务存储            │  │
+│  │ 事件总线 + A2A协议 + Skill生态    │  │ 网关记忆同步                         │  │
+│  └───────────────────────────────────┘  └─────────────────────────────────────┘  │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  L3 工作流层 — Nebula + Flow                                                   │
+│  ┌──────────────────────────┐  ┌──────────────────────────────────────────┐     │
+│  │ Nebula (:2002)           │  │ Flow (:3036)                             │     │
+│  │ 工作流引擎 + AI网关       │  │ Fastify 前端门户                         │     │
+│  │ 7层中间件 + 插件SDK       │  │ 工作流/AID会话/地图/Computer Use          │     │
+│  │ 飞书WS + 百度地图 + 抖音  │  │ 无数据库（状态不持久化）                  │     │
+│  │ 货源适配器(1688+CJ)       │  │                                          │     │
+│  └──────────────────────────┘  └──────────────────────────────────────────┘     │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  L2 身份层 — Alpha-ID :8000                                                   │
+│  DID生成(Ed25519) + JWT认证 + 双链记忆(AES-256-GCM) + 24个MCP工具 + NURO桌宠    │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│  L1 感知层 — 数据采集入口                                                       │
+│  豆包(LevelDB) → 飞书(WS) → Ghost.html → NURO(本地) → Net-Agent(路由器)        │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -449,108 +440,198 @@
 | 电商/短视频/出行独立模块 | 通过AgentLoop工具调用即可 |
 ## 2. 项目整体状态速览
 
-### 2.1 当前在跑的3个服务 + Orchestrator
+> **版本**: Web4.0 AtoA OS v5.0 | **三层终极堆栈**: 理念层(Denny) → 系统中枢(AlphaID) → 底层网络(Ghost AtoA)
 
-| 服务 | 端口 | 状态 | 行数 | 本质 |
-|:-----|:----:|:----:|:----:|:------|
-| alphaid | 8000 | 运行中 | ~35K+ Python / 150+文件 + 2.5K HTML | 身份+记忆+双脑+AgentLoop+新模块(120K+)+CLI+NURO 全栈核心 |
-| nebula | 2002 | 运行中 | ~7.7K Python / 67文件 | 工作流引擎+飞书WS+AI网关+中间件+插件SDK |
-| gateway | 18080 | 运行中 | 1,857 Python / 17文件 | 统一网关 四层路由+CORS+限流+统一信封+指标 |
-| orchestrator | in-process | 运行中 | ~24K Python | 总调度器：5个后台循环（Feed/Capture/Evolution/Obsidian/NURO） |
+### 2.1 三层终极堆栈
 
-### 2.2 写完了但没启动的
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  理念层 (外置大脑)                                                │
+│  Denny AI ── 人机共生哲学、智能体行为规范、商业伦理               │
+├─────────────────────────────────────────────────────────────────┤
+│  系统中枢 (Alpha-ID)                                             │
+│  个人终身DID身份 + 双链记忆 + Agent生态 + Skill市场               │
+│  ~35K+ 行 Python / 150+ 文件                                     │
+├─────────────────────────────────────────────────────────────────┤
+│  底层网络 (Ghost AtoA)                                           │
+│  Gateway + Nebula + Orchestrator + Net-Agent + Feishu Bot        │
+│  + Ghost DS + 监控栈                                             │
+└─────────────────────────────────────────────────────────────────┘
+```
 
-| 服务 | 端口 | 行数 | 说明 |
-|:-----|:----:|:----:|:------|
-| flow/api | 3001 | ~4.4K TS | AI 路由/Computer Use（注册已迁至alphaid :8000） |
+### 2.2 Docker 运行状态
 
-### 2.3 核心问题一句话
+| 服务 | 端口 | 状态 | 说明 |
+|:-----|:----:|:----:|:-----|
+| Alpha-ID | 8000 | ✅ 运行 | 身份 + 双链记忆 + AgentLoop |
+| Gateway | 18080 | ✅ 运行 | 统一网关 + 9 路由 |
+| Nebula | 2002 | ✅ 运行 | 工作流引擎 + 7层中间件 |
+| Orchestrator | 19090 | ✅ 运行 | 任务调度 (骨架阶段) |
+| Net-Agent | 18180 | ✅ 运行 | 路由器管理 |
+| Ghost DS | 3004 | ✅ 运行 | 电商看板 (Next.js) |
+| MindFlow | 3036 | ✅ 运行 | 前端门户 |
+| Feishu Bot | 通过 GW | ⚠️ Unhealthy | 飞书 4合1 通道 |
+| PostgreSQL | 5432 | ✅ 运行 | 主数据库 |
+| Redis | 6379 | ✅ 运行 | 缓存 + 事件总线 |
+| Prometheus | 9090 | ✅ 运行 | 指标采集 |
+| Grafana | 3000 | ✅ 运行 | 可视化看板 |
 
-代码很多（~55K+行）且关键路径已打通 -- 飞书走Gateway全平台可用、Ghost注册+仪表盘+聊天全通、豆包LevelDB自动沉淀、NURO桌宠独立运行、Orchestrator串联所有模块持续自进化。当前短板：知识查询接口(P2)、多租户隔离、A2A真实通信。需要的是打磨而不是加功能。
+> 12 容器运行中，2 个 Unhealthy (Feishu Bot + 可能其他)
+
+### 2.3 服务功能度评分
+
+| 服务 | 功能度 | 测试覆盖 | 状态 |
+|:-----|:------:|:--------:|:----:|
+| Alpha-ID | 95% | 839+ 用例 | ✅ 生产可用 |
+| Gateway | 95% | 22 用例 | ✅ 生产可用 |
+| Nebula | 85% | 153 用例 | ✅ 生产可用 |
+| Ghost DS | 90% | 0 用例 | ⚠️ 功能完整，缺测试 |
+| Net-Agent | 60% | 0 用例 | ⚠️ 基础功能可用 |
+| Orchestrator | 20% | 0 用例 | ⚠️ 骨架完成，核心待实现 |
+| Feishu Bot | 80% | 0 用例 | ⚠️ 功能可用，Docker 不健康 |
+| MindFlow | 70% | 0 用例 | ⚠️ 前端可用，部分后端待完善 |
+
+### 2.4 三条主线
+
+| 主线 | 入口 | 调用链路 | 功能 |
+|:-----|:-----|:---------|:-----|
+| A | 豆包 | LevelDB → 豆包阅读器 → Gateway → Alpha-ID + Obsidian | 知识自动沉淀 |
+| B | 飞书 | WebSocket → Gateway → Alpha-ID / Nebula / Net-Agent | 总对话助理，调全平台能力 |
+| C | Ghost DS | 浏览器 → Next.js → Prisma → PostgreSQL | 电商看板 + 订单/产品管理 |
+| D | Ghost.html | 浏览器 → Gateway → Alpha-ID | 注册 + 仪表盘 + 聊天 |
+| E | NURO | 本地 Ollama + 双链记忆 + MCP | 桌面精灵 (纯本地) |
+| F | Orchestrator | Redis Streams → 任务队列 → 各服务 | 自动化调度 (待实现) |
+
+### 2.5 核心现状一句话
+
+代码总量 ~55K+ 行，12 个 Docker 容器运行中。关键路径已打通：飞书→Gateway→全平台、Ghost DS 电商全功能、豆包→Obsidian 知识沉淀、NURO 独立运行。当前最大短板：Orchestrator 核心调度未实现、Ghost DS 无测试、事件总线休眠、Feishu Bot Docker 不健康。需要的是打磨连通而不是加功能。
 
 ---
 ## 3. 飞书机器人（总对话助理） -- 现状->目标->路径
 
-### 3.1 现状（P0修复后）
+### 3.1 现状
 
-P0-4 已修复：飞书不再走旧 workflow 引擎，改为调 Gateway /v1/chat。
+**架构**: 飞书 Bot 作为独立服务部署 (ghost-main/feishu-bot/)，通过 WebSocket + HTTP 长轮询双通道接入。
 
 | 能力 | 状态 | 说明 |
 |:-----|:----:|:------|
-| 接收飞书消息（WS长连接） | V 正常 | nebula/feishu.py 心跳已修复 |
-| 地图导航（搜索/导航/保存） | V 正常 | 通过Gateway调nebula |
-| 身份查询（我是谁） | V 已通 | 通过Gateway /v1/chat -> alphaid |
-| 记忆查询（上次项目计划） | V 已通 | 通过Gateway /v1/chat -> TwinBrain |
-| 通用对话 | V 已通 | Gateway /v1/chat -> TwinBrain+AgentLoop |
-| 凭证硬编码 | W 待移入环境变量 | P1任务 |
+| 接收飞书消息（WebSocket） | ✅ 正常 | 双通道：WebSocket 首选，HTTP 轮询备选 |
+| 消息路由到 Gateway | ✅ 正常 | `/webhook/shoplazza` 端点 |
+| 4合1 模式 (Chat/Execute/Notify/Approve) | ✅ 正常 | 通过消息内容判断模式 |
+| 凭证管理 | ⚠️ 待改进 | 硬编码凭证需移入环境变量 |
+| Docker 健康 | ⚠️ Unhealthy | 容器运行但不健康，需排查 |
 
 **当前代码路径：**
-飞书消息 -> nebula/api/feishu.py (234行 WS长连接)
-         -> httpx POST Gateway :18080 /v1/chat
-         -> Gateway -> alphaid TwinBrain + AgentLoop
+```
+飞书消息 -> feishu_bot (WebSocket/HTTP 双通道)
+         -> httpx POST Gateway :18080 /webhook/shoplazza
+         -> Gateway -> Alpha-ID :8000 (TwinBrain + AgentLoop)
+         -> Gateway -> Nebula :2002 (工作流/地图/审批)
+         -> Gateway -> Net-Agent :18180 (路由器管理)
          -> 返回结果 -> 飞书
+```
 
 **已清理：**
-- alphaid/feishu_bot/ 目录已删（P0-1）
-- callback_server.py 旧引擎路径已删
-- 凭证移入环境变量（待P1）
+- alphaid/feishu_bot/ 旧目录已删除 (与 ghost-main/feishu-bot/ 重复)
+- callback_server.py 旧引擎路径已删除
+- 飞书不再走旧 workflow 引擎，直接走 Gateway
 
-### 3.2 衔接关系
-
-飞书在整个系统中的位置：
+### 3.2 在系统中的位置
 
 ```
-你对话飞书
-  -> feishu.py (WS长连接)
-    -> Gateway :18080 /v1/chat
-      -> alphaid :8000 (身份/记忆/AgentLoop/注册)
-      -> nebula :2002 (工作流/地图)
-      -> flow/api :3001 (注册链路)
-    <- 返回结果
-  <- 飞书回复你
+飞书用户
+    │
+    ▼
+飞书开放平台
+    │
+    ├── WebSocket 事件 / HTTP 回调
+    │       │
+    │       ▼
+    │   Gateway (:18080) ── /webhook/shoplazza
+    │       │
+    │       ▼
+    │   Feishu Bot 服务
+    │       │
+    │       ├── [Chat] → 提取工作上下文 → Gateway → Alpha-ID
+    │       ├── [Execute] → 执行工具 → 返回结果
+    │       ├── [Notify] → 推送通知到飞书
+    │       └── [Approve] → 审批确认 → 更新状态
+    │       │
+    ▼       ▼
+飞书用户收到响应 / 状态更新
 ```
 
-飞书是你的总对话助理，通过Gateway跟整个平台对接。你想做什么（查身份、查记忆、地图导航、执行业务、通用聊天）直接对话就行。
+飞书是你的总对话助理，通过 Gateway 跟整个平台对接。你想做什么（查身份、查记忆、地图导航、执行业务、通用聊天）直接对话就行。
 
 ### 3.3 目标形态
 
-飞书能做的事：身份查询、记忆读写、地图导航、业务工具、通用对话、知识查询（Obsidian，P2）
+| 能力 | 目标 | 优先级 |
+|:-----|:-----|:------:|
+| 身份查询 | 飞书对话查询 DID 信息 | P0 ✅ |
+| 记忆查询 | 飞书对话查询历史记忆 | P0 ✅ |
+| 地图导航 | 飞书对话搜索地点/路线 | P0 ✅ |
+| 业务工具 | 电商订单/产品管理 | P1 |
+| 知识查询 | 查询 Obsidian 知识库 | P2 |
+| 代码执行 | CodeRunner 3 后端切换 | P1 |
 
 | 步骤 | 做什么 | 优先级 |
 |:-----|:-------|:------:|
-| 1 | Gateway加 /v1/intent/parse | P0 DONE |
-| 2 | feishu.py改调Gateway不走workflow | P0 DONE |
-| 3 | 删alphaid/feishu_bot/ | P0 DONE |
-| 4 | feishu.py凭证移入环境变量 | P1 |
-| 5 | 加记忆查询工具 | P1 |
-| 6 | 加身份查询工具 | P1 |
+| 1 | Gateway 加 /webhook 路由 | P0 ✅ |
+| 2 | 飞书 Bot 独立部署 | P0 ✅ |
+| 3 | 双通道 (WS + HTTP) | P0 ✅ |
+| 4 | 4合1 模式 (Chat/Execute/Notify/Approve) | P0 ✅ |
+| 5 | 凭证移入环境变量 | P1 |
+| 6 | 修复 Docker Unhealthy | P1 |
 
 ## 4. 豆包管道 -- 现状->目标->路径
 
-### 4.1 现状
-**完全没有接入。** 豆包内容和Ghost项目完全隔离。
+### 4.1 现状（已接入 ✅）
 
-### 4.2 需求确认
-1. 豆包是主要输入源 -- 日常很多对话输出
-2. 不要手动导入 -- 要自动同步
-3. 豆包自己会整理 -- LLM把零散对话拆成知识
-4. 沉淀到Obsidian -- 可浏览可搜索的知识卡片
-5. 飞书/Ghost可查询
+豆包内容已通过 `ghost-main/doubao_reader/` 接入系统。LevelDB 扫描 → 精炼 → Obsidian 写入全自动。
 
-### 4.3 目标形态
-豆包对话 -> 知识整理引擎(P1开发)
-         (LLM拆分/分类/交叉链接/去重/摘要)
-         -> Obsidian知识库(MD文件+标签+链接)
-         -> Ghost/飞书查询接口
+| 组件 | 文件 | 行数 | 功能 | 状态 |
+|:-----|:-----|:----:|:-----|:----:|
+| LogReader | `log_reader.py` | 239 | 扫描豆包桌面 LevelDB | ✅ |
+| KnowledgeRefiner | `knowledge_refiner.py` | 204 | LLM 精炼对话内容 | ✅ |
+| ObsidianWriter | `obsidian_writer.py` | 208 | 写入 Obsidian MD 文件 | ✅ |
+| ObsidianOrganizer | `obsidian_organizer.py` | 306 | 自动整理 (标签/链接/日报) | ✅ |
+| ReaderDaemon | `reader_daemon.py` | 98 | 60秒间隔守护进程 | ✅ |
 
-### 4.4 中间步骤
-| 步骤 | 做什么 | 优先级 |
-|:
-### 4.5 衔接关系
+**数据流**:
+```
+豆包桌面 LevelDB
+    │
+    ▼
+LogReader (每60秒扫描)
+    │
+    ▼
+KnowledgeRefiner (LLM精炼)
+    │
+    ▼
+Gateway /v1/internal/doubao/capture
+    │
+    ▼
+Alpha-ID 双链记忆 (知链) + Obsidian Vault
+```
 
-豆包在整个系统中是**知识入口**。你跟豆包聊天的内容，由豆包自身LLM整理后写入Obsidian。沉淀的知识可以被飞书和Ghost.html查询调用。
+### 4.2 目标形态
 
+| 能力 | 目标 | 优先级 |
+|:-----|:-----|:------:|
+| 自动知识沉淀 | 豆包对话 → Obsidian 知识卡片 | ✅ 已实现 |
+| 知识查询 | 飞书/Ghost 查询 Obsidian | P1 |
+| 知识分类 | LLM 自动分类 + 交叉链接 | P1 |
+| 去重/摘要 | 自动去重 + 生成摘要 | P2 |
+
+### 4.3 衔接关系
+
+豆包在整个系统中是**知识入口**。你跟豆包聊天的内容，由豆包自身 LLM 整理后写入 Obsidian。沉淀的知识可以被飞书和 Ghost.html 查询调用。
+
+```
 豆包 -> (自身整理) -> Obsidian知识库 -> 飞书/Ghost查询
+```
+
+> 豆包管进（知识沉淀），飞书调用（平台能力），Ghost管看（统一展示），NURO陪伴（本地AI）。数据通过 Gateway 路由到后端。
 
 -----|:-------|:------:|
 | 1 | 调研豆包导出方案 | P1 |
@@ -565,7 +646,7 @@ P0-4 已修复：飞书不再走旧 workflow 引擎，改为调 Gateway /v1/chat
 ## 5. Ghost.html 官网 -- 现状->目标->路径
 
 ### 5.1 现状
-路径: D:\MW\alphaid\projects\src\alpha_id\templates\ghost.html
+路径: `D:\MW\alphaid\projects\src\alpha_id\templates\ghost.html`
 
 | 指标 | 值 |
 |:-----|:---:|
@@ -578,6 +659,8 @@ P0-4 已修复：飞书不再走旧 workflow 引擎，改为调 Gateway /v1/chat
 注册链路已端到端跑通，工作台统计数据从 Gateway 实时拉取。
 
 > 注：已删除重复的 4 个 Mindflow 面板，workbenchView 聚焦 A2A 生态，mindflowView 为唯一人机协作台。
+
+> 注意：Ghost.html 是品牌展示 + 注册入口，**不是**电商看板。电商看板已迁移至 Ghost DS (Next.js :3004)。
 
 ### 5.2 目标形态
 Ghost.html -> 仪表盘(从Gateway拉真实数据) ✅
@@ -648,9 +731,9 @@ NURO -> alphaid (本地身份/记忆)
 
 路径: `D:\MW\ghost-main\gateway/` 1,857行 / 17文件
 入口: `gateway/app.py` (426行)
-架构: 四层路由 — human / agent / internal / net
+架构: 九层路由 — human / agent / internal / net / webhook / sync / cron / orders / products
 
-当前路由:
+**当前路由**:
 | 层级 | 路由 | 后端 | 状态 |
 |:-----|:-----|:-----|:----:|
 | human | GET /v1/human/identity | alphaid :8000 | ✅ |
@@ -666,10 +749,15 @@ NURO -> alphaid (本地身份/记忆)
 | internal | GET /v1/internal/obsidian/status | 本地 | ✅ |
 | internal | GET /v1/internal/health | 本地 | ✅ |
 | net | /v1/net/* | net-agent :18180 | ✅ |
+| webhook | /webhook/shoplazza | feishu-bot | ✅ |
+| sync | /api/sync/* | DS / Nebula | ✅ |
+| cron | /api/cron/sync | DS | ✅ |
+| orders | /api/orders/* | DS | ✅ |
+| products | /api/products/* | DS | ✅ |
 
 基础设施: CORS白名单 / Correlation ID / 滑动窗口限流(5/60s) / 统一信封 {success,data,ts,request_id} / 指标收集
 
-目标: 四层路由全通(已完成) + 内容审核(P2) + 监控Trace(P2)
+目标: 九层路由全通(已完成) + 电商路由覆盖完整(已完成) + 内容审核(P2) + 监控Trace(P2)
 
 ### 7.4 衔接关系
 
@@ -746,174 +834,190 @@ NURO是**纯本地AI贾维斯**，不依赖Gateway。它直接调用Ollama(本�
 | 5 | 主动观察循环优化 | P2 |
 
 ---
-## 9. 豆包知识管道 -- 现状->目标->路径
-
-### 9.1 现状
-路径: `D:\MW\ghost-main\doubao_reader\` 1,055行 / 5文件
-
-| 模块 | 行数 | 职责 | 状态 |
-|:-----|:----:|:-----|:----:|
-| log_reader.py | 239 | LevelDB解析 — 读取豆包桌面IndexedDB | ✅ 可用 |
-| knowledge_refiner.py | 204 | 知识精炼 — 去噪/去重/自动标签 | ✅ 可用 |
-| obsidian_writer.py | 208 | Obsidian写入 — YAML frontmatter+MD | ✅ 可用 |
-| obsidian_organizer.py | 306 | 自动整理 — wiki-links+日报+索引 | ✅ 可用 |
-| reader_daemon.py | 98 | 守护进程 — 60秒间隔自动扫描 | ✅ 可用 |
-
-### 9.2 数据流
-```
-豆包桌面App (IndexedDB LevelDB)
-    → LogReader.parse_log_file() 解析会话
-    → 去重+结构化处理
-    → KnowledgeRefiner 精炼(去噪/去重/自动标签)
-    → Gateway /v1/internal/doubao/capture (仅本地IP)
-    → Alpha-ID /memory/store → 双链记忆(知链)
-    → ObsidianWriter 写入 D:\Obsidian\Ghost知识库
-    → ObsidianOrganizer 自动整理(wiki-links+日报+索引)
-```
-
-### 9.3 目标
-豆包对话全自动沉淀到Obsidian知识库，零人工干预，飞书/Ghost可查询。
-
-### 9.4 衔接关系
-豆包是**知识入口**。日常对话通过LevelDB扫描自动捕获，精炼后写入Obsidian。沉淀的知识可通过Gateway查询。
-
-豆包 -> LevelDB -> 豆包阅读器 -> Gateway -> Alpha-ID双链记忆 + Obsidian
-Ghost/飞书 -> Gateway /v1/human/obsidian/search -> 查询知识
-
-### 9.5 中间步骤
-| 步骤 | 做什么 | 优先级 |
-|:-----|:-------|:------:|
-| 1 | LevelDB解析器 | P0 DONE |
-| 2 | 知识精炼引擎 | P0 DONE |
-| 3 | Gateway /v1/internal/doubao/capture 集成 | P0 DONE |
-| 4 | Obsidian写入+整理 | P0 DONE |
-| 5 | 守护进程自动扫描 | P0 DONE |
-| 6 | 飞书/Ghost知识查询接口 | P2 |
-
----
 ## 10. Nebula 工作流 -- 现状->目标->路径
 
 路径: `D:\MW\nebula\src\mindflow_map\` 67文件 / 7,708行
 入口: `mindflow_map/main.py`
-核心: 工作流引擎 + AI网关(intent/llm/circuit_breaker) + 中间件(rate_limit/auth/audit/prometheus) + 插件SDK(@tool装饰器) + 自动化(抖音/Shopify)
+核心: 工作流引擎 + AI网关(intent/llm/circuit_breaker) + 7层中间件 + 插件SDK(@tool装饰器) + 自动化(抖音/Shopify)
 飞书已改走Gateway Nebula退回纯工作流引擎
 目标: 飞书走Gateway Nebula专注工作流/地图/自动化
 
-| 步骤 | 做什么 | 优先级 |
-|:-----|:-------|:------:|
-| 1 | feishu.py改调Gateway | P0 DONE |
-| 2 | 修正ci.yml | P1 |
+| 组件 | 路径 | 行数 | 状态 |
+|:-----|:-----|:----:|:----:|
+| FastAPI 主应用 | `main.py` | ~200 | ✅ |
+| 路由 (7模块) | `routes/` | ~1,800 | ✅ 飞书/Webhook/地图/工作流/自动化/健康/流式 |
+| 中间件 (7层) | `middleware/` | ~800 | ✅ 审计/限流/租户/策略/缓存/日志/异常 |
+| AI 网关 | `ai/` | ~600 | ✅ intent/llm/circuit_breaker/fallback/health |
+| 插件 SDK | `plugins/` | ~200 | ✅ registry+@tool装饰器 |
+| 工作流引擎 | `workflows/engine.py` | ~300 | ⚠️ 仅地图导航 |
+| 自动化 | `automation/` | ~400 | ⚠️ 抖音/Shopify/脚本生成 |
+| 百度地图 | `tools/baidu_map.py` | ~200 | ✅ 搜索/路线/天气 |
+
+### 10.1 七层中间件栈
+
+| 层级 | 中间件 | 功能 |
+|:-----|:-------|:-----|
+| L1 | AuditMiddleware | 全链路审计日志 |
+| L2 | RateLimitMiddleware | IP + 租户级限流 |
+| L3 | TenantMiddleware | 租户上下文注入 |
+| L4 | PolicyMiddleware | 策略引擎 (RBAC/ABAC) |
+| L5 | CacheMiddleware | 响应缓存 + ETag |
+| L6 | LoggingMiddleware | 结构化日志 |
+| L7 | ExceptionMiddleware | 统一异常处理 |
+
+### 10.2 适配器
+
+| 适配器 | 功能 | 状态 |
+|:-------|:-----|:----:|
+| Shoplazza | 产品/订单/库存同步 | ✅ |
+| 1688 | 货源接入 | ⚠️ 待完善 |
+| 工作流模板 | YAML 定义 | ⚠️ 仅地图 |
 
 ### 10.3 衔接关系
 
-Nebula是**工作流引擎**，负责飞书WS长连接和地图导航等业务。它通过Gateway与alphaid对接，不直接调用后端。
+Nebula是**工作流引擎**，负责工作流编排、思维导图、审批流、地图导航等业务。它通过Gateway与前端和Alpha-ID对接，不直接对外暴露。
 
-飞书 -> feishu.py -> Gateway -> nebula（工作流/地图）
-
----
-## 11. Flow/API 注册链路 -- 现状->目标->路径
-
-路径: D:\MW\flow\apps\api\ TS+Fastify ~4.4K行
-注册路由完整(手机号->短信->人脸->DID)
-支付宝人脸代码已写 短信验证有真实阿里云Key
-注册路由已迁移至alphaid :8000
-
-目标: 注册由alphaid承接，Flow/API专注工作流/地图/Computer Use
+前端/Gateway -> Nebula :2002 -> 工作流/地图/审批
+                    -> Shoplazza 适配器 -> 产品/订单/库存同步
 
 | 步骤 | 做什么 | 优先级 |
 |:-----|:-------|:------:|
-| 1 | npm install | P0 DONE |
-| 2 | 注册路由迁移至alphaid | P0 DONE |
-| 3 | Gateway /v1/agent/flow/* 代理 | P0 DONE |
-
-### 11.4 衔接关系
-
-Flow/API提供**工作流/地图/Computer Use**服务（原注册职责已迁至alphaid）。Gateway的/v1/agent/flow/*路由代理到它。
-
-Ghost/飞书 -> Gateway /v1/agent/flow/* -> flow/api :3036
+| 1 | feishu.py改调Gateway | P0 ✅ |
+| 2 | 1688货源适配器完善 | P1 |
+| 3 | 工作流模板引擎完善 | P1 |
+| 4 | 电商履约引擎完善 | P1 |
 
 ---
-## 12. 六层架构代码映射（完整版）
+## 11. Ghost DS 电商看板 -- 现状->目标->路径
+
+路径: `D:\MW\DS\` Next.js 14 + Prisma + PostgreSQL
+端口: 3004
+核心: 电商数据管理 (产品/订单/库存/同步/履约)
+
+| 组件 | 路径 | 状态 |
+|:-----|:-----|:----:|
+| 前端页面 | `src/app/` | ✅ App Router |
+| API 路由 | `src/app/api/` | ✅ 17 路由 |
+| 组件 | `src/components/` | ✅ FulfillModal/ProductAiDialog |
+| Prisma 模型 | `prisma/schema.prisma` | ✅ 4 模型 |
+| 数据库 | PostgreSQL | ✅ 运行中 |
+
+**Prisma 数据模型**:
+- `Shop` — 店铺 (tenantId + storeMode + platform + shopId)
+- `Product` — 产品 (tenantId + shopId + title + price + inventory + variants)
+- `Order` — 订单 (tenantId + shopId + productId + total + status + customer)
+- `SyncLog` — 同步日志 (tenantId + resource + action + status + startedAt + completedAt)
+
+**API 路由**:
+| 路由 | 方法 | 功能 |
+|:-----|:-----|:-----|
+| `/api/shop` | GET/POST | 店铺注册/列表 |
+| `/api/products` | GET/POST/PUT/DELETE | 产品 CRUD |
+| `/api/orders` | GET | 订单列表 |
+| `/api/orders/[id]/fulfill` | POST | 订单履约 |
+| `/api/sync` | POST | 触发数据同步 |
+| `/api/cron/sync` | POST | 定时同步 |
+| `/api/stats` | GET | 统计看板 |
+| `/api/health` | GET | 健康检查 |
+
+### 11.1 衔接关系
+
+Ghost DS 是**电商业务展现层**，通过 Next.js 前端 + Prisma ORM 直接操作 PostgreSQL。它通过 Gateway 与 Nebula 通信获取货源数据，通过 Gateway 与 Alpha-ID 通信获取身份认证。
+
+用户浏览器 -> Ghost DS :3004 -> Prisma -> PostgreSQL
+                       -> Gateway -> Nebula :2002 (货源同步)
+                       -> Gateway -> Alpha-ID :8000 (身份认证)
+
+### 11.2 中间步骤
+
+| 步骤 | 做什么 | 优先级 |
+|:-----|:-------|:------:|
+| 1 | 电商 MVP 场景闭环 | P0 |
+| 2 | 自动铺货任务 | P1 |
+| 3 | 双渠道分发 | P1 |
+| 4 | 飞书协同对接 | P2 |
+
+---
+## 12. 七层架构代码映射（完整版）
 
 > 详细到文件级别的映射见 §1.5 完整组件清单。本节为精简速查版。
 
-### L1 用户交互层 (~7,300行)
-| 文件 | 真实路径 | 行数 | 状态 |
-|:-----|:---------|:----:|:----:|
-| Ghost.html | `alphaid/projects/src/alpha_id/templates/ghost.html` | 2,515 | ✅ 注册+仪表盘+聊天 |
-| 飞书机器人 | `nebula/src/mindflow_map/api/feishu.py` | ~200 | ✅ 全平台能力 |
-| 飞书Webhook | `nebula/src/mindflow_map/api/feishu_webhook.py` | ~150 | ⚠️ 备选 |
-| NURO桌宠 | `alphaid/projects/src/entrypoints/` | 1,719 | ✅ 本地AI贾维斯 |
+### L1 感知与接入层
+| 组件 | 路径 | 行数 | 状态 |
+|:-----|:-----|:----:|:----:|
+| Docker Compose | `docker-compose.yml` | - | ✅ 12 服务编排 |
+| 豆包 LevelDB | `ghost-main/doubao_reader/` | 1,055 | ✅ 自动扫描 |
+| 飞书 WebSocket | `ghost-main/feishu-bot/` | ~300 | ⚠️ 双通道可用 |
+| 路由器 HTTP | `ghost-main/net_agent_server/` | ~2K | ✅ 远程管理 |
+| 开发工具 | Gateway /v1/internal/* | - | ✅ 采集入口 |
+
+### L2 身份与权限层 (~35K+ 行)
+| 组件 | 路径 | 行数 | 状态 |
+|:-----|:-----|:----:|:----:|
+| Alpha-ID | `alphaid/projects/src/` | ~35K | ✅ 身份+记忆+Agent |
+| DID 生成 | `alpha_id/did.py` | ~1,200 | ✅ Ed25519 |
+| JWT 认证 | `auth/` | 295 | ✅ HS256+HKDF |
+| 双链记忆 | `core/dual_chain.py` | 413 | ✅ 私链+知链 |
+| Net-Agent | `ghost-main/net_agent_server/` | ~2K | ⚠️ 60% 完成 |
+
+### L3 工作流引擎层 (~7.7K 行)
+| 组件 | 路径 | 行数 | 状态 |
+|:-----|:-----|:----:|:----:|
+| Nebula | `nebula/src/mindflow_map/` | 7,708 | ✅ 工作流+审批+地图 |
+| 7层中间件 | `middleware/` | ~800 | ✅ 审计/限流/租户/策略/缓存/日志/异常 |
+| Shoplazza 适配器 | `routes/` | - | ✅ 产品/订单/库存 |
+| 1688 适配器 | `routes/` | - | ⚠️ 待完善 |
+
+### L4 智能调度层
+| 组件 | 路径 | 行数 | 状态 |
+|:-----|:-----|:----:|:----:|
+| Orchestrator | `orchestrator/` | ~3K | ⚠️ 20% 骨架 |
+| Redis Streams | Docker Redis | - | ⚠️ 架构已定义，休眠 |
+| EventBus | `core/event_bus.py` | 261 | ✅ 已写未接入 |
+
+### L5 统一网关层 (1,857 行)
+| 组件 | 路径 | 行数 | 状态 |
+|:-----|:-----|:----:|:----:|
+| Gateway | `ghost-main/gateway/` | 1,857 | ✅ 9 路由+代理+重试 |
+| 路由 | `routes/` | 777 | ✅ human/agent/internal/net/webhook/sync/cron/orders/products |
+| 代理服务 | `services/proxy.py` | 111 | ✅ httpx+重试+超时 |
+| 中间件 | `middleware/` | 72 | ✅ CORS+限流+关联ID |
+
+### L6 业务展现层
+| 组件 | 路径 | 行数 | 状态 |
+|:-----|:-----|:----:|:----:|
+| Ghost DS | `DS/src/` | ~5K TS | ✅ 90% 电商看板 |
+| Next.js 前端 | `DS/src/app/` | - | ✅ App Router |
+| Prisma ORM | `DS/prisma/` | - | ✅ 4 模型 |
+| Feishu Bot | `ghost-main/feishu-bot/` | ~300 | ⚠️ 80% Docker Unhealthy |
+
+### L7 知识协同层
+| 组件 | 路径 | 行数 | 状态 |
+|:-----|:-----|:----:|:----:|
+| Obsidian Vault | 本地 D:\Obsidian | - | ✅ 知识沉淀 |
 | 豆包阅读器 | `ghost-main/doubao_reader/` | 1,055 | ✅ LevelDB→Obsidian |
-| 微信适配器 | `alphaid/projects/src/core/action_engine/adapters/wechat.py` | 483 | ⚠️ 已写未接 |
-| MindFlow代理 | `nebula/src/mindflow_map/api/` | ~1,800 | ⚠️ 路径未通 |
-
-### L2 身份管理层 (~32,600行)
-| 文件 | 真实路径 | 行数 | 状态 |
-|:-----|:---------|:----:|:----:|
-| DID核心 | `alphaid/projects/src/alpha_id/did.py` | ~1,200 | ✅ 完整 |
-| 签名器 | `alphaid/projects/src/alpha_id/signer.py` | ~900 | ✅ 完整 |
-| Agent SDK | `alphaid/projects/src/alpha_id/agent.py` | ~500 | ✅ SDK入口 |
-| Agent网络 | `alphaid/projects/src/alpha_id/agent_network.py` | ~1,500 | ⚠️ 本地模拟 |
-| JWT认证 | `alphaid/projects/src/auth/` | 295 | ✅ 已写 |
-| 采集器(9个) | `alphaid/projects/src/alpha_id/collectors/` | ~1,200 | ⚠️ 部分可用 |
-| CLI(7个) | `alphaid/projects/src/alpha_id/*_cli.py` | ~1,500 | ✅ 可用 |
-| 注册路由 | `alphaid/projects/src/alpha_id/web.py` | ~600 | ✅ 已迁移至alphaid |
-
-### L3 记忆知识库层 (~1,600行)
-| 文件 | 真实路径 | 行数 | 状态 |
-|:-----|:---------|:----:|:----:|
-| 双链记忆 | `alphaid/projects/src/core/dual_chain.py` | 413 | ✅ SQLite私链+知链 |
-| 双脑 | `alphaid/projects/src/core/twin_brain.py` | 685 | ✅ 状态机+可见度 |
-| Coala记忆 | `alphaid/projects/src/core/coala_memory.py` | 507 | ⚠️ 已写 |
-| 记忆防御 | `alphaid/projects/src/core/memory_poisoning_defense.py` | 461 | ⚠️ 已写 |
-| 存储双后端 | `alphaid/projects/src/core/storage*.py` | 601 | ✅ JSON+SQLite+Postgres |
-
-### L4 Agent调度层 (~7,400行)
-| 文件 | 真实路径 | 行数 | 状态 |
-|:-----|:---------|:----:|:----:|
-| AgentLoop | `alphaid/projects/src/core/agent.py` | 754 | ✅ 可运行 |
-| 事件总线 | `alphaid/projects/src/core/event_bus.py` | 261 | ✅ 已写 |
-| A2A协议 | `alphaid/projects/src/core/a2a.py` | 410 | ⚠️ 本地模拟 |
-| MasterOrchestrator | `alphaid/projects/src/core/orchestrator.py` | 304 | ✅ 已写未接 |
-| 多租户 | `alphaid/projects/src/core/tenant.py` | 281 | ✅ 已写 |
-| 风控引擎 | `alphaid/projects/src/core/risk_engine.py` | 358 | ✅ 已写 |
-| 信誉系统 | `alphaid/projects/src/core/reputation.py` | 310 | ✅ 已写 |
-| 故障恢复 | `alphaid/projects/src/core/recovery.py` | 534 | ✅ 已写 |
-| 可观测性 | `alphaid/projects/src/core/observability.py` | 553 | ✅ 已写 |
-| 行动引擎 | `alphaid/projects/src/core/action_engine/` | ~1,128 | ✅ 已写 |
-
-### L5 网关管控层 (1,857行)
-| 文件 | 真实路径 | 行数 | 状态 |
-|:-----|:---------|:----:|:----:|
-| Gateway | `ghost-main/gateway/app.py` | 426 | ✅ 四层路由+限流+信封+指标 |
-| 路由 | `ghost-main/gateway/routes/` | 777 | ✅ human/agent/flow/internal/net |
-| 服务 | `ghost-main/gateway/services/` | 525 | ✅ proxy/obsidian/memory/metrics |
-| 中间件 | `ghost-main/gateway/middleware/` | 72 | ✅ correlation/rate_limit |
-| 配置 | `ghost-main/gateway/config.py` | 57 | ✅ 集中配置 |
-| 测试 | `ghost-main/gateway/tests/` | 938 | ✅ health/rate_limit/integration/e2e |
-
-### L6 底层通信层 (0行)
-| 模块 | 路径 | 状态 |
-|:-----|:-----|:----:|
-| AI Mesh libp2p | 未开发 | ❌ 先不碰 |
+| Gateway Obsidian | `services/obsidian.py` | 184 | ✅ 写入+搜索+整理 |
+| 飞书多维表格 | 待接入 | - | ⚠️ 概念阶段 |
+| Ghost DS 看板 | `DS/src/app/stats/page.tsx` | - | ✅ 统计可视化 |
 
 ---
 ## 13. 架构审查 -- 做对的 vs 做错的
 
-### 11.1 做对了的
+### 13.1 做对了的
 | # | 决策 | 为什么对 |
 |---|------|---------|
 | 1 | Alpha-ID身份根 did.py+signer.py | 所有数据归一个身份是基石 |
-| 2 | Gateway统一入口 14路由 | 架构清晰，限流+CORS+统一信封 |
+| 2 | Gateway统一入口 9路由 | 架构清晰，限流+CORS+统一信封 |
 | 3 | 双链记忆私链+知链分离 | 隐私不出本地 |
-| 4 | 3个独立服务(alphaid/nebula/gateway) | 模块解耦 |
-| 5 | 支付宝人脸+短信验证 | 国内合规 |
-| 6 | AgentLoop+MasterOrchestrator+TwinBrain | 核心智能体能力完整 |
-| 7 | 存储双后端(JSON+Postgres) | 开发生产无缝切换 |
-| 8 | 多租户引擎(tenant.py) | 为多用户做准备 |
-| 9 | 故障恢复(recovery.py)+可观测性(observability.py) | 生产级稳定性 |
-| 10 | 行动引擎(action_engine) | approval+adapter模式解耦 |
+| 4 | 三层终极堆栈 (理念层/系统中枢/底层网络) | 战略清晰，分层解耦 |
+| 5 | 七层架构 (L1感知→L7知识协同) | 每层职责明确，可独立迭代 |
+| 6 | 飞书总对话助理 (4合1模式) | 自然语言调用全平台能力 |
+| 7 | 豆包LevelDB扫描方案 | 零API依赖，离线工作 |
+| 8 | Ghost DS 电商看板 (Next.js+Prisma) | 现代化技术栈，功能完整 |
+| 9 | 7层中间件栈 (Nebula) | 审计/限流/租户/策略/缓存/日志/异常 |
+| 10 | 故障恢复(recovery.py)+可观测性(observability.py) | 生产级稳定性 |
+| 11 | 行动引擎(action_engine) | approval+adapter模式解耦 |
+| 12 | Docker Compose 12服务编排 | 一键启动，开发生产一致 |
 
 ### 13.2 做错了的(已修正)
 | # | 错误 | 表现 | 纠正 | 状态 |
@@ -924,74 +1028,91 @@ Ghost/飞书 -> Gateway /v1/agent/flow/* -> flow/api :3036
 | 4 | 豆包无入口 | 核心输入进不了Ghost | 豆包→LevelDB→阅读器→Gateway→Obsidian | ✅ 已修正 |
 | 5 | 飞书两套重复代码 | nebula/feishu+alphaid/feishu_bot | 只保留nebula | ✅ 已修正 |
 | 6 | flow/api注册未启动 | 注册链路代码完整但路由不通 | 注册迁移至alphaid :8000 | ✅ 已修正 |
-| 7 | 微信适配器写了没接 | wechat.py 483L在action_engine里 | 接入Gateway或删除 | ⚠️ 待处理 |
+| 7 | 架构文档过时 | 6层架构，说Orchestrator是in-process | 更新为7层架构 | ✅ 已修正 |
+| 8 | 电商看板位置错误 | 说电商在Ghost.html | 迁移至Ghost DS (Next.js) | ✅ 已修正 |
 
-### 13.3 冗余待删
-| 项 | 位置 | 大小 | 原因 | 状态 |
-|:---|:-----|:----:|:-----|:----:|
-| 短剧服务 | entrypoints/shortdrama_service.py | ~800L | 无关 | ✅ 已删 |
-| 桌面精灵 | entrypoints/daemon.py | ~700L | 空壳 | ✅ 改为兼容shim |
-| feishu_bot重复 | feishu_bot/ | 304L | nebula已有 | ✅ 已删 |
-| flow双链记忆TS版 | flow/.../dual-chain.ts | ~5K | 有Python版 | ✅ 已删 |
-| flow旧路由 | workflow.ts+map.ts | ~3K | 不再用 | ✅ 已删 |
-
----
-## 14. P0 任务清单(立即执行)
-
-### P0-1 删冗余代码 ✅ DONE (2026-07-25)
-删除: shortdrama_service.py + alphaid/feishu_bot/ + flow重复模块(dual-chain.ts/workflow.ts/map.ts)
-daemon.py 保留为向后兼容 re-export shim
-
-### P0-2 启动flow/api注册链路 ✅ DONE (2026-07-26)
-注册路由6条已迁移至alphaid :8000，Gateway代理已更新。
-Flow/API不再承载注册职责，转为工作流/地图/Computer Use服务。
-
-### P0-3 Ghost.html加真实API ✅ DONE (2026-07-26)
-已加: fetchDashboard()调Gateway /v1/human/dashboard
-已加: 注册页面UI(手机号->短信->人脸->DID) 通过Gateway→alphaid打通
-已加: 聊天面板(输入->POST /v1/human/chat)
-
-### P0-4 飞书改走Gateway+LLM分流 ✅ DONE (2026-07-26)
-Gateway已加四层路由(含/v1/human/chat)
-feishu.py已改调Gateway /v1/human/chat
-alphaid/feishu_bot/已删
+### 13.3 待处理
+| # | 问题 | 优先级 |
+|---|------|:------:|
+| 1 | 微信适配器写了没接 | P2 |
+| 2 | FulfillModal绕过Nebula直接写DB | P0 |
+| 3 | DS重复路由定义 | P0 |
+| 4 | 配置错误 (Gateway/DS/Orchestrator .env) | P0 |
+| 5 | Feishu Bot Docker Unhealthy | P1 |
 
 ---
-## 15. P1 任务清单(本周)
-| # | 任务 | 工作量 | 状态 |
-|---|------|:------:|:----:|
-| 1 | 飞书凭证移入环境变量 | 0.5h | ⚠️ 待做 |
-| 2 | FOUNDER身份移入环境变量 | 0.5h | ⚠️ 待做 |
-| 3 | 修正CI路径 | 0.5h | ⚠️ 待做 |
-| 4 | 调研豆包直连Obsidian方案 | 3h | ✅ 已做(LevelDB方案) |
-| 5 | 豆包知识自动同步到Obsidian | 4h | ✅ 已做 |
-| 6 | Obsidian知识卡片查询接口 | 3h | ⚠️ 待做 |
-| 7 | alphaid目录重构 | 2h | ⚠️ 待做 |
+## 14. P0 任务清单（立即执行 · Phase 0 止血）
+
+> 目标：修复 7 个已知 bug/配置错误，止血为先。
+
+| # | 任务 | 影响 | 状态 |
+|:---|:------|:------|:----:|
+| 1 | 修复 FulfillModal 绕过 Nebula 直接写 DB | 订单履约数据不一致 | ⚠️ 待做 |
+| 2 | 合并 DS 重复路由 (/api/shop 两处定义) | API 冲突 | ⚠️ 待做 |
+| 3 | 修正 Gateway .env 端口配置 (DS 应为 3004 不是 3001) | 代理失败 | ⚠️ 待做 |
+| 4 | 修正 DS .env PLATFORM_URL | 前端链接错误 | ⚠️ 待做 |
+| 5 | 修复 Feishu Bot Docker Unhealthy | 飞书消息不处理 | ⚠️ 待做 |
+| 6 | 修正 Nebula .env Redis 密码配置 | 缓存/事件总线不可用 | ⚠️ 待做 |
+| 7 | 修正 Orchestrator Dockerfile 端口暴露 | 服务不可达 | ⚠️ 待做 |
 
 ---
-## 16. P2 任务清单(两周内)
+## 15. P1 任务清单（本周 · Phase 1 连通）
+
+> 目标：修复 4 条断裂的事件链，让系统真正连通。
+
+| # | 任务 | 影响 | 状态 |
+|:---|:------|:------|:----:|
+| 1 | 连接 Redis Streams 事件总线 (调用 startConsuming) | 服务间异步通信 | ⚠️ 待做 |
+| 2 | 修复飞书 → Feishu Bot → Gateway 链路 | 飞书消息无法到达后端 | ⚠️ 待做 |
+| 3 | 实现 Ghost DS → Orchestrator 自动铺货任务 | 自动化铺货不触发 | ⚠️ 待做 |
+| 4 | 实现 Feishu Bot → 飞书通知推送 | 履约/审批通知不发 | ⚠️ 待做 |
+| 5 | 飞书凭证移入环境变量 | 安全风险 | ⚠️ 待做 |
+| 6 | Obsidian 知识查询接口 | 飞书/Ghost 无法查知识 | ⚠️ 待做 |
+
+---
+## 16. P2 任务清单（两周内 · Phase 2 加固 + Phase 3 完善）
+
+### Phase 2 加固
+
 | # | 任务 | 说明 |
-|---|------|------|
-| 1 | Ghost知识搜索 | 搜索浏览卡片 |
-| 2 | 飞书知识查询 | 查记忆/卡片 |
-| 3 | 内容审核中间件 | Gateway做 |
+|:---|:------|:-----|
+| 1 | Ghost DS 测试覆盖 | 当前 0 测试用例 |
+| 2 | Orchestrator 核心调度实现 | 当前骨架 20% |
+| 3 | 内容审核中间件 | Gateway 做 |
 | 4 | 限流中间件升级 | Token Bucket |
-| 5 | 监控Trace | 链路追踪 |
+| 5 | 监控 Trace | 链路追踪 |
 | 6 | 多租户隔离 | 多用户准备 |
-| 7 | A2A真实通信 | HTTP/WS升级 |
-| 8 | NURO多模态优化 | MiniCPM-o调优 |
+
+### Phase 3 完善
+
+| # | 任务 | 说明 |
+|:---|:------|:-----|
+| 7 | A2A 真实网络通信 | HTTP/WS 升级 |
+| 8 | NURO 多模态优化 | MiniCPM-o 调优 |
+| 9 | 飞书多维表格对接 | L7 知识协同 |
+| 10 | 1688 货源适配器完善 | Nebula 货源接入 |
+| 11 | Ghost.html 知识浏览 | 查询 Obsidian 卡片 |
+| 12 | 电商 MVP 场景闭环 | 铺货→售卖→履约→数据回传 |
 
 ---
 ## 17. 根目录清理计划
-| 文件 | 处理 |
-|:-----|:-----|
-| GHOST.md | 保留 |
-| ARCHITECTURE_DIAGRAM.md | 已整合进GHOST.md 删除 |
-| ARCHITECTURE_REVIEW.md | 同上 删除 |
-| FRAMEWORK.md | 同上 删除 |
-| TRUTH.md | 同上 删除 |
+
+| 文件/目录 | 处理 |
+|:----------|:-----|
+| GHOST.md | 保留 — 项目宪法 |
+| ARCHITECTURE.md | 保留 — 架构设计文档 |
+| PROJECT_STATUS_REPORT.md | 保留 — 项目状态快照 |
+| SYSTEM_MAP.md | 保留 — 系统全景图 |
+| WORK_LOG.md | 保留 — 工作日志 |
+| DECISIONS.md | 保留 — 决策记录 |
+| 1.md.md | 保留 — 战略定位来源 |
+| 2.md.md | 保留 — 战略定位来源 |
 | README.md | 保留 |
 | archive/md_old/ | 保留不动 |
+| ARCHITECTURE_DIAGRAM.md | 已整合进 GHOST.md → 可删除 |
+| ARCHITECTURE_REVIEW.md | 已整合进 GHOST.md → 可删除 |
+| FRAMEWORK.md | 已整合进 GHOST.md → 可删除 |
+| TRUTH.md | 已整合进 GHOST.md → 可删除 |
 
 ---
 ## 18. 已确认决策（项目宪法）
@@ -1000,6 +1121,10 @@ alphaid/feishu_bot/已删
 
 | 决策 | 来源 | 影响 |
 |:-----|:------|:-----|
+| 项目定位 = Web4.0 AtoA 全域自主智能体操作系统 | 2.md.md / 1.md.md | 所有技术选型围绕此定位 |
+| 三层终极堆栈: 理念层(Denny) → 系统中枢(AlphaID) → 底层网络(Ghost) | 2.md.md | 架构分层依据 |
+| 七层系统架构: L1感知→L2身份→L3工作流→L4调度→L5网关→L6业务→L7知识 | 1.md.md | 服务部署/开发分层 |
+| 电商 = MVP 场景，非最终形态 | 2.md.md | Ghost DS 是验证工具，非最终产品 |
 | 唯一官网 = Ghost.html（不是其他任何页面） | 用户明确 | 所有用户界面统一走Ghost |
 | 豆包 = 知识输入主入口 + 自己就是整理引擎 | 用户明确 | 不做中间层，豆包直连Obsidian |
 | 飞书 = 总对话助理 | 用户明确 | 自然语言对话走Gateway调全平台能力 |
@@ -1011,11 +1136,40 @@ alphaid/feishu_bot/已删
 | NURO = 纯本地AI（不依赖Gateway） | 架构决策 | 本地Ollama+双链记忆 |
 | 对话中没反驳的 = 默认同意 | 用户明确 | 不需要反复确认 |
 | 不要做的：AI Mesh libp2p / Skill自进化 / A2A真实网络通信 | 架构审查 | L6和部分L4功能先不碰 |
+| 货源全开放：官方货源 + 用户Skill私接双向兼容 | 1.md.md | 供应链层设计 |
+| 双模电商：集市(拼单) + 独立站(SaaS) | 1.md.md | Ghost DS storeMode 设计 |
+| 严禁二清：不自建资金池 | 1.md.md | 支付合规红线 |
 
 ---
 ## 19. 启动指南
 
-### 三个核心服务
+### Docker Compose（推荐，12 服务一键启动）
+
+```bash
+# 开发环境
+docker compose up -d
+
+# 生产环境
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+```
+
+**服务映射**:
+| Docker 服务 | 端口 | 对应 |
+|:-----------|:-----|:-----|
+| alphaid | 8000 | Alpha-ID |
+| gateway | 18080 | Gateway |
+| nebula | 2002 | Nebula |
+| orchestrator | 19090 | Orchestrator |
+| net-agent | 18180 | Net-Agent |
+| ghost-ds | 3004 | Ghost DS |
+| mindflow | 3036 | MindFlow |
+| feishu-bot | - | Feishu Bot |
+| postgres | 5432 | PostgreSQL |
+| redis | 6379 | Redis |
+| prometheus | 9090 | Prometheus |
+| grafana | 3000 | Grafana |
+
+### 手动启动（开发调试）
 
 ```bash
 # 1. Alpha-ID (身份+记忆+AgentLoop+NURO)
@@ -1029,19 +1183,32 @@ python -m uvicorn src.mindflow_map.main:app --host 0.0.0.0 --port 2002
 # 3. Gateway (统一网关)
 cd D:\MW\ghost-main\gateway
 python -m uvicorn app:app --host 0.0.0.0 --port 18080
+
+# 4. Ghost DS (电商看板)
+cd D:\MW\DS
+npm run dev  # Next.js :3004
+
+# 5. Orchestrator (任务调度)
+cd D:\MW\orchestrator
+python -m uvicorn app:app --host 0.0.0.0 --port 19090
 ```
 
 ### 验证
 
 | 验证项 | 命令/URL | 期望 |
 |:-------|:---------|:-----|
+| Gateway | http://localhost:18080/v1/internal/health | ✅ 200 |
 | Alpha-ID | http://localhost:8000/api/health | ✅ 200 |
 | Nebula | http://localhost:2002/health | ✅ 200 |
-| Gateway | http://localhost:18080/v1/internal/health | ✅ 200 |
+| Ghost DS | http://localhost:3004/api/health | ✅ 200 |
+| Orchestrator | http://localhost:19090/health | ✅ 200 |
+| MindFlow | http://localhost:3036/health | ✅ 200 |
 | Ghost.html | 浏览器打开 alphaid/projects/src/alpha_id/templates/ghost.html | 注册/仪表盘/聊天 |
 | 飞书 | 发消息给飞书机器人 | 全平台能力响应 |
 | NURO | `python -m entrypoints.cli` 或 `aid-daemon` | 桌面精灵启动 |
 | 豆包 | 自动扫描（Gateway启动后自动启用） | LevelDB→Obsidian |
+| Prometheus | http://localhost:9090 | ✅ 200 |
+| Grafana | http://localhost:3000 | ✅ 200 |
 
 ### NURO 桌宠单独启动
 
@@ -1053,10 +1220,26 @@ install_deskpet.bat                # 一键安装
 ```
 
 ---
-## 20. 参考文档&旧档说明
-旧文档在archive/md_old/保留不动: ARCHITECTURE.md ECOSYSTEM_ARCHITECTURE.md ROOT_AUDIT.md PLATFORM_VISION.md PROJECT_AUDIT.md AID_FULL_INTEGRATION.md 繁星计划申请材料.md
+## 20. 参考文档 & 旧档说明
 
-根目录只保留: GHOST.md + README.md + archive/
+### 项目核心文档（必须同步阅读）
+
+| 文档 | 定位 | 说明 |
+|:-----|:-----|:-----|
+| `GHOST.md` | 项目宪法 | 本文档，项目基调、架构、任务清单、决策 |
+| `ARCHITECTURE.md` | 架构设计 | 七层架构详细设计、服务详解、数据流、认证链 |
+| `SYSTEM_MAP.md` | 系统全景 | 5条调用链、事件流、配置审计、优化路线图 |
+| `PROJECT_STATUS_REPORT.md` | 状态快照 | Docker状态、服务功能度评分、已知bug |
+| `WORK_LOG.md` | 工作日志 | 每次会话的审计发现和决策记录 |
+| `DECISIONS.md` | 决策记录 | 所有已确认的架构决策（D-20260804-*） |
+| `1.md.md` | 战略来源 | AlphaID跨境全链路一体化平台架构复盘 |
+| `2.md.md` | 战略来源 | 从AI外置大脑到Web4.0 AtoA全域智能体 |
+
+### 旧文档
+
+旧文档在 `archive/md_old/` 保留不动: ARCHITECTURE_DIAGRAM.md ARCHITECTURE_REVIEW.md FRAMEWORK.md TRUTH.md PROJECT_AUDIT.md AID_FULL_INTEGRATION.md 繁星计划申请材料.md
+
+根目录保留: GHOST.md + ARCHITECTURE.md + SYSTEM_MAP.md + PROJECT_STATUS_REPORT.md + WORK_LOG.md + DECISIONS.md + README.md + archive/
 
 详细组件文档:
 - NURO桌宠: `alphaid/projects/docs/nuro-desktop-pet.md`
