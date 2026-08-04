@@ -51,6 +51,9 @@ logger = logging.getLogger("orchestrator")
 GATEWAY = os.getenv("GATEWAY_URL", "http://localhost:18080")
 TOOL_A = os.getenv("TOOL_A_URL", "http://localhost:8081")
 TOOL_B = os.getenv("TOOL_B_URL", "http://localhost:8082")
+# Gateway-proxied tool URLs (preferred: centralizes auth, rate-limit, audit)
+TOOL_A_GATEWAY = os.getenv("TOOL_A_GATEWAY", f"{GATEWAY}/v1/tools/generate")
+TOOL_B_GATEWAY = os.getenv("TOOL_B_GATEWAY", f"{GATEWAY}/v1/tools/optimize")
 TOOL_A_TIMEOUT = float(os.getenv("TOOL_A_TIMEOUT", "30"))
 TOOL_B_TIMEOUT = float(os.getenv("TOOL_B_TIMEOUT", "30"))
 TOOL_MAX_RETRIES = int(os.getenv("TOOL_MAX_RETRIES", "2"))
@@ -263,24 +266,24 @@ def _execute_task(task: Task) -> None:
         tool_b_result = None
 
         with httpx.Client(timeout=max(TOOL_A_TIMEOUT, TOOL_B_TIMEOUT) + 5) as client:
-            # ── ToolA: 生成器（serial + parallel 模式均调用） ──
-            if TOOL_A:
+            # ── ToolA: 生成器（serial + parallel 模式均调用，通过 Gateway 集中管控） ──
+            if TOOL_A_GATEWAY:
                 tool_a_result = _call_tool_with_retry(
                     client=client,
-                    url=f"{TOOL_A}/v1/generate",
+                    url=TOOL_A_GATEWAY,
                     payload={"requirement": task.requirement, "task_id": task.id},
                     timeout=TOOL_A_TIMEOUT,
                     max_retries=TOOL_MAX_RETRIES,
                     tool_name="ToolA",
                 )
             else:
-                tool_a_result = {"status": "not_configured", "message": "ToolA URL not configured"}
+                tool_a_result = {"status": "not_configured", "message": "ToolA Gateway URL not configured"}
 
-            # ── ToolB: 校验优化（parallel 模式调用；serial 模式跳过） ──
-            if task.mode == "parallel" and TOOL_B:
+            # ── ToolB: 校验优化（parallel 模式调用；serial 模式跳过，通过 Gateway 集中管控） ──
+            if task.mode == "parallel" and TOOL_B_GATEWAY:
                 tool_b_result = _call_tool_with_retry(
                     client=client,
-                    url=f"{TOOL_B}/v1/optimize",
+                    url=TOOL_B_GATEWAY,
                     payload={
                         "requirement": task.requirement,
                         "task_id": task.id,
@@ -291,7 +294,7 @@ def _execute_task(task: Task) -> None:
                     tool_name="ToolB",
                 )
             else:
-                reason = "serial mode" if task.mode != "parallel" else "ToolB URL not configured"
+                reason = "serial mode" if task.mode != "parallel" else "ToolB Gateway URL not configured"
                 tool_b_result = {"status": "skipped", "message": reason}
 
         task_manager.update(
