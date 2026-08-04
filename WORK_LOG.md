@@ -67,6 +67,31 @@
 
 ---
 
+### 会话 4：全服务测试验证 + 依赖修复
+
+**工作内容:**
+- 安装 Alpha-ID 缺失依赖：redis, hypothesis, psycopg[binary], psycopg-pool, pyyaml
+- 安装 Nebula 缺失依赖：sqlalchemy, tenacity, prometheus-client, aiosqlite, openai, cryptography, python-dotenv
+- 安装 mcp 1.6.0（修复 FastMCP ImportError）
+- 修复 Alpha-ID submodule conftest.py AidNuro monkey-patch UnboundLocalError（移入 try 块内）
+- 修复 Alpha-ID feature_flags.py 缺少 FairyBrain 等向后兼容别名（daemon.py re-export shim 需要）
+- 修复 Alpha-ID dual_chain 测试属性名 `_chain_key_*` → `_meta_key_*`（6 个 AttributeError）
+- 修正 dual_chain 加密测试：使用 `list_chain()` API 而非直接访问内部存储结构
+- 修复 SqliteStorage.list() 兼容记录级存储（put() 写入的单条记录模式）
+- 修复 PostgresStorage._deserialize() 兼容 JSONB 原生类型（psycopg v3 返回 dict 而非 str）
+- 修复 _call_llm() api_key 检查顺序（先检查 api_key，再验证 base_url）
+- 修复 Nebula docs/API_VERSIONING.md 缺少 v2 条目
+- git commit: 所有改动待统一 commit
+
+**结果:** 完成。
+- Alpha-ID: 702 passed, 98 skipped（0 failures，含 submodule conftest 修复）
+- Nebula: 153 passed（0 failures）
+- Gateway: 33 passed, 20 skipped（0 failures）
+- Orchestrator: 7 passed（0 failures）
+- Feishu-bot: 2 passed（0 failures）
+
+---
+
 ## 待办
 
 - [ ] Docker Desktop 启动后验证全栈健康

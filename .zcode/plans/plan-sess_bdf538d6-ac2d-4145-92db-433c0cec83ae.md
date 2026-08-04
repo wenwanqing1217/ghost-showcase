@@ -1,0 +1,1 @@
+修改 archive/scripts/resume_v7.py：1) 8个实习函数替换为语音直播运营真实内容；2) "24个MCP工具"改为"多工具串联编排"；3) "发布SDK至PyPI"改为"完成SDK封装与打包"；4) 精简到4份简历；5) 输出目录改为resume_output_v8/。

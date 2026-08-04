@@ -322,6 +322,76 @@
 
 ---
 
+### D-20260804-9: Alpha-ID 测试依赖补全 + 修复
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** Alpha-ID 测试缺少 redis、hypothesis、psycopg-pool、psycopg[binary]、pyyaml 等依赖；submodule conftest.py 中 AidNuro monkey-patch 定义在 try 块外导致 UnboundLocalError；feature_flags.py 缺少 FairyBrain 等向后兼容别名  
+**决定:** 安装缺失依赖；将 monkey-patch 移入 try 块内；在 feature_flags.py 末尾添加 FairyBrain=F ghostBrain 等别名  
+**后果:** Alpha-ID 测试从 18 个 collection error → 702 passed, 98 skipped
+
+---
+
+### D-20260804-10: Alpha-ID FairyBrain 向后兼容别名
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** `daemon.py` re-export shim 从 `feature_flags.py` import `FairyBrain` 等 Fairy* 命名，但 feature_flags.py 只定义了 `GhostBrain` 等 Ghost* 命名，导致 `ImportError: cannot import name 'FairyBrain'`  
+**决定:** 在 `feature_flags.py` 末尾添加 `FairyBrain = GhostBrain` 等向后兼容别名  
+**后果:** daemon.py re-export shim 正常加载，AidNuro 类可被 import
+
+---
+
+### D-20260804-11: Alpha-ID dual_chain 测试属性名修正
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** `DualChainManager` 使用 `_meta_key_knowledge` / `_meta_key_private` 命名，但测试引用 `_chain_key_knowledge` / `_chain_key_private`，导致 AttributeError  
+**决定:** 将测试中的 `_chain_key_*` 统一修正为 `_meta_key_*`；同时修正知识链/私有链加密测试使用 `list_chain()` API 而非直接访问内部存储结构  
+**后果:** dual_chain 测试从 6 个 failure → 29 passed
+
+---
+
+### D-20260804-12: Alpha-ID storage_sqlite list() 兼容记录级存储
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** `DualChainManager._save_to_chain()` 使用 `storage.put()` 记录级写入，但 `SqliteStorage.list()` 只支持 `load(collection)` 旧模式（集合文档），导致 `list_chain()` 返回空列表  
+**决定:** 扩展 `SqliteStorage.list()` 先尝试旧模式加载集合文档，失败则回退到逐条查询 `collection_item_%` 记录  
+**后果:** `list_chain()` 正常返回记录列表，dual_chain 统计/查询测试通过
+
+---
+
+### D-20260804-13: Alpha-ID PostgresStorage._deserialize 兼容 JSONB 原生类型
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** psycopg v3 的 JSONB 列返回原生 Python 类型（dict/list/int），但 `_deserialize()` 直接调用 `json.loads(raw)`，当 raw 已是 dict 时抛出 TypeError  
+**决定:** 修改 `_deserialize()` 为 `if isinstance(raw, (str, bytes)): return json.loads(raw); return raw`  
+**后果:** PostgresStorage JSONB 序列化测试从 4 个 failure → 全部通过
+
+---
+
+### D-20260804-14: Alpha-ID _call_llm 验证顺序修复
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** `_call_llm()` 先验证 base_url 域名授权，再检查 api_key；当 api_key 为空时，base_url 可能是默认的未授权域名，先抛出 "域名未授权" 而非 "未配置 API key"  
+**决定:** 将 api_key 空值检查移到 base_url 验证之前  
+**后果:** `test_no_api_key` 测试从 failure → passed，返回正确的 "未配置" 提示
+
+---
+
+### D-20260804-15: Nebula API_VERSIONING.md 补充 v2 版本
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** `test_api_versioning_doc_exists` 要求 docs/API_VERSIONING.md 包含 "v2"，但文件只记录了 v1  
+**决定:** 在 API_VERSIONING.md 版本历史表中添加 v2 计划条目  
+**后果:** Nebula 测试从 152/153 → 153/153 全绿
+
+---
+
 *最后更新: 2026-08-04
 
 *最后更新: 2026-08-04*
