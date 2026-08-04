@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 /**
  * 简单 HTML 白名单消毒器 — 只允许安全标签，移除所有属性/事件 handler
- * ⚠️ 生产环境建议使用 DOMPurify (npm i dompurify)
+ * 生产环境建议使用 DOMPurify (npm i dompurify)
  */
 function sanitizeHtml(html: string): string {
   // 只允许这些标签（无属性）
@@ -161,7 +161,13 @@ export default function ProductAiDialog({
               </span>
             )}
           </div>
-          <button className="btn btn-sm" onClick={onClose}>✕</button>
+          <button
+            className="btn btn-sm"
+            onClick={onClose}
+            style={{ color: 'var(--text-muted)' }}
+          >
+            ×
+          </button>
         </div>
 
         {/* 原始信息 */}
@@ -215,7 +221,7 @@ export default function ProductAiDialog({
           onClick={handleGenerate}
           disabled={generating}
         >
-          {generating ? '⏳ 生成中...' : '✨ 生成 AI 文案'}
+          {generating ? '生成中...' : '生成 AI 文案'}
         </button>
         <p className="text-muted text-sm mb-3" style={{ fontSize: 11 }}>
           {mode === 'demo'
@@ -274,7 +280,7 @@ export default function ProductAiDialog({
                 onClick={handleSave}
                 disabled={generating}
               >
-                💾 保存并上架
+                保存并上架
               </button>
             </div>
           </div>

@@ -16,7 +16,7 @@ RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && pip config set global.timeout 120 && pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt
 
 # ---------- Stage 2: runtime ----------

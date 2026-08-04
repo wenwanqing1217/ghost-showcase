@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import StatusBadge from '@/components/StatusBadge';
 import Pagination from '@/components/Pagination';
 import FulfillModal from '@/components/FulfillModal';
+import TopBar from '@/components/layout/TopBar';
+import AuthGuard from '@/components/layout/AuthGuard';
+import { getApiUrl } from '@/lib/gateway-client';
 
 interface Order {
   id: string;
@@ -41,6 +44,8 @@ export default function OrdersPage() {
   const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [fulfillOrder, setFulfillOrder] = useState<{ id: string; orderNo: string } | null>(null);
@@ -52,15 +57,17 @@ export default function OrdersPage() {
       if (statusFilter) params.set('status', statusFilter);
       if (search) params.set('search', search);
 
-      const res = await fetch(`/api/orders?${params}`);
+      const res = await fetch(getApiUrl('/api/orders', params));
       if (res.ok) {
         const data = await res.json();
         setOrders(data.items);
         setPagination(data.pagination);
         setStatusCounts(data.statusCounts || {});
+      } else {
+        console.error('[OrdersPage] fetch failed:', res.status, res.statusText);
       }
-    } catch {
-      // silent
+    } catch (err) {
+      console.error('[OrdersPage] fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -75,16 +82,69 @@ export default function OrdersPage() {
     fetchOrders(1);
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await fetch(getApiUrl('/api/sync'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity: 'orders' }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSyncMsg(`同步完成 · ${data.results?.orders?.count || 0} 笔订单`);
+        fetchOrders(1);
+      } else {
+        setSyncMsg(data.error || '同步失败');
+      }
+    } catch {
+      setSyncMsg('同步请求失败');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(null), 4000);
+    }
+  };
+
   const totalAmount = orders.reduce((sum, o) => sum + o.amount, 0);
 
   return (
-    <div>
-      <div className="flex-between mb-3">
+    <AuthGuard>
+      <TopBar title="订单管理" subtitle="OneBound 订单同步与履约" />
+      <div className="p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex-between mb-3">
         <h2 style={{ fontSize: 20, fontWeight: 700 }}>订单管理</h2>
-        <span className="text-muted text-sm">
-          共 {pagination.total} 笔订单 · 当前页 ${totalAmount.toFixed(2)}
-        </span>
+        <div className="flex-between" style={{ gap: 12 }}>
+          <span className="text-muted text-sm">
+            共 {pagination.total} 笔订单
+          </span>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="btn btn-sm"
+            style={{ fontSize: 12 }}
+          >
+            {syncing ? '⟳ 同步中...' : '⟳ 同步'}
+          </button>
+        </div>
       </div>
+
+      {syncMsg && (
+        <div style={{
+          padding: '8px 12px',
+          marginBottom: 12,
+          borderRadius: 8,
+          background: syncMsg.includes('失败')
+            ? 'rgba(239,68,68,0.08)'
+            : 'rgba(16,185,129,0.08)',
+          color: syncMsg.includes('失败') ? 'var(--danger)' : 'var(--success)',
+          fontSize: 12,
+          border: `1px solid ${syncMsg.includes('失败') ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)'}`,
+        }}>
+          {syncMsg}
+        </div>
+      )}
 
       {/* 状态筛选标签 */}
       <div className="flex gap-2 mb-3" style={{ flexWrap: 'wrap' }}>
@@ -195,6 +255,8 @@ export default function OrdersPage() {
           }}
         />
       )}
+      </div>
     </div>
+    </AuthGuard>
   );
 }

@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ghost Platform — 监控面板</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  background:#0a0e1a;color:#e2e8f0;min-height:100vh;
+}
+header{
+  padding:16px 24px;border-bottom:1px solid rgba(148,163,184,0.08);
+  display:flex;align-items:center;justify-content:space-between;
+  background:rgba(10,14,26,0.8);backdrop-filter:blur(12px);position:sticky;top:0;z-index:10;
+}
+header h1{font-size:16px;font-weight:600;display:flex;align-items:center;gap:10px;}
+.badge{
+  font-size:11px;padding:4px 12px;border-radius:999px;font-weight:500;
+  background:linear-gradient(135deg,rgba(56,189,248,0.12),rgba(168,85,247,0.12));
+  color:#7dd3fc;border:1px solid rgba(56,189,248,0.15);
+}
+.grid{display:grid;grid-template-columns:1fr;gap:16px;padding:20px 24px;max-width:1400px;margin:0 auto;}
+@media(min-width:860px){.grid{grid-template-columns:1fr 1fr;}}
+@media(min-width:1200px){.grid{grid-template-columns:1fr 1fr 1fr;}}
+.card{
+  background:linear-gradient(145deg,rgba(30,41,59,0.6),rgba(15,23,42,0.8));
+  border:1px solid rgba(148,163,184,0.08);border-radius:14px;padding:16px;
+}
+.card h3{font-size:12px;color:#94a3b8;margin-bottom:10px;font-weight:500;letter-spacing:0.3px;text-transform:uppercase;}
+.card .value{font-size:28px;font-weight:700;letter-spacing:-0.5px;}
+.card .sub{font-size:11px;color:#64748b;margin-top:4px;}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+.dot.green{background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,0.5);}
+.dot.red{background:#ef4444;box-shadow:0 0 8px rgba(239,68,68,0.4);}
+.dot.yellow{background:#eab308;box-shadow:0 0 8px rgba(234,179,8,0.4);}
+.service-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;}
+.service-item{
+  padding:10px;border-radius:8px;background:rgba(15,23,42,0.6);
+  border:1px solid rgba(148,163,184,0.06);text-align:center;
+}
+.service-item .name{font-size:11px;color:#64748b;margin-bottom:4px;}
+.service-item .status{font-size:13px;font-weight:500;}
+.service-item .latency{font-size:10px;color:#64748b;margin-top:2px;}
+.metrics-box{
+  background:rgba(15,23,42,0.6);border:1px solid rgba(148,163,184,0.06);
+  border-radius:8px;padding:12px;font-family:'Courier New',monospace;font-size:11px;
+  color:#7dd3fc;max-height:300px;overflow-y:auto;white-space:pre-wrap;word-break:break-all;
+  line-height:1.6;
+}
+.refresh-row{display:flex;gap:10px;align-items:center;}
+.btn{
+  padding:6px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:500;
+  background:linear-gradient(135deg,#38bdf8,#6366f1);color:#fff;
+}
+.btn:hover{opacity:0.9;}
+.btn.secondary{background:rgba(30,41,59,0.6);color:#94a3b8;border:1px solid rgba(148,163,184,0.1);}
+</style>
+</head>
+<body>
+<header>
+  <h1>
+    <span>📊</span> Ghost Platform 监控
+    <span class="badge" id="overallBadge">检查中</span>
+  </h1>
+  <div class="refresh-row">
+    <span style="font-size:11px;color:#64748b;" id="lastUpdate">—</span>
+    <button class="btn" onclick="loadAll()">刷新</button>
+    <button class="btn secondary" onclick="toggleAutoRefresh()" id="autoBtn">自动刷新: 关</button>
+  </div>
+</header>
+<div class="grid">
+
+  <!-- 服务健康总览 -->
+  <div class="card" style="grid-column:1/-1;">
+    <h3>服务健康</h3>
+    <div class="service-grid" id="serviceGrid">
+      <div class="service-item"><div class="name">加载中...</div></div>
+    </div>
+  </div>
+
+  <!-- 服务详情 -->
+  <div class="card" style="grid-column:1/-1;">
+    <h3>服务详情</h3>
+    <div id="serviceDetails" style="font-size:12px;color:#94a3b8;">加载中...</div>
+  </div>
+
+  <!-- Prometheus 指标 -->
+  <div class="card" style="grid-column:1/-1;">
+    <h3>Prometheus 指标（各服务 /metrics 原始数据）</h3>
+    <div class="metrics-box" id="metricsBox">加载中...</div>
+  </div>
+</div>
+
+<script>
+const GATEWAY = '';
+let autoRefresh = false;
+let autoTimer = null;
+
+async function loadHealth() {
+  try {
+    const r = await fetch(GATEWAY + '/v1/internal/monitoring/health');
+    const d = await r.json();
+    if (d.success && d.data) {
+      const data = d.data;
+      const badge = document.getElementById('overallBadge');
+      badge.textContent = data.overall === 'ok' ? '全部正常' : '部分异常';
+      badge.style.background = data.overall === 'ok'
+        ? 'linear-gradient(135deg,rgba(34,197,94,0.15),rgba(34,197,94,0.05))'
+        : 'linear-gradient(135deg,rgba(234,179,8,0.15),rgba(234,179,8,0.05))';
+      badge.style.color = data.overall === 'ok' ? '#22c55e' : '#eab308';
+
+      const grid = document.getElementById('serviceGrid');
+      grid.innerHTML = '';
+      const names = {gateway:'Gateway',alphaid:'Alpha-ID',nebula:'Nebula',flow:'Flow',
+        orchestrator:'Orchestrator',netagent:'Net-Agent','ghost-ds':'Ghost DS',obsidian:'Obsidian'};
+      for (const [svc, status] of Object.entries(data.services)) {
+        const dot = status === 'ok' ? 'green' : status === 'not_found' ? 'yellow' : 'red';
+        const label = status === 'ok' ? '正常' : status === 'not_found' ? '未配置' : '异常';
+        grid.innerHTML += `<div class="service-item">
+          <div class="name">${names[svc]||svc}</div>
+          <div class="status" style="color:var(--${dot==='green'?'success':dot==='yellow'?'#eab308':'danger'})">
+            <span class="dot ${dot}"></span> ${label}
+          </div>
+        </div>`;
+      }
+    }
+  } catch(e) {
+    document.getElementById('overallBadge').textContent = '连接失败';
+  }
+}
+
+async function loadMetrics() {
+  try {
+    const r = await fetch(GATEWAY + '/v1/internal/monitoring/metrics');
+    const d = await r.json();
+    const box = document.getElementById('metricsBox');
+    const details = document.getElementById('serviceDetails');
+    if (d.success && d.data) {
+      const data = d.data;
+      // Build summary
+      let html = '';
+      for (const [svc, info] of Object.entries(data.details)) {
+        const status = info.ok ? '<span style="color:#22c55e">✓</span>' : '<span style="color:#ef4444">✗</span>';
+        const latency = info.duration_ms ? `${info.duration_ms}ms` : '—';
+        const size = info.size_bytes ? `${info.size_bytes}B` : '—';
+        html += `${status} <b>${svc}</b>  ${latency}  ${size}\n`;
+        if (info.metrics) html += info.metrics + '\n';
+        if (info.error) html += `  error: ${info.error}\n`;
+      }
+      box.textContent = html;
+      details.textContent = `最后更新: ${new Date().toLocaleTimeString()} | 服务数: ${Object.keys(data.details).length} | 整体: ${data.overall}`;
+    } else {
+      box.textContent = '获取失败: ' + JSON.stringify(d);
+    }
+  } catch(e) {
+    document.getElementById('metricsBox').textContent = '请求失败: ' + e.message;
+  }
+}
+
+function loadAll() {
+  loadHealth();
+  loadMetrics();
+  document.getElementById('lastUpdate').textContent = '更新于 ' + new Date().toLocaleTimeString();
+}
+
+function toggleAutoRefresh() {
+  autoRefresh = !autoRefresh;
+  const btn = document.getElementById('autoBtn');
+  if (autoRefresh) {
+    btn.textContent = '自动刷新: 开 (10s)';
+    btn.style.background = 'rgba(34,197,94,0.15)';
+    btn.style.color = '#22c55e';
+    autoTimer = setInterval(loadAll, 10000);
+  } else {
+    btn.textContent = '自动刷新: 关';
+    btn.style.background = '';
+    btn.style.color = '';
+    clearInterval(autoTimer);
+  }
+}
+
+loadAll();
+</script>
+</body>
+</html>

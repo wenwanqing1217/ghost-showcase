@@ -1,11 +1,17 @@
 /**
- * POST /api/orders/[id]/fulfill — 标记订单发货
+ * POST /api/orders/[id]/fulfill — 标记订单发货（OneBound 代发）
  * body: { trackingNumber?: string, trackingCompany?: string }
+ *
+ * 流程：
+ *  1. 从本地 DB 查找订单（tenant 隔离）
+ *  2. 通过 OneBound 提交代发订单
+ *  3. 更新本地订单状态
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { createShoplazzaClient } from '@/lib/shoplazza';
+import { OneBoundClient, OneBoundError } from '@/lib/onebound';
+import { getTenantId, tenantWhere } from '@/lib/tenant';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -22,10 +28,11 @@ export async function POST(
   try {
     const body = await req.json().catch(() => ({}));
     const { trackingNumber, trackingCompany } = FulfillSchema.parse(body);
+    const tenantId = getTenantId(req);
 
-    // 查找订单
-    const order = await prisma.order.findUnique({
-      where: { id: params.id },
+    // 查找订单（tenant 隔离）
+    const order = await prisma.order.findFirst({
+      where: { id: params.id, ...tenantWhere(tenantId) },
       include: { shop: true },
     });
 
@@ -41,13 +48,36 @@ export async function POST(
       return NextResponse.json({ error: '订单已退款/取消，无法发货' }, { status: 400 });
     }
 
-    // 调用 Shoplazza API 发货
-    const client = createShoplazzaClient();
-    if (client && order.shop.domain === process.env.SHOPLAZZA_SHOP_DOMAIN) {
+    // 调用 OneBound 提交代发订单
+    let oneBoundResult: { trackingNumber?: string; trackingCompany?: string } | null = null;
+
+    if (order.shop.platform === 'onebound' && order.shop.accessToken) {
       try {
-        await client.fulfillOrder(order.externalId, trackingNumber, trackingCompany);
-      } catch {
-        // Shoplazza API 失败也继续更新本地状态（可能是测试订单）
+        // 从 order.rawData 解析商品信息
+        const rawData = order.rawData ? JSON.parse(order.rawData) : null;
+        const items = rawData?.items?.map((li: any) => ({
+          productId: li.product_id || li.sku || '',
+          sku: li.sku,
+          quantity: li.quantity || 1,
+        })) || [];
+
+        if (items.length > 0) {
+          const client = new OneBoundClient(order.shop.accessToken);
+          oneBoundResult = await client.createFulfillmentOrder({
+            items,
+            shippingAddress: {
+              name: order.customerName || 'Customer',
+              phone: '',
+              address: 'N/A',
+              city: 'N/A',
+              country: 'US',
+            },
+            orderNote: `Order: ${order.orderNo}`,
+          });
+        }
+      } catch (err) {
+        // OneBound API 失败也继续更新本地状态（可能是测试订单）
+        console.error('[Fulfill] OneBound fulfillment failed:', err);
       }
     }
 
@@ -57,8 +87,8 @@ export async function POST(
       data: {
         status: 'fulfilled',
         fulfilledAt: new Date(),
-        trackingNumber: trackingNumber || null,
-        trackingCompany: trackingCompany || null,
+        trackingNumber: trackingNumber || oneBoundResult?.trackingNumber || null,
+        trackingCompany: trackingCompany || oneBoundResult?.trackingCompany || null,
       },
     });
 
@@ -69,6 +99,8 @@ export async function POST(
         orderNo: updated.orderNo,
         status: updated.status,
         fulfilledAt: updated.fulfilledAt,
+        trackingNumber: updated.trackingNumber,
+        trackingCompany: updated.trackingCompany,
       },
     });
   } catch (error) {

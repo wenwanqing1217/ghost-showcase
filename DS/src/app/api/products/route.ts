@@ -7,15 +7,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { verifyRequest } from '@/lib/auth';
+import { getTenantId, tenantWhere } from '@/lib/tenant';
+import { withMetrics } from '@/app/api/metrics/route';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
-  const auth = verifyRequest(req);
-  if (!auth.ok) {
-    return NextResponse.json({ error: auth.error }, { status: 401 });
-  }
+async function handler(req: NextRequest): Promise<NextResponse> {
+  const tenantId = getTenantId(req);
 
   const { searchParams } = new URL(req.url);
   const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
@@ -23,7 +21,7 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status');
   const search = searchParams.get('search')?.trim();
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = tenantWhere(tenantId);
   if (status) where.status = status;
   if (search) {
     where.OR = [
@@ -65,3 +63,5 @@ export async function GET(req: NextRequest) {
     },
   });
 }
+
+export const GET = withMetrics(handler, 'GET /api/products');

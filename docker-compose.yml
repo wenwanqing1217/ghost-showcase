@@ -13,7 +13,9 @@
 #   Flow (Workflow Engine)→ 3036
 #   Net-Agent (Network)   → 18180
 #   Orchestrator          → 19090
+#   Ghost DS (Dashboard)  → 3001
 #   PostgreSQL            → 5432
+#   Redis                 → 6379
 # ════════════════════════════════════════════════════════════════════
 
 services:
@@ -69,6 +71,7 @@ services:
       - "8000:8000"
     environment:
       DATABASE_URL: postgresql://${DB_USER:?DB_USER required}:${DB_PASSWORD:?DB_PASSWORD required}@db:5432/alpha_id
+      AID_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8000,http://localhost:18080,http://127.0.0.1:3000,http://127.0.0.1:8000,http://127.0.0.1:18080"
     env_file:
       - ./alphaid/projects/.env
     depends_on:
@@ -115,7 +118,11 @@ services:
       FLOW_URL: http://flow:3036
       NETAGENT_URL: http://netagent:18180
       ORCHESTRATOR_URL: http://orchestrator:19090
+      DS_URL: http://ghost-ds:3000
       GATEWAY_PORT: "18080"
+      ENVIRONMENT: production
+    env_file:
+      - ./ghost-main/gateway/.env
     depends_on:
       alphaid:
         condition: service_healthy
@@ -168,12 +175,59 @@ services:
       ORCHESTRATOR_HOST: "0.0.0.0"
       ORCHESTRATOR_PORT: "19090"
       GATEWAY_URL: http://gateway:18080
+      ENVIRONMENT: production
+    env_file:
+      - ./orchestrator/.env
     depends_on:
       gateway:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:19090/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Redis (Cache + Event Bus + Task Queue) ──
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redisdata:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+
+  # ── Ghost DS (Next.js 电商看板) ──
+  ghost-ds:
+    build:
+      context: ./DS
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://${DB_USER:?DB_USER required}:${DB_PASSWORD:?DB_PASSWORD required}@db:5432/ghost?schema=ds
+      REDIS_URL: redis://redis:6379
+      DEMO_MODE: "true"
+      NEXT_PUBLIC_GATEWAY_URL: http://gateway:18080
+    env_file:
+      - ./DS/.env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -202,5 +256,34 @@ services:
       retries: 3
       start_period: 10s
 
+  # ── Feishu Notification Consumer (Event Bus → Feishu) ──
+  feishu-consumer:
+    build:
+      context: ./ghost-main/feishu-bot
+      dockerfile: Dockerfile
+    environment:
+      FEISHU_APP_ID: ${FEISHU_APP_ID:?FEISHU_APP_ID required}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:?FEISHU_APP_SECRET required}
+      REDIS_URL: redis://redis:6379
+      EVENT_STREAM_PREFIX: alphaid:ecom
+      FEISHU_CONSUMER_GROUP: feishu-notifiers
+      FEISHU_CONSUMER_NAME: feishu-consumer-1
+    env_file:
+      - ./ghost-main/feishu-bot/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    command: python feishu_consumer.py
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'feishu_consumer.py' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   pgdata:
+  redisdata:

@@ -96,7 +96,7 @@ class _AuditLogger:
             user_agent=self._request.headers.get("user-agent"),
             request_id=getattr(self._request.state, "request_id", None),
             detail=detail or {},
-            created_at=datetime.now(timezone.utc),
+            created_at=datetime.utcnow(),
         )
         await self._store.append(log)
         return log

@@ -1,10 +1,16 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Sidebar from '@/components/Sidebar';
+import Sidebar from '@/components/layout/Sidebar';
 
 export const metadata: Metadata = {
-  title: 'Ghost DS — 电商看板',
-  description: 'Ghost × Shoplazza 电商运营数据看板',
+  title: {
+    default: 'Ghost Platform — Web4.0 人机共生基础设施',
+    template: 'G · %s',
+  },
+  description: '国内合规、以人为核心的 Web4.0 人机共生基础设施。一人一生唯一 Alpha-ID + 双大脑架构 + A2A 智能体协同。',
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({

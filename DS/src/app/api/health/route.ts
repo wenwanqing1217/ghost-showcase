@@ -6,11 +6,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Ensure EventBus is initialized on server startup
+import '@/lib/eventbus-init';
+import { getMetrics } from '@/lib/metrics';
+
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
-    // 检查数据库连通性
     await prisma.$queryRaw`SELECT 1`;
 
     return NextResponse.json({

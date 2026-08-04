@@ -7,8 +7,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { ShoplazzaClient, ShoplazzaError } from '@/lib/shoplazza';
+import { OneBoundClient, OneBoundError } from '@/lib/onebound';
 import { verifyRequest } from '@/lib/auth';
+import { getTenantId, tenantWhere, tenantCreateData } from '@/lib/tenant';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -19,46 +20,47 @@ const SyncSchema = z.object({
 });
 
 /**
- * 同步商品：拉取 → upsert
+ * 同步商品：从 OneBound 拉取 → upsert（带 tenantId）
  */
-async function syncProducts(client: ShoplazzaClient, shopId: string): Promise<number> {
+async function syncProducts(client: OneBoundClient, shopId: string, tenantId: string): Promise<number> {
   const products = await client.listAllProducts();
   let count = 0;
 
   for (const p of products) {
-    // Shoplazza 价格字段：price_min/price_max 或 variants[0].price
-    const price = p.price_min
-      ? parseFloat(String(p.price_min))
+    // OneBound 商品字段映射
+    const price = p.price
+      ? parseFloat(String(p.price))
       : p.variants?.[0]?.price
         ? parseFloat(String(p.variants[0].price))
         : 0;
-    const comparePrice = p.origin_price_max
-      ? parseFloat(String(p.origin_price_max))
+    const comparePrice = p.compare_price
+      ? parseFloat(String(p.compare_price))
       : null;
-    const imageSrcs = p.images?.map((i) => i.src) ?? [];
+    const imageSrcs = p.images?.map((i) => i.url) ?? [];
+    const status = p.status === 'active' || p.status === 'available' ? 'active' : 'draft';
 
     await prisma.product.upsert({
-      where: { shopId_externalId: { shopId, externalId: p.id } },
+      where: { shopId_externalId: { shopId, externalId: String(p.id) } },
       update: {
         title: p.title,
         description: p.description ?? null,
         price,
         comparePrice,
         images: JSON.stringify(imageSrcs),
-        status: p.published ? 'active' : 'draft',
+        status,
         lastSyncedAt: new Date(),
       },
-      create: {
+      create: tenantCreateData(tenantId, {
         shopId,
-        externalId: p.id,
+        externalId: String(p.id),
         title: p.title,
         description: p.description ?? null,
         price,
         comparePrice,
         images: JSON.stringify(imageSrcs),
-        status: p.published ? 'active' : 'draft',
+        status,
         currency: 'USD',
-      },
+      }),
     });
     count += 1;
   }
@@ -66,105 +68,110 @@ async function syncProducts(client: ShoplazzaClient, shopId: string): Promise<nu
 }
 
 /**
- * 同步订单：拉取 → upsert
+ * 同步订单：从 OneBound 拉取代发订单 → upsert（带 tenantId）
  */
-async function syncOrders(client: ShoplazzaClient, shopId: string): Promise<number> {
+async function syncOrders(client: OneBoundClient, shopId: string, tenantId: string): Promise<number> {
   const orders = await client.listAllOrders();
   let count = 0;
 
   for (const o of orders) {
+    const status = mapOneBoundStatus(o.status);
+    const itemCount = o.items?.reduce((sum, li) => sum + (li.quantity || 0), 0) || 0;
+
     await prisma.order.upsert({
-      where: { shopId_externalId: { shopId, externalId: o.id } },
+      where: { shopId_externalId: { shopId, externalId: String(o.id) } },
       update: {
-        orderNo: o.order_number || o.name || o.id,
-        amount: o.total_price ? parseFloat(String(o.total_price)) : 0,
-        status: mapOrderStatus(o.financial_status, o.fulfillment_status),
-        customerName: o.customer?.name ?? null,
-        customerEmail: o.customer?.email ?? null,
-        itemCount: o.line_items?.reduce((sum, li) => sum + li.quantity, 0) ?? 0,
-        paidAt: o.financial_status === 'paid' ? new Date(o.created_at || Date.now()) : null,
-        fulfilledAt: o.fulfillment_status === 'fulfilled' ? new Date(o.updated_at || Date.now()) : null,
+        orderNo: o.order_number || String(o.id),
+        amount: o.total ? parseFloat(String(o.total)) : 0,
+        status,
+        customerName: o.shipping_address?.name ?? null,
+        customerEmail: null,
+        itemCount,
+        trackingNumber: o.tracking_number || null,
+        trackingCompany: o.tracking_company || null,
         rawData: JSON.stringify(o),
       },
-      create: {
+      create: tenantCreateData(tenantId, {
         shopId,
-        externalId: o.id,
-        orderNo: o.order_number || o.name || o.id,
-        amount: o.total_price ? parseFloat(String(o.total_price)) : 0,
-        status: mapOrderStatus(o.financial_status, o.fulfillment_status),
-        customerName: o.customer?.name ?? null,
-        customerEmail: o.customer?.email ?? null,
-        itemCount: o.line_items?.reduce((sum, li) => sum + li.quantity, 0) ?? 0,
-        currency: 'USD',
-        paidAt: o.financial_status === 'paid' ? new Date(o.created_at || Date.now()) : null,
-        fulfilledAt: o.fulfillment_status === 'fulfilled' ? new Date(o.updated_at || Date.now()) : null,
+        externalId: String(o.id),
+        orderNo: o.order_number || String(o.id),
+        amount: o.total ? parseFloat(String(o.total)) : 0,
+        status,
+        currency: o.currency || 'USD',
+        customerName: o.shipping_address?.name ?? null,
+        itemCount,
+        trackingNumber: o.tracking_number || null,
+        trackingCompany: o.tracking_company || null,
         rawData: JSON.stringify(o),
-      },
+      }),
     });
     count += 1;
   }
   return count;
 }
 
-/** Shoplazza 状态 → 内部统一状态 */
-function mapOrderStatus(
-  financial?: string,
-  fulfillment?: string
-): string {
-  if (financial === 'refunded' || financial === 'voided') return 'refunded';
-  if (fulfillment === 'fulfilled') return 'fulfilled';
-  if (financial === 'paid') return 'paid';
-  if (financial === 'pending' || financial === 'authorized') return 'pending';
+/** OneBound 状态 → 内部统一状态 */
+function mapOneBoundStatus(oneboundStatus?: string): string {
+  if (!oneboundStatus) return 'pending';
+  const s = oneboundStatus.toLowerCase();
+  if (s.includes('fulfill') || s.includes('ship')) return 'fulfilled';
+  if (s.includes('paid') || s.includes('confirm')) return 'paid';
+  if (s.includes('cancel') || s.includes('refund')) return 'cancelled';
+  if (s.includes('process')) return 'processing';
   return 'pending';
 }
 
 // ── 主入口 ──
 export async function POST(req: NextRequest) {
-  // 认证检查
   const auth = verifyRequest(req);
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
   }
 
   const body = await req.json().catch(() => ({}));
-  const { entity, shopId } = SyncSchema.parse(body);
+  const { entity, shopId: requestedShopId } = SyncSchema.parse(body);
+  const tenantId = getTenantId(req);
 
-  // 查找目标店铺
-  const shop = shopId
-    ? await prisma.shop.findUnique({ where: { id: shopId } })
-    : await prisma.shop.findFirst({ where: { active: true } });
+  // 查找目标店铺（tenant 隔离）
+  const shop = requestedShopId
+    ? await prisma.shop.findFirst({
+        where: { id: requestedShopId, ...tenantWhere(tenantId) },
+      })
+    : await prisma.shop.findFirst({
+        where: { active: true, ...tenantWhere(tenantId) },
+      });
 
   if (!shop) {
-    return NextResponse.json({ error: '未找到店铺，请先连接' }, { status: 404 });
+    return NextResponse.json({ error: '未找到货源连接，请先连接 OneBound' }, { status: 404 });
   }
 
-  // 创建客户端
-  let client: ShoplazzaClient;
+  // 创建 OneBound 客户端
+  let client: OneBoundClient;
   try {
-    client = new ShoplazzaClient(shop.domain, shop.accessToken);
+    client = new OneBoundClient(shop.accessToken);
   } catch (err) {
     return NextResponse.json(
-      { error: `店铺配置无效: ${err instanceof Error ? err.message : ''}` },
+      { error: `API Key 无效: ${err instanceof Error ? err.message : ''}` },
       { status: 400 }
     );
   }
 
   const results: Record<string, { count: number; error?: string }> = {};
 
-  // 同步商品
+  // 同步商品（从 OneBound 货源拉取）
   if (entity === 'products' || entity === 'all') {
     const syncLog = await prisma.syncLog.create({
-      data: { shopId: shop.id, entity: 'products', action: 'full', status: 'running' },
+      data: tenantCreateData(tenantId, { shopId: shop.id, entity: 'products', action: 'full', status: 'running' }),
     });
     try {
-      const count = await syncProducts(client, shop.id);
+      const count = await syncProducts(client, shop.id, tenantId);
       await prisma.syncLog.update({
         where: { id: syncLog.id },
         data: { status: 'success', count, finishedAt: new Date() },
       });
       results.products = { count };
     } catch (err) {
-      const msg = err instanceof ShoplazzaError ? err.message : String(err);
+      const msg = err instanceof OneBoundError ? err.message : String(err);
       await prisma.syncLog.update({
         where: { id: syncLog.id },
         data: { status: 'failed', error: msg, finishedAt: new Date() },
@@ -173,20 +180,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // 同步订单
+  // 同步订单（从 OneBound 拉取代发订单）
   if (entity === 'orders' || entity === 'all') {
     const syncLog = await prisma.syncLog.create({
-      data: { shopId: shop.id, entity: 'orders', action: 'full', status: 'running' },
+      data: tenantCreateData(tenantId, { shopId: shop.id, entity: 'orders', action: 'full', status: 'running' }),
     });
     try {
-      const count = await syncOrders(client, shop.id);
+      const count = await syncOrders(client, shop.id, tenantId);
       await prisma.syncLog.update({
         where: { id: syncLog.id },
         data: { status: 'success', count, finishedAt: new Date() },
       });
       results.orders = { count };
     } catch (err) {
-      const msg = err instanceof ShoplazzaError ? err.message : String(err);
+      const msg = err instanceof OneBoundError ? err.message : String(err);
       await prisma.syncLog.update({
         where: { id: syncLog.id },
         data: { status: 'failed', error: msg, finishedAt: new Date() },

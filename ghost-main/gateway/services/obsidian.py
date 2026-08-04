@@ -5,9 +5,6 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from doubao_reader.obsidian_writer import ObsidianWriter
-from doubao_reader.obsidian_organizer import run_organization, batch_link_related
-
 logger = logging.getLogger("ghost-gateway")
 
 
@@ -153,7 +150,7 @@ def write_conversation_async(
 ):
     """Write conversation to Obsidian vault in background executor."""
     try:
-        import asyncio
+        from doubao_reader.obsidian_writer import ObsidianWriter
 
         ow = ObsidianWriter()
         loop = asyncio.get_event_loop()
@@ -173,7 +170,7 @@ def write_conversation_async(
 def trigger_organization():
     """Trigger Obsidian organization in background thread."""
     try:
-        import threading
+        from doubao_reader.obsidian_organizer import run_organization
 
         threading.Thread(target=run_organization, daemon=True).start()
     except Exception as org_err:
@@ -183,6 +180,8 @@ def trigger_organization():
 def run_batch_link():
     """Run batch link related files in Obsidian vault."""
     try:
+        from doubao_reader.obsidian_organizer import batch_link_related
+
         batch_link_related()
     except Exception as org_err:
         logger.error("Batch link error: %s", org_err)

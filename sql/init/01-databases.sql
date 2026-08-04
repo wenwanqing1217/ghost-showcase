@@ -14,3 +14,7 @@ GRANT ALL PRIVILEGES ON DATABASE alpha_id TO ghost;
 -- Gateway
 CREATE DATABASE gateway;
 GRANT ALL PRIVILEGES ON DATABASE gateway TO ghost;
+
+-- Ghost DS (电商看板)
+CREATE DATABASE ghost;
+GRANT ALL PRIVILEGES ON DATABASE ghost TO ghost;

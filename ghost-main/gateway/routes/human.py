@@ -9,7 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Request
 
-from services.proxy import proxy_get, proxy_post, ok, fail
+from services.proxy import proxy_get, proxy_post, ok, fail, forward_csrf_headers
 from middleware.rate_limit import rate_limit_check, client_ip
 from services.memory_graph import get_memory_graph
 from services.obsidian import search_vault
@@ -31,7 +31,13 @@ async def _proxy_alphaid_get(path: str, request: Request, headers: dict = None):
 
 async def _proxy_alphaid_post(path: str, request: Request, body: dict = None, headers: dict = None):
     """Proxy POST to Alpha-ID and return unified response."""
-    data = await proxy_post(path, config.ALPHAID_URL, body=body, headers=headers)
+    # 转发 CSRF 相关头部（Gateway 已做 Tenant Auth + Rate Limit）
+    fwd = dict(headers or {})
+    for h in ("x-requested-with", "origin", "referer", "x-tenant-id"):
+        v = request.headers.get(h)
+        if v and h not in fwd:
+            fwd[h] = v
+    data = await proxy_post(path, config.ALPHAID_URL, body=body, headers=fwd)
     return ok(data, request)
 
 
@@ -106,6 +112,9 @@ async def chat(request: Request):
     if not message:
         return fail("message required", 400, request)
 
+    # 使用统一工具提取 CSRF 相关头部
+    fwd_headers = forward_csrf_headers(request)
+
     # Step 1: 通过 quick-register 获取 JWT（幂等：已注册则直接登录）
     access_token = None
     try:
@@ -114,6 +123,7 @@ async def chat(request: Request):
             "/api/v1/identity/quick-register",
             config.ALPHAID_URL,
             body=qr_body,
+            headers=fwd_headers,
         )
         if isinstance(qr_data, dict):
             access_token = qr_data.get("access_token")
@@ -126,7 +136,7 @@ async def chat(request: Request):
         logger.warning("quick-register failed: %s", e)
 
     # Step 2: 用 JWT 调用 Alpha-ID /api/v1/agent/chat
-    chat_headers = {"Authorization": f"Bearer {access_token}"} if access_token else None
+    chat_headers = forward_csrf_headers(request, {"Authorization": f"Bearer {access_token}"}) if access_token else fwd_headers
     data = await proxy_post(
         "/api/v1/agent/chat",
         config.ALPHAID_URL,
@@ -184,9 +194,37 @@ async def parse_intent(request: Request):
 
 @router.post("/memory/store")
 async def memory_store(request: Request):
-    """Store memory → proxy to Alpha-ID /api/v1/dual-chain/save."""
+    """Store memory → proxy to Alpha-ID /api/v1/dual-chain/save.
+    
+    自动 quick-register 获取 JWT（已注册则直接登录），避免 401。
+    """
     body = await request.json()
-    return await _proxy_alphaid_post("/api/v1/dual-chain/save", request, body=body)
+    aid = body.get("alpha_id", config.DEFAULT_ALPHA_ID)
+
+    # 使用统一工具提取 CSRF 相关头部
+    fwd = forward_csrf_headers(request)
+
+    # Step 1: 通过 quick-register 获取 JWT（幂等）
+    access_token = None
+    try:
+        qr_body = {"alpha_id": aid} if aid != config.DEFAULT_ALPHA_ID else {}
+        qr_data = await proxy_post(
+            "/api/v1/identity/quick-register",
+            config.ALPHAID_URL,
+            body=qr_body,
+            headers=fwd,
+        )
+        if isinstance(qr_data, dict):
+            access_token = qr_data.get("access_token")
+            if not access_token:
+                access_token = (qr_data.get("data", {}) or {}).get("access_token")
+    except Exception as e:
+        logger.warning("quick-register failed for memory store: %s", e)
+
+    # Step 2: 用 JWT 调用 Alpha-ID /api/v1/dual-chain/save
+    save_headers = forward_csrf_headers(request, {"Authorization": f"Bearer {access_token}"}) if access_token else fwd
+    data = await proxy_post("/api/v1/dual-chain/save", config.ALPHAID_URL, body=body, headers=save_headers)
+    return ok(data, request)
 
 
 @router.get("/memory/graph")

@@ -4,6 +4,9 @@ import { useEffect, useState, useCallback } from 'react';
 import StatusBadge from '@/components/StatusBadge';
 import Pagination from '@/components/Pagination';
 import ProductAiDialog from '@/components/ProductAiDialog';
+import TopBar from '@/components/layout/TopBar';
+import AuthGuard from '@/components/layout/AuthGuard';
+import { getApiUrl } from '@/lib/gateway-client';
 
 interface Product {
   id: string;
@@ -30,10 +33,12 @@ export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [pagination, setPagination] = useState<PaginationInfo>({ page: 1, limit: 20, total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [aiAvailable, setAiAvailable] = useState(false);
   const [aiProduct, setAiProduct] = useState<Product | null>(null);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   const fetchProducts = useCallback(async (page: number = 1) => {
     setLoading(true);
@@ -42,14 +47,16 @@ export default function ProductsPage() {
       if (statusFilter) params.set('status', statusFilter);
       if (search) params.set('search', search);
 
-      const res = await fetch(`/api/products?${params}`);
+      const res = await fetch(getApiUrl('/api/products', params));
       if (res.ok) {
         const data = await res.json();
         setProducts(data.items);
         setPagination(data.pagination);
+      } else {
+        console.error('[ProductsPage] fetch failed:', res.status, res.statusText);
       }
-    } catch {
-      // silent
+    } catch (err) {
+      console.error('[ProductsPage] fetch error:', err);
     } finally {
       setLoading(false);
     }
@@ -58,7 +65,7 @@ export default function ProductsPage() {
   useEffect(() => {
     fetchProducts(1);
     // 检查 AI 可用性
-    fetch('/api/ai/status')
+    fetch(getApiUrl('/api/ai/status'))
       .then((r) => r.json())
       .then((d) => setAiAvailable(d.available))
       .catch(() => setAiAvailable(false));
@@ -73,21 +80,79 @@ export default function ProductsPage() {
     fetchProducts(1);
   };
 
+  const handleSync = async () => {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const res = await fetch(getApiUrl('/api/sync'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ entity: 'products' }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setSyncMsg(`同步完成 · ${data.results?.products?.count || 0} 个商品`);
+        fetchProducts(1);
+      } else {
+        setSyncMsg(data.error || '同步失败');
+      }
+    } catch {
+      setSyncMsg('同步请求失败');
+    } finally {
+      setSyncing(false);
+      setTimeout(() => setSyncMsg(null), 4000);
+    }
+  };
+
   return (
-    <div>
-      <div className="flex-between mb-3">
+    <AuthGuard>
+      <TopBar title="商品管理" subtitle="OneBound 货源商品同步与 AI 文案" />
+      <div className="p-6">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex-between mb-3">
         <div>
           <h2 style={{ fontSize: 20, fontWeight: 700 }}>商品管理</h2>
           <div className="flex gap-2" style={{ marginTop: 4 }}>
             <span className="text-muted text-sm">共 {pagination.total} 个商品</span>
             {aiAvailable && (
-              <span className="badge" style={{ background: 'rgba(108,92,231,0.15)', color: 'var(--accent)' }}>
-                ✨ AI 已就绪
+              <span style={{
+                fontSize: 11,
+                padding: '2px 8px',
+                borderRadius: 9999,
+                background: 'rgba(139,92,246,0.08)',
+                color: 'var(--nebula-light)',
+                border: '1px solid rgba(139,92,246,0.12)',
+              }}>
+                AI 就绪
               </span>
             )}
           </div>
         </div>
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="btn btn-sm"
+          style={{ fontSize: 12 }}
+        >
+          {syncing ? '⟳ 同步中...' : '⟳ 同步'}
+        </button>
       </div>
+
+      {syncMsg && (
+        <div style={{
+          padding: '8px 12px',
+          marginBottom: 12,
+          borderRadius: 8,
+          background: syncMsg.includes('失败') || syncMsg.includes('失败')
+            ? 'rgba(239,68,68,0.08)'
+            : 'rgba(16,185,129,0.08)',
+          color: syncMsg.includes('失败') ? 'var(--danger)' : 'var(--success)',
+          fontSize: 12,
+          border: `1px solid ${syncMsg.includes('失败') ? 'rgba(239,68,68,0.12)' : 'rgba(16,185,129,0.12)'}`,
+        }}>
+          {syncMsg}
+        </div>
+      )}
 
       {/* 筛选栏 */}
       <div className="card mb-3" style={{ padding: '12px 16px' }}>
@@ -181,8 +246,9 @@ export default function ProductsPage() {
                             className="btn btn-sm"
                             onClick={() => setAiProduct(p)}
                             title="AI 优化文案"
+                            style={{ fontSize: 11, padding: '3px 10px' }}
                           >
-                            ✨
+                            AI
                           </button>
                         </td>
                       )}
@@ -206,14 +272,16 @@ export default function ProductsPage() {
         <ProductAiDialog
           product={aiProduct}
           onClose={() => setAiProduct(null)}
-          onSaved={(title) => {
-            // 更新列表中对应商品的标题
+          onSaved={(title, description) => {
+            // 更新列表中对应商品的标题和描述
             setProducts((prev) =>
-              prev.map((p) => (p.id === aiProduct.id ? { ...p, title } : p))
+              prev.map((p) => (p.id === aiProduct.id ? { ...p, title, description } : p))
             );
           }}
         />
       )}
+      </div>
     </div>
+    </AuthGuard>
   );
 }

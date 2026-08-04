@@ -1,242 +1,373 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import RevenueChart from '@/components/RevenueChart';
+import Link from 'next/link';
+import CosmicBackground from '@/components/marketing/CosmicBackground';
+import GlassCard from '@/components/shared/GlassCard';
+import Tag from '@/components/shared/Tag';
+import GhostSprite from '@/components/shared/GhostSprite';
 
-interface DailyRevenue {
-  date: string;
-  amount: number;
-}
-
-interface Overview {
-  productCount: number;
-  productActiveCount: number;
-  orderCount: number;
-  totalRevenue: number;
-  lowInventoryCount: number;
-}
-
-interface OrderStatus {
-  status: string;
-  count: number;
-  amount: number;
-}
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: '待付款',
-  paid: '已付款',
-  fulfilled: '已发货',
-  refunded: '已退款',
-  cancelled: '已取消',
-};
-
-export default function DashboardPage() {
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [orderStatus, setOrderStatus] = useState<OrderStatus[]>([]);
-  const [dailyRevenue, setDailyRevenue] = useState<DailyRevenue[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<string | null>(null);
-  const [shop, setShop] = useState<{ name: string; domain: string } | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
-
-  const fetchData = useCallback(async () => {
-    try {
-      const [statsRes, shopRes] = await Promise.all([
-        fetch('/api/stats'),
-        fetch('/api/shop'),
-      ]);
-      if (statsRes.ok) {
-        const data = await statsRes.json();
-        setOverview(data.overview);
-        setOrderStatus(data.orderStatus || []);
-        setDailyRevenue(data.dailyRevenue || []);
-      }
-      if (shopRes.ok) {
-        const data = await shopRes.json();
-        if (data.shop) setShop(data.shop);
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '数据加载失败');
-    } finally {
-      setLoading(false);
-      setLastUpdated(new Date());
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  const handleSync = async (entity: string) => {
-    setSyncing(true);
-    setSyncResult(null);
-    try {
-      const res = await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ entity }),
-      });
-      const data = await res.json();
-      if (data.ok) {
-        setSyncResult(`同步成功: ${Object.entries(data.results).map(([k, v]: [string, any]) => `${k} ${v.count}条`).join(', ')}`);
-        fetchData(); // 刷新数据
-      } else {
-        setSyncResult(`同步失败: ${Object.entries(data.results).filter(([, v]: [string, any]) => v.error).map(([k, v]: [string, any]) => `${k}: ${v.error}`).join('; ')}`);
-      }
-    } catch (err) {
-      setSyncResult(`同步错误: ${err instanceof Error ? err.message : '未知错误'}`);
-    } finally {
-      setSyncing(false);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div style={{ padding: 60, textAlign: 'center' }}>
-        <div style={{ fontSize: 24, marginBottom: 12 }}>⟳</div>
-        <div style={{ color: 'var(--text-muted)' }}>加载数据中...</div>
-      </div>
-    );
-  }
-
+export default function HomePage() {
   return (
-    <div>
-      {/* 错误提示 */}
-      {error && (
-        <div
-          className="mb-3"
-          style={{
-            padding: '10px 16px',
-            background: 'rgba(255,107,107,0.1)',
-            border: '1px solid rgba(255,107,107,0.3)',
-            borderRadius: 8,
-            color: 'var(--danger)',
-            fontSize: 13,
-          }}
-        >
-          ⚠ {error}
-          <button className="btn btn-sm" style={{ marginLeft: 12 }} onClick={fetchData}>重试</button>
-        </div>
-      )}
+    <div className="relative">
+      <CosmicBackground opacity={0.4} />
 
-      {/* 顶部标题 */}
-      <div className="flex-between mb-3">
-        <div>
-          <h2 style={{ fontSize: 20, fontWeight: 700 }}>
-            {shop ? shop.name : '看板概览'}
-          </h2>
-          <p className="text-muted text-sm">
-            {shop ? shop.domain : '请先在「店铺设置」连接你的 Shoplazza 店铺'}
-            {' · '}
-            更新于 {lastUpdated.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <button
-            className="btn btn-sm"
-            onClick={fetchData}
-            title="刷新数据"
-          >
-            ↻
-          </button>
-          <button
-            className="btn btn-sm"
-            onClick={() => handleSync('products')}
-            disabled={syncing}
-          >
-            {syncing ? '⟳' : '↻'} 同步商品
-          </button>
-          <button
-            className="btn btn-sm"
-            onClick={() => handleSync('orders')}
-            disabled={syncing}
-          >
-            {syncing ? '⟳' : '↻'} 同步订单
-          </button>
-          <button
-            className="btn btn-sm btn-primary"
-            onClick={() => handleSync('all')}
-            disabled={syncing}
-          >
-            {syncing ? '同步中...' : '一键全同步'}
-          </button>
-        </div>
-      </div>
-
-      {/* 同步结果提示 */}
-      {syncResult && (
-        <div className="card mb-3" style={{ padding: '10px 16px', fontSize: 13 }}>
-          {syncResult}
-        </div>
-      )}
-
-      {/* 统计卡片 */}
-      {overview && (
-        <div className="stats-grid">
-          <div className="stat-card">
-            <div className="stat-label">在售商品</div>
-            <div className="stat-value">{overview.productActiveCount}</div>
-            <div className="stat-sub">共 {overview.productCount} 个商品</div>
-          </div>
-          <div className="stat-card success">
-            <div className="stat-label">订单总数</div>
-            <div className="stat-value">{overview.orderCount}</div>
-            <div className="stat-sub">所有渠道</div>
-          </div>
-          <div className="stat-card info">
-            <div className="stat-label">总收入</div>
-            <div className="stat-value">
-              ${overview.totalRevenue.toFixed(2)}
+      <div className="relative z-10">
+        {/* ═══════════════════════════════════════════
+            HERO — 像截图那样：大视觉 + 标题 + 标签 + 数据
+            ═══════════════════════════════════════════ */}
+        <section className="pt-20 pb-16 px-6 md:px-12">
+          <div className="max-w-4xl mx-auto text-center">
+            {/* 小精灵 — 白色幽灵 */}
+            <div className="mb-8" style={{ display: 'flex', justifyContent: 'center' }}>
+              <GhostSprite size={80} mood="idle" />
             </div>
-            <div className="stat-sub">已付款 + 已发货</div>
-          </div>
-          <div className="stat-card warning">
-            <div className="stat-label">低库存预警</div>
-            <div className="stat-value">{overview.lowInventoryCount}</div>
-            <div className="stat-sub">库存 &lt; 10</div>
-          </div>
-        </div>
-      )}
 
-      {/* 订单状态分布 */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">订单状态分布</span>
-        </div>
-        {orderStatus.length === 0 ? (
-          <p className="text-muted text-sm">暂无订单数据</p>
-        ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>状态</th>
-                  <th>数量</th>
-                  <th>金额</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orderStatus.map((s) => (
-                  <tr key={s.status}>
-                    <td>{STATUS_LABELS[s.status] || s.status}</td>
-                    <td>{s.count}</td>
-                    <td>${(s.amount || 0).toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+            {/* 主标题 — 克制、有力 */}
+            <h1
+              className="mb-4"
+              style={{
+                fontSize: 'clamp(2.5rem, 6vw, 4.5rem)',
+                fontWeight: 800,
+                lineHeight: 1.1,
+                letterSpacing: '-0.02em',
+                color: 'var(--text-primary)',
+              }}
+            >
+              数字灵魂
+            </h1>
 
-      {/* 近7日收入趋势 */}
-      <div className="card">
-        <div className="card-header">
-          <span className="card-title">近7日收入趋势</span>
-        </div>
-        <RevenueChart data={dailyRevenue} currency="USD" />
+            {/* 副标题 — 一行说清 */}
+            <p
+              className="mb-6"
+              style={{
+                fontSize: 'clamp(1rem, 2vw, 1.25rem)',
+                color: 'var(--text-secondary)',
+                maxWidth: 560,
+                marginLeft: 'auto',
+                marginRight: 'auto',
+                lineHeight: 1.5,
+              }}
+            >
+              坐在所有 AI 工具之上的身份层。
+              <br />
+              你的记忆、决策、能力 — 统一在一个数字灵魂里。
+            </p>
+
+            {/* 标签 — 精简 */}
+            <div className="flex flex-wrap justify-center gap-2 mb-8">
+              <Tag>DID 身份</Tag>
+              <Tag variant="subtle">因果图谱</Tag>
+              <Tag variant="subtle">三层记忆</Tag>
+              <Tag variant="subtle">PoE 可验证</Tag>
+            </div>
+
+            {/* CTA */}
+            <div className="flex items-center justify-center gap-3">
+              <Link
+                href="/app/chat"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition-all"
+                style={{
+                  background: 'rgba(139,92,246,0.15)',
+                  color: 'var(--nebula-light)',
+                  border: '1px solid rgba(139,92,246,0.2)',
+                }}
+              >
+                开始使用
+                <span style={{ fontSize: 14 }}>→</span>
+              </Link>
+              <Link
+                href="#capabilities"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm transition-all"
+                style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  color: 'var(--text-secondary)',
+                  border: '1px solid var(--border-color)',
+                }}
+              >
+                了解更多
+              </Link>
+            </div>
+
+            {/* 数据条 — 像截图中的统计 */}
+            <div
+              className="mt-12 flex items-center justify-center gap-8 md:gap-12"
+              style={{
+                padding: '16px 0',
+                borderTop: '1px solid var(--border-color)',
+                borderBottom: '1px solid var(--border-color)',
+                maxWidth: 560,
+                marginLeft: 'auto',
+                marginRight: 'auto',
+              }}
+            >
+              {[
+                { value: '20+', label: '原子点' },
+                { value: '9', label: '能力域' },
+                { value: '6', label: '思维框架' },
+                { value: '90天', label: 'MVP → v1.0' },
+              ].map((stat, i) => (
+                <div key={i} style={{ textAlign: 'center' }}>
+                  <div
+                    style={{
+                      fontSize: 'clamp(1.25rem, 3vw, 1.75rem)',
+                      fontWeight: 700,
+                      color: 'var(--text-primary)',
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {stat.value}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: 'var(--text-muted)',
+                      marginTop: 2,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      letterSpacing: '0.3px',
+                    }}
+                  >
+                    {stat.label}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════
+            能力轨道 — 像播放列表，每项是一个能力
+            ═══════════════════════════════════════════ */}
+        <section id="capabilities" className="py-20 px-6 md:px-12">
+          <div className="max-w-3xl mx-auto">
+            {/* 区块标题 */}
+            <div className="mb-10">
+              <div
+                style={{
+                  fontSize: 11,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  color: 'var(--text-muted)',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  marginBottom: 8,
+                }}
+              >
+                CAPABILITIES
+              </div>
+              <h2
+                style={{
+                  fontSize: 'clamp(1.5rem, 3vw, 2rem)',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  marginBottom: 8,
+                }}
+              >
+                你的数字灵魂，能做什么
+              </h2>
+              <p style={{ color: 'var(--text-secondary)', fontSize: 14, maxWidth: 480 }}>
+                从身份到记忆到决策，六层架构，一套自洽。
+              </p>
+            </div>
+
+            {/* 能力列表 — 每条独立，有编号 */}
+            <div className="space-y-3">
+              {[
+                {
+                  num: '01',
+                  title: 'DID 去中心化身份',
+                  desc: 'Ed25519 密钥对 · 去中心化标识符 · 私钥本地加密 · 助记词社交恢复',
+                  tags: ['Ed25519', 'DID', '本地优先'],
+                },
+                {
+                  num: '02',
+                  title: '因果图谱记忆',
+                  desc: '20+ 原子点 · 10 种连接关系 · 三层记忆架构 · 多跳推理 + 冲突检测',
+                  tags: ['因果推理', '知识图谱'],
+                },
+                {
+                  num: '03',
+                  title: '全局回溯决策',
+                  desc: '3 分支推演 · 逆向校验 · 置信度评分 · 避免局部最优',
+                  tags: ['决策树', '反向验证'],
+                },
+                {
+                  num: '04',
+                  title: 'MCP + A2A 桥接',
+                  desc: '24 个 MCP 工具 · A2A 协议适配 · Claude/Cursor/Windsurf 直接识别',
+                  tags: ['MCP', 'A2A'],
+                },
+                {
+                  num: '05',
+                  title: 'PoE 可验证执行',
+                  desc: '每次 Skill 执行生成哈希链 · 全程可审计 · 不可篡改',
+                  tags: ['PoE', '哈希链'],
+                },
+                {
+                  num: '06',
+                  title: '飞书 + 豆包集成',
+                  desc: '飞书 WebSocket Bot · 豆包对话自动同步 · Obsidian 双向同步',
+                  tags: ['飞书', '豆包', 'Obsidian'],
+                },
+              ].map((cap, i) => (
+                <GlassCard
+                  key={i}
+                  className="group"
+                  style={{
+                    padding: '20px 24px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <div className="flex items-start gap-4">
+                    {/* 编号 */}
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        color: 'var(--text-muted)',
+                        minWidth: 24,
+                        paddingTop: 2,
+                      }}
+                    >
+                      {cap.num}
+                    </div>
+
+                    {/* 内容 */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-1.5">
+                        <h3
+                          className="text-base font-semibold transition-colors"
+                          style={{ color: 'var(--text-primary)' }}
+                        >
+                          {cap.title}
+                        </h3>
+                        <div className="flex gap-1.5">
+                          {cap.tags.map((tag, j) => (
+                            <span
+                              key={j}
+                              style={{
+                                fontSize: 10,
+                                padding: '2px 8px',
+                                borderRadius: 9999,
+                                background: 'var(--bg-active)',
+                                color: 'var(--text-muted)',
+                                border: '1px solid var(--border-color)',
+                                fontFamily: "'JetBrains Mono', monospace",
+                              }}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <p
+                        style={{
+                          fontSize: 13,
+                          color: 'var(--text-secondary)',
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {cap.desc}
+                      </p>
+                    </div>
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════
+            架构 — 六层，一排
+            ═══════════════════════════════════════════ */}
+        <section className="py-16 px-6 md:px-12">
+          <div className="max-w-4xl mx-auto">
+            <div className="text-center mb-10">
+              <div
+                style={{
+                  fontSize: 11,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  color: 'var(--text-muted)',
+                  letterSpacing: '1px',
+                  textTransform: 'uppercase',
+                  marginBottom: 8,
+                }}
+              >
+                ARCHITECTURE
+              </div>
+              <h2
+                style={{
+                  fontSize: 'clamp(1.25rem, 2.5vw, 1.75rem)',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                }}
+              >
+                六层架构，一套自洽
+              </h2>
+            </div>
+
+            <div
+              className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
+            >
+              {[
+                { name: '身份层', tech: 'DID + Ed25519' },
+                { name: '记忆层', tech: '因果图谱 + 三层记忆' },
+                { name: '决策层', tech: '多跳推理 + 回溯' },
+                { name: '桥接层', tech: 'MCP + A2A' },
+                { name: '展示层', tech: '悬浮球 + 星链' },
+                { name: '通信层', tech: 'AI Mesh' },
+              ].map((layer, i) => (
+                <GlassCard key={i} className="text-center" style={{ padding: '20px 12px' }}>
+                  <div style={{
+                    width: 28, height: 28,
+                    borderRadius: '50%',
+                    background: 'var(--bg-hover)',
+                    margin: '0 auto 8px',
+                    border: '1px solid var(--border-color)',
+                  }} />
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+                    {layer.name}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 10,
+                      color: 'var(--text-muted)',
+                      fontFamily: "'JetBrains Mono', monospace",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {layer.tech}
+                  </div>
+                </GlassCard>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* ═══════════════════════════════════════════
+            Footer — 克制
+            ═══════════════════════════════════════════ */}
+        <footer className="py-12 px-6 md:px-12">
+          <div className="max-w-3xl mx-auto text-center">
+            <div
+              style={{
+                fontSize: 13,
+                color: 'var(--text-muted)',
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
+            >
+              Ghost Platform · Web4.0 人机共生基础设施
+            </div>
+            <div
+              style={{
+                fontSize: 11,
+                color: 'var(--text-muted)',
+                marginTop: 4,
+                opacity: 0.6,
+              }}
+            >
+              Version 2.0 · 2026-08
+            </div>
+          </div>
+        </footer>
       </div>
     </div>
   );

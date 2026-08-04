@@ -3,3 +3,6 @@ uvicorn==0.34.*
 httpx==0.28.*
 python-dotenv==1.0.*
 prometheus-client==0.21.*
+requests==2.32.*
+redis==5.2.*
+aioredis==2.0.*

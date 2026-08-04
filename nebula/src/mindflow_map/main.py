@@ -14,6 +14,7 @@ from fastapi.staticfiles import StaticFiles
 from mindflow_map.config import settings
 from mindflow_map.config_validator import check_all
 from mindflow_map.api import approvals, automation, events, health, map, shortdramas, streaming, workflow, feishu_webhook, wechat
+from mindflow_map.api import supply as supply_routes
 from mindflow_map.api.openapi_config import custom_openapi
 from mindflow_map.core.metrics import get_metrics_bytes, get_content_type
 from mindflow_map.logging_config import setup_logging
@@ -205,6 +206,7 @@ app.include_router(streaming.router, prefix="/api/v1/streaming", tags=["streamin
 app.include_router(approvals.router, prefix="/api/v1/approvals", tags=["approvals"])
 app.include_router(events.router, prefix="/api/v1/events", tags=["events"])
 app.include_router(feishu_webhook.router, prefix="/api/v1", tags=["飞书"])
+app.include_router(supply_routes.router, prefix="/api/v1/supply", tags=["货源"])
 
 
 @app.get("/")

@@ -12,17 +12,21 @@ import os
 logger = logging.getLogger("ghost-gateway")
 
 # --- Service URLs ---
-ALPHAID_URL = os.getenv("ALPHAID_URL", "http://localhost:8002")
-NEBULA_URL = os.getenv("NEBULA_URL", "http://localhost:2002")
-ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://localhost:19090")
-FLOW_URL = os.getenv("FLOW_URL", "http://localhost:3036")
-NETAGENT_URL = os.getenv("NETAGENT_URL", "http://localhost:18180")
+# 默认值对应 docker-compose 中的服务名和端口
+# 本地开发可通过环境变量覆盖为 localhost
+ALPHAID_URL = os.getenv("ALPHAID_URL", "http://alphaid:8000")
+NEBULA_URL = os.getenv("NEBULA_URL", "http://nebula:2002")
+ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "http://orchestrator:19090")
+FLOW_URL = os.getenv("FLOW_URL", "http://flow:3036")
+NETAGENT_URL = os.getenv("NETAGENT_URL", "http://netagent:18180")
+DS_URL = os.getenv("DS_URL", "http://ghost-ds:3000")
 
 # --- Identity ---
 DEFAULT_ALPHA_ID = os.getenv("DEFAULT_ALPHA_ID", "")
 
 # --- Runtime ---
 GATEWAY_PORT = int(os.getenv("GATEWAY_PORT", "18080"))
+GATEWAY_HOST = os.getenv("GATEWAY_HOST", "0.0.0.0")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 # --- Rate Limiting ---

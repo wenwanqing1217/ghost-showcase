@@ -35,6 +35,7 @@ def _run_alembic_migrations(database_url: str) -> None:
             text=True,
             check=True,
             env=env,
+            cwd="/app",
         )
         logger.info("Alembic migrations completed: %s", result.stdout.strip())
     except subprocess.CalledProcessError as exc:

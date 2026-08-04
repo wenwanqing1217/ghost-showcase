@@ -16,12 +16,12 @@ const FAKE_PRODUCTS = [
 ];
 
 const FAKE_ORDERS = [
-  { externalId: 'o001', orderNo: 'SL202607240001', amount: 54.98, status: 'paid', customerName: 'Alice W.', itemCount: 2 },
-  { externalId: 'o002', orderNo: 'SL202607240002', amount: 29.99, status: 'fulfilled', customerName: 'Bob L.', itemCount: 1 },
-  { externalId: 'o003', orderNo: 'SL202607240003', amount: 99.97, status: 'paid', customerName: 'Carol Z.', itemCount: 3 },
-  { externalId: 'o004', orderNo: 'SL202607230001', amount: 15.99, status: 'pending', customerName: 'David K.', itemCount: 1 },
-  { externalId: 'o005', orderNo: 'SL202607230002', amount: 74.98, status: 'fulfilled', customerName: 'Emma T.', itemCount: 2 },
-  { externalId: 'o006', orderNo: 'SL202607220001', amount: 49.99, status: 'refunded', customerName: 'Frank H.', itemCount: 1 },
+  { externalId: 'o001', orderNo: 'OB202607240001', amount: 54.98, status: 'paid', customerName: 'Alice W.', itemCount: 2 },
+  { externalId: 'o002', orderNo: 'OB202607240002', amount: 29.99, status: 'fulfilled', customerName: 'Bob L.', itemCount: 1 },
+  { externalId: 'o003', orderNo: 'OB202607240003', amount: 99.97, status: 'paid', customerName: 'Carol Z.', itemCount: 3 },
+  { externalId: 'o004', orderNo: 'OB202607230001', amount: 15.99, status: 'pending', customerName: 'David K.', itemCount: 1 },
+  { externalId: 'o005', orderNo: 'OB202607230002', amount: 74.98, status: 'fulfilled', customerName: 'Emma T.', itemCount: 2 },
+  { externalId: 'o006', orderNo: 'OB202607220001', amount: 49.99, status: 'refunded', customerName: 'Frank H.', itemCount: 1 },
 ];
 
 async function main() {
@@ -32,10 +32,12 @@ async function main() {
   if (!shop) {
     shop = await prisma.shop.create({
       data: {
-        name: 'Demo 店铺',
-        domain: 'demo.myshoplazza.com',
-        accessToken: 'demo_token',
-        platform: 'shoplazza',
+        name: 'OneBound 货源',
+        domain: 'onebound-demo',
+        accessToken: 'demo_api_key',
+        platform: 'onebound',
+        tenantId: 'default',
+        storeMode: 'marketplace',
       },
     });
     console.log(`  ✅ Created demo shop: ${shop.id}`);
@@ -49,7 +51,14 @@ async function main() {
 
   for (const p of FAKE_PRODUCTS) {
     await prisma.product.create({
-      data: { ...p, shopId: shop.id, currency: 'USD', images: JSON.stringify(p.images), lastSyncedAt: new Date() },
+      data: {
+        ...p,
+        shopId: shop.id,
+        tenantId: shop.tenantId,
+        currency: 'USD',
+        images: JSON.stringify(p.images),
+        lastSyncedAt: new Date(),
+      },
     });
   }
   console.log(`  ✅ Seeded ${FAKE_PRODUCTS.length} products`);
@@ -61,6 +70,7 @@ async function main() {
       data: {
         ...o,
         shopId: shop.id,
+        tenantId: shop.tenantId,
         currency: 'USD',
         paidAt: o.status !== 'pending' ? new Date(now.getTime() - i * 86400000) : null,
         fulfilledAt: o.status === 'fulfilled' ? new Date(now.getTime() - i * 43200000) : null,

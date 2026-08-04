@@ -432,7 +432,7 @@ export class OneBoundClient {
     );
 
     return {
-      orders: data.orders,
+      orders: data.orders || [],
       hasMore: data.has_more || false,
     };
   }

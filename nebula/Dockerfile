@@ -22,7 +22,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 
 # Install Python dependencies (includes dev deps for mypy/ruff if needed)
 COPY pyproject.toml .
-RUN pip install --no-cache-dir --upgrade pip setuptools wheel \
+COPY src/ ./src/
+RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && pip config set global.timeout 120 && pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -e ".[dev]"
 
 # ---------- Stage 2: runtime ----------
@@ -38,6 +39,7 @@ LABEL org.opencontainers.image.title="mindflow-map" \
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH" \
+    PYTHONPATH="/app/src" \
     # Default to sqlite file in /data; override with DATABASE_URL in prod
     DATABASE_URL="sqlite+aiosqlite:///data/mindflow_map.db" \
     # uvicorn defaults
@@ -54,7 +56,8 @@ COPY --from=builder /opt/venv /opt/venv
 # Copy application source
 COPY src/ ./src/
 COPY README.md ./
-COPY LICENSE ./LICENSE 2>/dev/null || true
+COPY alembic.ini ./
+COPY alembic/ ./alembic/
 
 # Create non-root user and data directory
 RUN groupadd -r appuser \

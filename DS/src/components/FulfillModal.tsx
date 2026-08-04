@@ -73,7 +73,7 @@ export default function FulfillModal({ orderId, orderNo, onClose, onSuccess }: F
               marginBottom: 12,
             }}
           >
-            ⚠ {error}
+            — {error}
           </div>
         )}
 

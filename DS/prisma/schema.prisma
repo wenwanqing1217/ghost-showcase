@@ -13,15 +13,17 @@ datasource db {
 
 /// 店铺连接配置（一个店铺一条记录）
 model Shop {
-  id        String   @id @default(cuid())
-  name      String   @default("我的店铺")
-  domain    String
+  id         String   @id @default(cuid())
+  name       String   @default("我的店铺")
+  domain     String
   accessToken String
-  platform  String   @default("shoplazza")
-  alphaId   String?
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  platform   String   @default("shoplazza")
+  alphaId    String?
+  active     Boolean  @default(true)
+  tenantId   String   @default("default")
+  storeMode  String?  @default("marketplace")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   products Product[]
   orders   Order[]
@@ -29,6 +31,7 @@ model Shop {
 
   @@unique([domain])
   @@index([alphaId])
+  @@index([tenantId])
 }
 
 /// 商品数据
@@ -47,12 +50,14 @@ model Product {
   status       String   @default("active")
   rawData      String?
   lastSyncedAt DateTime @default(now())
+  tenantId     String   @default("default")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   @@unique([shopId, externalId])
   @@index([shopId, status])
   @@index([lastSyncedAt])
+  @@index([tenantId])
 }
 
 /// 订单数据
@@ -68,19 +73,21 @@ model Order {
   customerName  String?
   customerEmail String?
   itemCount     Int      @default(0)
-  paidAt          DateTime?
-  fulfilledAt     DateTime?
-  trackingNumber  String?
+  paidAt        DateTime?
+  fulfilledAt   DateTime?
+  trackingNumber String?
   trackingCompany String?
-  refundedAt      DateTime?
+  refundedAt    DateTime?
   rawData       String?
+  tenantId      String   @default("default")
   createdAt     DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  updatedAt     DateTime @updatedAt
 
   @@unique([shopId, externalId])
   @@index([shopId, status])
   @@index([createdAt])
   @@index([paidAt])
+  @@index([tenantId])
 }
 
 /// 同步日志
@@ -95,6 +102,8 @@ model SyncLog {
   error      String?
   startedAt  DateTime @default(now())
   finishedAt DateTime?
+  tenantId   String   @default("default")
 
   @@index([shopId, entity, startedAt])
+  @@index([tenantId])
 }

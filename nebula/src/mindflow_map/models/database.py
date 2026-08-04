@@ -127,7 +127,7 @@ class AuditLogModel(Base):
     log_id: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     tenant_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     user_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
-    action: Mapped[AuditAction] = mapped_column(SQLEnum(AuditAction), index=True)
+    action: Mapped[AuditAction] = mapped_column(SQLEnum(AuditAction, name="audit_action"), index=True)
     resource_type: Mapped[Optional[str]] = mapped_column(String(64), nullable=True, index=True)
     resource_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)

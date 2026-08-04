@@ -151,10 +151,10 @@ function demoGenerateEn(title: string, description: string | null | undefined, t
   const newTitle = `${t.adj} ${coreWord} | ${t.tag} - Free Shipping`;
 
   const descPoints = [
-    description ? `<p><strong>✨ Highlight:</strong> ${description}</p>` : '',
-    `<p><strong>✅ Quality:</strong> ${t.adj} grade materials, ${t.tag.toLowerCase()}.</p>`,
-    `<p><strong>🏠 Versatile:</strong> Perfect for home, office, or as a gift.</p>`,
-    `<p><strong>🛡️ Guarantee:</strong> 30-day money back, hassle-free returns.</p>`,
+    description ? `<p><strong>Feature:</strong> ${description}</p>` : '',
+    `<p><strong>Quality:</strong> ${t.adj} grade materials, ${t.tag.toLowerCase()}.</p>`,
+    `<p><strong>Versatile:</strong> Perfect for home, office, or as a gift.</p>`,
+    `<p><strong>Guarantee:</strong> 30-day money back, hassle-free returns.</p>`,
   ];
 
   return {

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { verifyRequest } from '@/lib/auth';
+import { getTenantId, tenantWhere } from '@/lib/tenant';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,9 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) {
     return NextResponse.json({ error: auth.error }, { status: 401 });
   }
+
+  const tenantId = getTenantId(req);
+  const tw = tenantWhere(tenantId);
 
   const now = new Date();
   const sevenDaysAgo = new Date(now.getTime() - 7 * 86400000);
@@ -30,25 +34,26 @@ export async function GET(req: NextRequest) {
     lowInventoryCount,
   ] = await Promise.all([
     // 商品总数
-    prisma.product.count(),
+    prisma.product.count({ where: tw }),
     // 在售商品数
-    prisma.product.count({ where: { status: 'active' } }),
+    prisma.product.count({ where: { ...tw, status: 'active' } }),
     // 订单总数
-    prisma.order.count(),
+    prisma.order.count({ where: tw }),
     // 订单总金额（已支付）
     prisma.order.aggregate({
       _sum: { amount: true },
-      where: { status: { in: ['paid', 'fulfilled'] } },
+      where: { ...tw, status: { in: ['paid', 'fulfilled'] } },
     }),
     // 订单状态分布
     prisma.order.groupBy({
       by: ['status'],
+      where: tw,
       _count: { status: true },
       _sum: { amount: true },
     }),
     // 最近 7 日订单
     prisma.order.findMany({
-      where: { createdAt: { gte: sevenDaysAgo } },
+      where: { ...tw, createdAt: { gte: sevenDaysAgo } },
       select: {
         amount: true,
         status: true,
@@ -58,7 +63,7 @@ export async function GET(req: NextRequest) {
     }),
     // 低库存商品（< 10）
     prisma.product.count({
-      where: { inventory: { lt: 10 }, status: 'active' },
+      where: { ...tw, inventory: { lt: 10 }, status: 'active' },
     }),
   ]);
 
