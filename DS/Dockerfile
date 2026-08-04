@@ -40,7 +40,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
+ENV HOST=0.0.0.0
 
 # 创建非 root 用户（Debian 语法）
 RUN groupadd -r nodejs && useradd -r -g nodejs -m nextjs

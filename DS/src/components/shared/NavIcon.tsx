@@ -21,7 +21,8 @@ type IconType =
   | 'brain'
   | 'voice'
   | 'a2a'
-  | 'obsidian';
+  | 'obsidian'
+  | 'tools';
 
 interface NavIconProps {
   type: IconType;
@@ -163,6 +164,14 @@ export default function NavIcon({ type, active = false, size = 18 }: NavIconProp
         <line x1="6" y1="9" x2="12" y2="9" />
         <line x1="6" y1="12" x2="9" y2="12" />
         <path d="M9 12l3 2" />
+      </svg>
+    ),
+    tools: (
+      <svg width={size} height={size} viewBox="0 0 18 18" fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 4l2 2-6 6-2 2" />
+        <path d="M12 10l6 6" />
+        <circle cx="7" cy="7" r="2.5" />
+        <line x1="2" y1="16" x2="16" y2="16" />
       </svg>
     ),
   };

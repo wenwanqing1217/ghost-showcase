@@ -34,6 +34,7 @@ const NAV_GROUPS = [
       { href: '/ecosystem/a2a', label: 'A2A 协议', icon: 'a2a' as const },
       { href: '/ecosystem/obsidian', label: '知识图谱', icon: 'obsidian' as const },
       { href: '/ecosystem/strategies', label: '策略供应商', icon: 'dashboard' as const },
+      { href: '/ecosystem/tools', label: 'AI 工具', icon: 'tools' as const },
       { href: '/ecosystem/workbench', label: '个人工作台', icon: 'workbench' as const },
       { href: '/social', label: '社交', icon: 'social' as const },
       { href: '/demo', label: '演示', icon: 'overview' as const },
