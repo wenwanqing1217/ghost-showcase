@@ -17,6 +17,7 @@ interface MemoryNode {
 
 interface MemoryGraph {
   nodes: MemoryNode[];
+  edges?: unknown[];
   stats: {
     totalAtoms: number;
     totalRelations: number;
@@ -37,15 +38,26 @@ export default function MemoryPage() {
 
   useEffect(() => {
     loadMemoryGraph();
-    humanApi.getIdentity().then(data => setIdentity(data)).catch((err) => console.error('[MemoryPage] getIdentity error:', err));
+    humanApi.getIdentity().then(data => setIdentity(data)).catch((err) => console.warn('[MemoryPage] getIdentity error:', err));
   }, []);
 
   const loadMemoryGraph = async () => {
     setLoading(true);
     setIsDemo(false);
     try {
-      const data = await humanApi.getMemoryGraph();
-      setGraph(data as MemoryGraph);
+      const response = await humanApi.getMemoryGraph();
+      const data = (response as any).data || response;
+      const normalized: MemoryGraph = {
+        nodes: data.nodes || [],
+        edges: data.edges || [],
+        stats: {
+          totalAtoms: data.stats?.totalAtoms ?? data.stats?.atoms ?? 0,
+          totalRelations: data.stats?.totalRelations ?? data.stats?.connections ?? 0,
+          totalMemories: data.stats?.totalMemories ?? data.stats?.memories ?? 0,
+          layers: data.stats?.layers ?? 1,
+        },
+      };
+      setGraph(normalized);
     } catch (err) {
       console.warn('[MemoryPage] loadMemoryGraph fallback to demo data:', err);
       setIsDemo(true);
