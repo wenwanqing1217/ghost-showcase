@@ -77,19 +77,81 @@ async def get_profile(request: Request):
 # ── Brain Status ──
 
 
+async def _brain_quick_register(aid: str, request: Request):
+    """Quick-register to get JWT for Alpha-ID brain routes."""
+    fwd_headers = forward_csrf_headers(request)
+    try:
+        qr_body = {"alpha_id": aid} if aid != config.DEFAULT_ALPHA_ID else {}
+        qr_data = await proxy_post(
+            "/api/v1/identity/quick-register",
+            config.ALPHAID_URL,
+            body=qr_body,
+            headers=fwd_headers,
+        )
+        if isinstance(qr_data, dict) and not qr_data.get("_error"):
+            access_token = qr_data.get("access_token") or (qr_data.get("data", {}) or {}).get("access_token")
+            aid = qr_data.get("alpha_id", aid)
+            logger.info("brain quick-register ok for %s, token=%s", aid, bool(access_token))
+            return aid, access_token
+        logger.warning("brain quick-register failed for %s: %s", aid, qr_data.get("_error", "unknown"))
+    except Exception as e:
+        logger.warning("brain quick-register exception for %s: %s", aid, e)
+    return aid, None
+
+
 @router.get("/brain/status")
 async def get_brain_status(request: Request, alpha_id: Optional[str] = None):
-    """Get brain status → proxy to Alpha-ID."""
+    """Get brain status → proxy to Alpha-ID with auto-register."""
     aid = alpha_id or config.DEFAULT_ALPHA_ID
-    return await _proxy_alphaid_get(f"/api/v1/agent/status?alpha_id={aid}", request)
+    aid, token = await _brain_quick_register(aid, request)
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    return await _proxy_alphaid_get(f"/api/v1/agent/status?alpha_id={aid}", request, headers=headers)
 
 
 @router.post("/brain/awake")
 async def brain_awake(request: Request):
-    """Wake up brain → proxy to Alpha-ID (uses status as ping)."""
+    """Wake up brain → proxy to Alpha-ID (uses status as ping) with auto-register."""
     body = await request.json()
     aid = body.get("alpha_id", config.DEFAULT_ALPHA_ID)
-    return await _proxy_alphaid_get(f"/api/v1/agent/status?alpha_id={aid}", request)
+    aid, token = await _brain_quick_register(aid, request)
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    return await _proxy_alphaid_get(f"/api/v1/agent/status?alpha_id={aid}", request, headers=headers)
+
+
+@router.post("/brain/chat")
+async def brain_chat(request: Request):
+    """Brain chat → proxy to Alpha-ID /api/v1/agent/chat.
+
+    调用 TwinBrain + AgentLoop/ReActEngine，返回 AI 回复。
+    """
+    ip = client_ip(request)
+    if not rate_limit_check(f"brain_chat:{ip}", max_requests=10, window=60):
+        return fail("Too many requests, please slow down", 429, request)
+    body = await request.json()
+    aid = body.get("alpha_id", config.DEFAULT_ALPHA_ID)
+    message = body.get("message", "")
+    if not message:
+        return fail("message required", 400, request)
+
+    # Quick-register for JWT
+    aid, token = await _brain_quick_register(aid, request)
+
+    fwd_headers = forward_csrf_headers(request)
+    chat_headers = {**fwd_headers, "Authorization": f"Bearer {token}"} if token else fwd_headers
+    data = await proxy_post(
+        "/api/v1/agent/chat",
+        config.ALPHAID_URL,
+        body={"message": message, "alpha_id": aid},
+        headers=chat_headers,
+    )
+    return ok(data, request)
+
+
+@router.get("/voice/status")
+async def voice_status(request: Request):
+    """Check GhostVoice (STT/TTS) availability → proxy to Alpha-ID."""
+    data = await proxy_get("/api/v1/voice/status", config.ALPHAID_URL)
+    return ok(data, request)
 
 
 # ── Chat & Intent ──
