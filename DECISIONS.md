@@ -278,4 +278,50 @@
 
 ---
 
+### D-20260804-5: Python 3.12 urlparse.origin 移除兼容
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** Python 3.12 移除了 `ParseResult.origin` 属性，`routes/internal.py` 中 `urlparse(config.ALPHAID_URL).origin` 报 AttributeError  
+**决定:** 手拼 `f"{scheme}://{netloc}"` 替代 `.origin`  
+**后果:** Gateway 在 Python 3.12 下正常运行，doubao/capture 端点不再报错
+
+---
+
+### D-20260804-6: Gateway 测试 Infrastructure 修复（租户认证 + 路由结构）
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** Gateway 53 个单测中 36 个因 TenantMiddleware 返回 401；`_IncludedRouter` 新版本结构变化导致 AttributeError；health test URL 匹配不精确  
+**决定:** 
+1. conftest.py gateway_client 默认携带 X-Tenant-ID: test-tenant
+2. `_all_route_paths()` 支持 `_IncludedRouter.original_router` 递归
+3. test_health 用 `config.ALPHAID_URL` 精确匹配 URL
+**后果:** Gateway 测试 53/53 全绿，测试基础设施稳固
+
+---
+
+### D-20260804-7: DS EventBus 死代码盘活
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** `DS/src/lib/eventbus-init.ts` 仅在 `app/api/health/route.ts` 中 import，意味着只有访问 /api/health 时才初始化 EventBus + consumer loop  
+**决定:** 在 `app/layout.tsx` 全局 import eventbus-init，确保服务器启动时自动初始化  
+**理由:** 死代码是用来盘活的，不是删除。EventBus 是跨服务事件总线核心组件，必须在服务器启动时激活  
+**后果:** DS EventBus consumer loop 在服务器启动时自动运行，不再依赖 health 端点触发
+
+---
+
+### D-20260804-8: feishu-bot 测试无限循环修复
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** `_consume_loop` 在空轮询时 `continue` 不释放控制权，导致测试中 `running=False` 无法终止循环  
+**决定:** 空轮询时加 `await asyncio.sleep(0)` 让出控制权；测试中 running=False → start() 内设为 True → sleep → running=False  
+**后果:** feishu-bot 测试从无限挂起变为 3.3s 完成，2/2 passed
+
+---
+
+*最后更新: 2026-08-04
+
 *最后更新: 2026-08-04*
