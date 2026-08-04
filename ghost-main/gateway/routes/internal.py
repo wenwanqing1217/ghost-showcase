@@ -369,3 +369,23 @@ async def orch_task(task_id: str, request: Request):
 async def obsidian_status(request: Request):
     """Internal: Check Obsidian vault status."""
     return ok(check_vault_status(), request)
+
+
+# ── Observability (盘活 Alpha-ID 死代码：2 条路由) ──
+
+
+@router.get("/observability/ready")
+async def alphaid_ready(request: Request):
+    """Alpha-ID readiness check → proxy to Alpha-ID."""
+    data = await proxy_get("/api/v1/observability/ready", config.ALPHAID_URL)
+    return ok(data, request)
+
+
+@router.get("/observability/metrics")
+async def alphaid_metrics(request: Request):
+    """Alpha-ID Prometheus metrics → proxy to Alpha-ID."""
+    from fastapi.responses import PlainTextResponse
+    data = await proxy_get("/api/v1/observability/metrics", config.ALPHAID_URL)
+    if isinstance(data, dict) and data.get("_error"):
+        return fail(f"Alpha-ID metrics error: {data.get('_error')}", 502, request)
+    return PlainTextResponse(content=str(data), media_type="text/plain")

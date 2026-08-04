@@ -28,7 +28,14 @@ async def get_network_topology(request: Request):
     return ok(data, request)
 
 
-# ── A2A Protocol Proxy ──
+@router.get("/topology")
+async def get_topology_graph(request: Request):
+    """Agent network topology graph (nodes + edges) → proxy to Alpha-ID A2A graph."""
+    data = await proxy_get("/api/v1/a2a/graph", config.ALPHAID_URL)
+    return ok(data, request)
+
+
+# ── A2A Protocol Proxy ─
 # 所有 /v1/agent/a2a/* 路由代理到 Alpha-ID :8000 的 /api/v1/a2a/* 端点
 
 

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse, PlainTextResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from mindflow_map.config import settings
@@ -196,6 +196,11 @@ if editor_dir.exists():
     app.mount("/editor", StaticFiles(directory=str(editor_dir), html=True), name="workflow-editor")
 
 # 路由
+@app.get("/health", include_in_schema=False)
+async def health_redirect():
+    """Redirect /health → /health/ (standard health check path)."""
+    return RedirectResponse(url="/health/", status_code=308)
+
 app.include_router(health.router, prefix="/health", tags=["健康检查"])
 app.include_router(map.router, prefix="/api/v1/map", tags=["地图"])
 app.include_router(workflow.router, prefix="/api/v1/workflow", tags=["工作流"])

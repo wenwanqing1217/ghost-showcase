@@ -361,3 +361,101 @@ async def dashboard(request: Request):
         },
         request,
     )
+
+
+# ── Social (盘活 Alpha-ID 死代码：6 条路由) ──
+
+
+@router.post("/social/friend-request")
+async def social_friend_request(request: Request):
+    """Send friend request → proxy to Alpha-ID."""
+    body = await request.json()
+    data = await proxy_post("/api/v1/social/friend-request", config.ALPHAID_URL, body=body)
+    return ok(data, request)
+
+
+@router.put("/social/friend-request/{request_id}")
+async def social_respond_request(request_id: str, request: Request):
+    """Respond to friend request → proxy to Alpha-ID."""
+    body = await request.json()
+    data = await proxy_post(
+        f"/api/v1/social/friend-request/{request_id}",
+        config.ALPHAID_URL,
+        body=body,
+    )
+    return ok(data, request)
+
+
+@router.get("/social/{alpha_id}/friends")
+async def social_friends(alpha_id: str, request: Request):
+    """Get friends list → proxy to Alpha-ID."""
+    data = await proxy_get(f"/api/v1/social/{alpha_id}/friends", config.ALPHAID_URL)
+    return ok(data, request)
+
+
+@router.get("/social/{alpha_id}/requests")
+async def social_requests(alpha_id: str, request: Request):
+    """Get pending friend requests → proxy to Alpha-ID."""
+    data = await proxy_get(f"/api/v1/social/{alpha_id}/requests", config.ALPHAID_URL)
+    return ok(data, request)
+
+
+@router.post("/social/message")
+async def social_send_message(request: Request):
+    """Send message to friend → proxy to Alpha-ID."""
+    body = await request.json()
+    data = await proxy_post("/api/v1/social/message", config.ALPHAID_URL, body=body)
+    return ok(data, request)
+
+
+@router.get("/social/{alpha_id}/messages")
+async def social_messages(alpha_id: str, request: Request):
+    """Get messages → proxy to Alpha-ID."""
+    params = str(request.query_params)
+    data = await proxy_get(
+        f"/api/v1/social/{alpha_id}/messages{('?' + params) if params else ''}",
+        config.ALPHAID_URL,
+    )
+    return ok(data, request)
+
+
+# ── Risk (盘活 Alpha-ID 死代码：2 条路由) ──
+
+
+@router.post("/risk/evaluate")
+async def risk_evaluate(request: Request):
+    """Full risk assessment → proxy to Alpha-ID."""
+    body = await request.json()
+    data = await proxy_post("/api/v1/risk/evaluate", config.ALPHAID_URL, body=body)
+    return ok(data, request)
+
+
+@router.post("/risk/voice-verify")
+async def risk_voice_verify(request: Request):
+    """Voice biometric verification → proxy to Alpha-ID."""
+    body = await request.json()
+    data = await proxy_post("/api/v1/risk/voice-verify", config.ALPHAID_URL, body=body)
+    return ok(data, request)
+
+
+# ── GDPR / 数据主权 (盘活 Alpha-ID 死代码：2 条路由) ──
+
+
+@router.get("/gdpr/export")
+async def gdpr_export(request: Request):
+    """Export all personal data (GDPR right to data portability) → proxy to Alpha-ID."""
+    # Forward auth header so Alpha-ID can identify the user
+    client_auth = request.headers.get("authorization")
+    headers = {"Authorization": client_auth} if client_auth else None
+    data = await proxy_get("/api/v1/gdpr/export", config.ALPHAID_URL, headers=headers)
+    return ok(data, request)
+
+
+@router.delete("/gdpr/delete")
+async def gdpr_delete(request: Request):
+    """Delete all personal data (GDPR right to be forgotten) → proxy to Alpha-ID."""
+    body = await request.json()
+    client_auth = request.headers.get("authorization")
+    headers = {"Authorization": client_auth} if client_auth else None
+    data = await proxy_post("/api/v1/gdpr/delete", config.ALPHAID_URL, body=body, headers=headers)
+    return ok(data, request)
