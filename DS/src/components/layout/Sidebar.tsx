@@ -23,8 +23,8 @@ const NAV_GROUPS = [
         { href: '/app/workflow', label: '工作流', icon: 'workflow' as const },
         { href: '/app/doubao', label: '豆包记忆桥', icon: 'bridge' as const },
         { href: '/dashboard', label: '运营看板', icon: 'dashboard' as const },
-        { href: '/app/brain', label: '智能大脑', icon: 'brain' as const },
-        { href: '/app/voice', label: '语音', icon: 'voice' as const },
+        { href: '/brain', label: '智能大脑', icon: 'brain' as const },
+        { href: '/voice', label: '语音', icon: 'voice' as const },
       ],
     },
   {
