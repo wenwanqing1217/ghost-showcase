@@ -1,0 +1,46 @@
+# Ghost Platform — CODEOWNERS
+# Auto-assign reviewers based on code ownership.
+# Format: <path> <team/owner>
+
+# ── Core Platform ──
+ghost-main/gateway/          @wenwanqing1217
+ghost-main/gateway/*.py      @wenwanqing1217
+ghost-main/gateway/routes/*  @wenwanqing1217
+ghost-main/gateway/services/* @wenwanqing1217
+
+# ── Identity Layer ──
+alphaid/projects/            @wenwanqing1217
+alphaid/projects/src/**/*.py @wenwanqing1217
+alphaid/projects/pyproject.toml @wenwanqing1217
+
+# ── Workflow Engine ──
+nebula/                      @wenwanqing1217
+nebula/src/**/*.py           @wenwanqing1217
+nebula/pyproject.toml        @wenwanqing1217
+
+# ── E-Commerce Dashboard ──
+DS/                          @wenwanqing1217
+DS/src/**/*.ts               @wenwanqing1217
+DS/src/**/*.tsx              @wenwanqing1217
+DS/package.json              @wenwanqing1217
+
+# ── Orchestrator ──
+orchestrator/                @wenwanqing1217
+orchestrator/*.py            @wenwanqing1217
+
+# ── Feishu Bot ──
+ghost-main/feishu-bot/       @wenwanqing1217
+
+# ── Infrastructure ──
+docker-compose*.yml          @wenwanqing1217
+Makefile                     @wenwanqing1217
+sql/                         @wenwanqing1217
+
+# ── Documentation ──
+GHOST.md                     @wenwanqing1217
+ARCHITECTURE.md              @wenwanqing1217
+SYSTEM_MAP.md                @wenwanqing1217
+PROJECT_MAP.md               @wenwanqing1217
+DECISIONS.md                 @wenwanqing1217
+WORK_LOG.md                  @wenwanqing1217
+PHASE1_PLAN.md              @wenwanqing1217
