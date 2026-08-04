@@ -64,7 +64,7 @@ export default function HomePage() {
             {/* CTA */}
             <div className="flex items-center justify-center gap-3">
               <Link
-                href="/app/chat"
+                href="/chat"
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition-all"
                 style={{
                   background: 'rgba(139,92,246,0.15)',
