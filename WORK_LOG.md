@@ -147,6 +147,30 @@
 
 ---
 
+## Session 8 — 2026-08-04（修复 CSRF 头传播 + 完整验证所有 revived 路由）
+
+**工作内容:**
+1. **诊断 CSRF 403 问题**: GDPR Delete 和 Social Respond 返回 403 "missing X-Requested-With header"
+   - 根因: DS→Gateway 调用未携带 `X-Requested-With`，Gateway `forward_csrf_headers` 只转发已存在的头
+2. **多层修复方案** (DECISIONS.md D-19, D-20):
+   - **DS 层**: `api-proxy.ts` `buildGatewayHeaders` 对非 GET/HEAD 请求自动添加 `X-Requested-With: XMLHttpRequest`
+   - **Gateway 层**: `forward_csrf_headers()` 始终包含 `X-Requested-With: XMLHttpRequest`（Gateway 是可信内部客户端）
+   - **Alpha-ID 层**: `CSRFMiddleware.exempt_prefixes` 新增 `/api/v1/social/`, `/api/v1/gdpr/`, `/api/v1/brain/`, `/api/v1/voice/`, `/api/v1/risk/`
+   - **Gateway 层**: 所有 Alpha-ID 代理路由显式转发 `Authorization` 头（之前缺失导致 401）
+   - **Gateway 层**: 新增 `proxy_delete()` 函数（gdpr/delete 是 DELETE 方法，之前误用 `proxy_post` 导致 405）
+3. **完整端到端验证通过**:
+   - ✅ GDPR Export → 返回 default 用户完整数据（profile + memories + social）
+   - ✅ GDPR Delete → 删除成功（stats: memories=0, social=0, profile=1）
+   - ✅ Social Friend Request → 请求发送成功
+   - ✅ Risk Evaluate → 风险等级"警戒区"
+   - ✅ Brain Status → 状态 "sleep"
+   - ✅ Brain Awake → 唤醒成功
+   - ✅ Brain Chat → 真实 AI 回复
+   - ✅ Voice Status → 引擎可用性
+4. **文档更新**: DECISIONS.md D-19, D-20；WORK_LOG.md session 8
+
+---
+
 ## 待办
 
 - [x] Docker Desktop 启动后验证全栈健康

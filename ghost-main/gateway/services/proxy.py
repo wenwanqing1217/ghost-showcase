@@ -51,6 +51,8 @@ def filter_headers(headers: dict) -> dict:
 def forward_csrf_headers(request: Request, extra: dict = None) -> dict:
     """Extract CSRF-relevant headers from the incoming request.
 
+    Always includes X-Requested-With: XMLHttpRequest since Gateway acts as
+    a trusted internal client when proxying to Alpha-ID.
     Returns a dict with X-Requested-With, Origin, Referer if present.
     Merges with optional extra dict (extra keys take precedence).
     """
@@ -59,6 +61,10 @@ def forward_csrf_headers(request: Request, extra: dict = None) -> dict:
         v = request.headers.get(h)
         if v:
             fwd[h] = v
+    # Gateway is the trusted internal client — always set X-Requested-With
+    # so Alpha-ID CSRF middleware accepts the proxied request.
+    if not fwd.get("x-requested-with"):
+        fwd["x-requested-with"] = "XMLHttpRequest"
     if extra:
         fwd.update(extra)
     return fwd
@@ -144,6 +150,17 @@ async def _proxy_request(
             }
 
     return {"_error": last_error or "unknown error", "_backend": base_url}
+
+
+async def proxy_delete(
+    path: str,
+    base_url: str,
+    headers: dict = None,
+    body: dict = None,
+    timeout: float = None,
+) -> dict:
+    """Proxy DELETE request to backend."""
+    return await _proxy_request("DELETE", path, base_url, body=body, headers=headers, timeout=timeout)
 
 
 async def proxy_get(

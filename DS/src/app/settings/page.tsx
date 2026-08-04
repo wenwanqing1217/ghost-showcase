@@ -286,6 +286,56 @@ export default function SettingsPage() {
             </p>
           </div>
 
+          {/* 数据主权 (GDPR) */}
+          <div className="card" style={{ padding: 20 }}>
+            <div className="card-header" style={{ marginBottom: 12 }}>
+              <span className="card-title">数据主权</span>
+            </div>
+            <p className="text-muted text-sm" style={{ marginBottom: 12 }}>
+              根据 GDPR 法规，您有权导出或删除您的个人数据。
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={async () => {
+                  try {
+                    const res = await fetch('/api/v1/human/gdpr/export');
+                    const data = await res.json();
+                    if (res.ok) {
+                      alert('数据导出请求已提交，请查看下载。');
+                    } else {
+                      alert(data.error || '导出失败');
+                    }
+                  } catch {
+                    alert('导出请求失败');
+                  }
+                }}
+                className="btn btn-sm"
+              >
+                导出个人数据
+              </button>
+              <button
+                onClick={async () => {
+                  if (!confirm('确定要删除所有个人数据吗？此操作不可撤销。')) return;
+                  try {
+                    const res = await fetch('/api/v1/human/gdpr/delete', { method: 'DELETE' });
+                    const data = await res.json();
+                    if (res.ok) {
+                      alert('数据删除请求已提交。');
+                    } else {
+                      alert(data.error || '删除失败');
+                    }
+                  } catch {
+                    alert('删除请求失败');
+                  }
+                }}
+                className="btn btn-sm"
+                style={{ color: 'var(--danger)' }}
+              >
+                删除个人数据
+              </button>
+            </div>
+          </div>
+
         </div>
       </div>
     </AuthGuard>

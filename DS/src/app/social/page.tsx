@@ -42,6 +42,7 @@ export default function SocialPage() {
 
   // Requests
   const [requests, setRequests] = useState<FriendRequest[]>([]);
+  const [respondingId, setRespondingId] = useState<string | null>(null);
 
   // Messages
   const [messages, setMessages] = useState<Message[]>([]);
@@ -169,6 +170,30 @@ export default function SocialPage() {
       setError(e instanceof Error ? e.message : '请求失败');
     } finally {
       setSendingMsg(false);
+    }
+  }
+
+  async function respondRequest(request_id: string, action: 'accept' | 'reject') {
+    setRespondingId(request_id);
+    setError('');
+    try {
+      const res = await fetch(`/api/v1/human/social/friend-request/${encodeURIComponent(request_id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const data = await res.json();
+      if (res.ok && (data.success || data.ok)) {
+        // Remove from local list
+        setRequests((prev) => prev.filter((r) => r.request_id !== request_id));
+        alert(action === 'accept' ? '已接受好友请求' : '已拒绝好友请求');
+      } else {
+        setError(data.error || data.message || (action === 'accept' ? '接受失败' : '拒绝失败'));
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : '请求失败');
+    } finally {
+      setRespondingId(null);
     }
   }
 
@@ -307,24 +332,32 @@ export default function SocialPage() {
                       </div>
                       <div className="flex gap-2">
                         <button
+                          onClick={() => respondRequest(r.request_id, 'accept')}
+                          disabled={respondingId === r.request_id}
                           className="text-xs px-3 py-1.5 rounded-lg"
                           style={{
                             background: 'rgba(16,185,129,0.1)',
                             color: '#10b981',
                             border: '1px solid rgba(16,185,129,0.2)',
+                            cursor: respondingId === r.request_id ? 'not-allowed' : 'pointer',
+                            opacity: respondingId === r.request_id ? 0.6 : 1,
                           }}
                         >
-                          接受
+                          {respondingId === r.request_id ? '处理中...' : '接受'}
                         </button>
                         <button
+                          onClick={() => respondRequest(r.request_id, 'reject')}
+                          disabled={respondingId === r.request_id}
                           className="text-xs px-3 py-1.5 rounded-lg"
                           style={{
                             background: 'rgba(239,68,68,0.1)',
                             color: '#ef4444',
                             border: '1px solid rgba(239,68,68,0.2)',
+                            cursor: respondingId === r.request_id ? 'not-allowed' : 'pointer',
+                            opacity: respondingId === r.request_id ? 0.6 : 1,
                           }}
                         >
-                          拒绝
+                          {respondingId === r.request_id ? '处理中...' : '拒绝'}
                         </button>
                       </div>
                     </div>

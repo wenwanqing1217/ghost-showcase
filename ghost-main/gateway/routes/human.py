@@ -9,7 +9,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Request
 
-from services.proxy import proxy_get, proxy_post, ok, fail, forward_csrf_headers
+from services.proxy import proxy_get, proxy_post, proxy_delete, ok, fail, forward_csrf_headers
 from middleware.rate_limit import rate_limit_check, client_ip
 from services.memory_graph import get_memory_graph
 from services.obsidian import search_vault
@@ -432,7 +432,10 @@ async def dashboard(request: Request):
 async def social_friend_request(request: Request):
     """Send friend request → proxy to Alpha-ID."""
     body = await request.json()
-    data = await proxy_post("/api/v1/social/friend-request", config.ALPHAID_URL, body=body)
+    client_auth = request.headers.get("authorization")
+    csrf_headers = forward_csrf_headers(request)
+    headers = {**csrf_headers, "Authorization": client_auth} if client_auth else csrf_headers
+    data = await proxy_post("/api/v1/social/friend-request", config.ALPHAID_URL, body=body, headers=headers)
     return ok(data, request)
 
 
@@ -440,10 +443,14 @@ async def social_friend_request(request: Request):
 async def social_respond_request(request_id: str, request: Request):
     """Respond to friend request → proxy to Alpha-ID."""
     body = await request.json()
+    client_auth = request.headers.get("authorization")
+    csrf_headers = forward_csrf_headers(request)
+    headers = {**csrf_headers, "Authorization": client_auth} if client_auth else csrf_headers
     data = await proxy_post(
         f"/api/v1/social/friend-request/{request_id}",
         config.ALPHAID_URL,
         body=body,
+        headers=headers,
     )
     return ok(data, request)
 
@@ -451,14 +458,20 @@ async def social_respond_request(request_id: str, request: Request):
 @router.get("/social/{alpha_id}/friends")
 async def social_friends(alpha_id: str, request: Request):
     """Get friends list → proxy to Alpha-ID."""
-    data = await proxy_get(f"/api/v1/social/{alpha_id}/friends", config.ALPHAID_URL)
+    client_auth = request.headers.get("authorization")
+    csrf_headers = forward_csrf_headers(request)
+    headers = {**csrf_headers, "Authorization": client_auth} if client_auth else csrf_headers
+    data = await proxy_get(f"/api/v1/social/{alpha_id}/friends", config.ALPHAID_URL, headers=headers)
     return ok(data, request)
 
 
 @router.get("/social/{alpha_id}/requests")
 async def social_requests(alpha_id: str, request: Request):
     """Get pending friend requests → proxy to Alpha-ID."""
-    data = await proxy_get(f"/api/v1/social/{alpha_id}/requests", config.ALPHAID_URL)
+    client_auth = request.headers.get("authorization")
+    csrf_headers = forward_csrf_headers(request)
+    headers = {**csrf_headers, "Authorization": client_auth} if client_auth else csrf_headers
+    data = await proxy_get(f"/api/v1/social/{alpha_id}/requests", config.ALPHAID_URL, headers=headers)
     return ok(data, request)
 
 
@@ -466,17 +479,24 @@ async def social_requests(alpha_id: str, request: Request):
 async def social_send_message(request: Request):
     """Send message to friend → proxy to Alpha-ID."""
     body = await request.json()
-    data = await proxy_post("/api/v1/social/message", config.ALPHAID_URL, body=body)
+    client_auth = request.headers.get("authorization")
+    csrf_headers = forward_csrf_headers(request)
+    headers = {**csrf_headers, "Authorization": client_auth} if client_auth else csrf_headers
+    data = await proxy_post("/api/v1/social/message", config.ALPHAID_URL, body=body, headers=headers)
     return ok(data, request)
 
 
 @router.get("/social/{alpha_id}/messages")
 async def social_messages(alpha_id: str, request: Request):
     """Get messages → proxy to Alpha-ID."""
+    client_auth = request.headers.get("authorization")
+    csrf_headers = forward_csrf_headers(request)
+    headers = {**csrf_headers, "Authorization": client_auth} if client_auth else csrf_headers
     params = str(request.query_params)
     data = await proxy_get(
         f"/api/v1/social/{alpha_id}/messages{('?' + params) if params else ''}",
         config.ALPHAID_URL,
+        headers=headers,
     )
     return ok(data, request)
 
@@ -488,7 +508,10 @@ async def social_messages(alpha_id: str, request: Request):
 async def risk_evaluate(request: Request):
     """Full risk assessment → proxy to Alpha-ID."""
     body = await request.json()
-    data = await proxy_post("/api/v1/risk/evaluate", config.ALPHAID_URL, body=body)
+    client_auth = request.headers.get("authorization")
+    csrf_headers = forward_csrf_headers(request)
+    headers = {**csrf_headers, "Authorization": client_auth} if client_auth else csrf_headers
+    data = await proxy_post("/api/v1/risk/evaluate", config.ALPHAID_URL, body=body, headers=headers)
     return ok(data, request)
 
 
@@ -496,7 +519,10 @@ async def risk_evaluate(request: Request):
 async def risk_voice_verify(request: Request):
     """Voice biometric verification → proxy to Alpha-ID."""
     body = await request.json()
-    data = await proxy_post("/api/v1/risk/voice-verify", config.ALPHAID_URL, body=body)
+    client_auth = request.headers.get("authorization")
+    csrf_headers = forward_csrf_headers(request)
+    headers = {**csrf_headers, "Authorization": client_auth} if client_auth else csrf_headers
+    data = await proxy_post("/api/v1/risk/voice-verify", config.ALPHAID_URL, body=body, headers=headers)
     return ok(data, request)
 
 
@@ -506,9 +532,9 @@ async def risk_voice_verify(request: Request):
 @router.get("/gdpr/export")
 async def gdpr_export(request: Request):
     """Export all personal data (GDPR right to data portability) → proxy to Alpha-ID."""
-    # Forward auth header so Alpha-ID can identify the user
     client_auth = request.headers.get("authorization")
-    headers = {"Authorization": client_auth} if client_auth else None
+    csrf_headers = forward_csrf_headers(request)
+    headers = {**csrf_headers, "Authorization": client_auth} if client_auth else csrf_headers
     data = await proxy_get("/api/v1/gdpr/export", config.ALPHAID_URL, headers=headers)
     return ok(data, request)
 
@@ -516,8 +542,12 @@ async def gdpr_export(request: Request):
 @router.delete("/gdpr/delete")
 async def gdpr_delete(request: Request):
     """Delete all personal data (GDPR right to be forgotten) → proxy to Alpha-ID."""
-    body = await request.json()
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
     client_auth = request.headers.get("authorization")
-    headers = {"Authorization": client_auth} if client_auth else None
-    data = await proxy_post("/api/v1/gdpr/delete", config.ALPHAID_URL, body=body, headers=headers)
+    csrf_headers = forward_csrf_headers(request)
+    headers = {**csrf_headers, "Authorization": client_auth} if client_auth else csrf_headers
+    data = await proxy_delete("/api/v1/gdpr/delete", config.ALPHAID_URL, body=body, headers=headers)
     return ok(data, request)

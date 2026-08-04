@@ -32,6 +32,11 @@ function buildGatewayHeaders(req: Request): HeadersInit {
       headers[key] = value;
     }
   }
+  // Alpha-ID CSRF middleware requires X-Requested-With for non-GET methods
+  const method = req.method;
+  if (method && method !== 'GET' && method !== 'HEAD' && !headers['x-requested-with']) {
+    headers['x-requested-with'] = 'XMLHttpRequest';
+  }
   // 开发环境：如果客户端未提供 X-Tenant-ID，使用默认值
   if (!headers['x-tenant-id']) {
     headers['x-tenant-id'] = DEFAULT_TENANT_ID;

@@ -434,4 +434,36 @@
 
 ---
 
+### D-20260804-19: 修复 Gateway→Alpha-ID CSRF 头传播问题
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** DS→Gateway→Alpha-ID 三级调用链中，DS 前端调用 Gateway 时未携带 `X-Requested-With` 和 `Authorization` 头，导致：
+- Alpha-ID CSRF 中间件拒绝请求（403 "missing X-Requested-With header"）
+- Alpha-ID 身份认证拒绝请求（401 "missing Authorization header"）
+影响路由：gdpr/export, gdpr/delete, social/friend-request, social/friend-request/{id}, risk/evaluate
+**选项:**
+1. 修改 DS 前端 `proxyToGateway` 添加 `X-Requested-With: XMLHttpRequest`
+2. 修改 Gateway `forward_csrf_headers` 始终添加 `X-Requested-With: XMLHttpRequest`（Gateway 作为可信内部客户端）
+3. 修改 Alpha-ID CSRF 中间件 exempt 所有 Gateway 代理路径
+**决定:** 组合方案：
+1. DS `api-proxy.ts` 的 `buildGatewayHeaders` 对非 GET/HEAD 请求自动添加 `X-Requested-With: XMLHttpRequest`
+2. Gateway `forward_csrf_headers()` 始终包含 `X-Requested-With: XMLHttpRequest`（注释说明 Gateway 是可信客户端）
+3. Alpha-ID `CSRFMiddleware` 的 `exempt_prefixes` 新增 `/api/v1/social/`, `/api/v1/gdpr/`, `/api/v1/brain/`, `/api/v1/voice/`, `/api/v1/risk/`（纵深防御：Gateway 可能直连绕过）
+4. Gateway 所有 Alpha-ID 代理路由（social, gdpr, risk, brain, voice）显式转发 `Authorization` 头
+5. Gateway `services/proxy.py` 新增 `proxy_delete()` 函数（gdpr/delete 是 DELETE 方法，之前误用 proxy_post 导致 405）
+**后果:** 所有 revived 死代码路由（gdpr/export, gdpr/delete, social/*, risk/*, brain/*, voice/*）全部正常工作
+
+---
+
+### D-20260804-20: DS api-proxy.ts 增加 X-Requested-With 自动注入
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** DS 前端 `proxyToGateway` 调用 Gateway 时，Alpha-ID CSRF 中间件要求非安全方法携带 `X-Requested-With: XMLHttpRequest` 头
+**决定:** 在 `buildGatewayHeaders` 中，对 POST/PUT/DELETE/PATCH 方法自动添加 `X-Requested-With: XMLHttpRequest` 头（如果客户端未提供）
+**后果:** DS 前端所有 POST/PUT/DELETE API 调用自动满足 Alpha-ID CSRF 要求，无需每个路由单独处理
+
+---
+
 *最后更新: 2026-08-04
