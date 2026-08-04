@@ -18,10 +18,10 @@ const NAV_GROUPS = [
     {
       label: '操作区',
       items: [
-        { href: '/app/chat', label: '对话', icon: 'chat' as const },
-        { href: '/app/memory', label: '记忆图谱', icon: 'memory' as const },
-        { href: '/app/workflow', label: '工作流', icon: 'workflow' as const },
-        { href: '/app/doubao', label: '豆包记忆桥', icon: 'bridge' as const },
+        { href: '/chat', label: '对话', icon: 'chat' as const },
+        { href: '/memory', label: '记忆图谱', icon: 'memory' as const },
+        { href: '/workflow', label: '工作流', icon: 'workflow' as const },
+        { href: '/doubao', label: '豆包记忆桥', icon: 'bridge' as const },
         { href: '/dashboard', label: '运营看板', icon: 'dashboard' as const },
         { href: '/brain', label: '智能大脑', icon: 'brain' as const },
         { href: '/voice', label: '语音', icon: 'voice' as const },
