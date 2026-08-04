@@ -96,14 +96,49 @@ secrets/
 
 # ── 非核心项目（独立仓库，不在此 monorepo 中跟踪） <longcat_arg_value>
 
-DS/
+# ── DS 电商看板（忽略构建产物和第三方文件，跟踪核心源码） ──
+DS/node_modules/
+DS/.next/
+DS/out/
+DS/prisma/dev.db
+DS/prisma/migrations/
+DS/public/
+DS/postcss.config.js
+DS/tailwind.config.ts
+DS/src/lib/api.ts
+DS/src/lib/auth.ts
+DS/src/lib/eventbus.ts
+DS/src/lib/tenant.ts
+DS/src/components/layout/
+DS/src/components/marketing/
+DS/src/components/shared/
+DS/src/app/app/
+DS/src/app/dashboard/
+DS/src/app/demo/
+DS/src/app/doubao/
+DS/src/app/ecosystem/
+DS/src/app/register/
+DS/scripts/apply-migration.sh
+
+# DS 核心源码例外
 !DS/README.md
 !DS/src/lib/onebound.ts
 !DS/src/lib/gateway-client.ts
 !DS/src/lib/eventbus-init.ts
+!DS/src/lib/api-proxy.ts
 !DS/src/app/layout.tsx
+!DS/scripts/seed-demo.mjs
 !DS/scripts/apply-migration.bat
 !DS/src/app/api/webhook/shoplazza/route.ts
+!DS/src/app/api/v1/human/chat/route.ts
+!DS/src/app/api/v1/human/identity/route.ts
+!DS/src/app/api/v1/human/memory/graph/route.ts
+!DS/src/app/api/v1/human/memory/search/route.ts
+!DS/src/app/api/v1/human/register/send-sms/route.ts
+!DS/src/app/api/v1/human/register/verify-sms/route.ts
+!DS/src/app/api/v1/human/register/complete/route.ts
+!DS/src/app/api/doubao/route.ts
+!DS/src/app/api/internal/monitoring/route.ts
 flow/
 !flow/README.md
 obsidian-plugin/
@@ -283,7 +318,13 @@ resume_v7.py
 
 # 临时SQL和脚本
 _check_eval.py
+
 scripts/
+
+# DS scripts 例外（必须在根 scripts/ 之后声明）
+!DS/scripts/
+!DS/scripts/seed-demo.mjs
+!DS/scripts/apply-migration.bat
 
 # 个人文档（临时/实验性文档，非项目核心）
 # GHOST.md 和 ARCHITECTURE.md 现在是项目核心文档，不再忽略

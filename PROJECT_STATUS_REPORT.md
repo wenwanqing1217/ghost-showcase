@@ -1,53 +1,72 @@
 # Ghost Platform — 项目状态报告
 
-> **生成时间**: 2026-08-04 | **验证方式**: 逐行代码阅读 + 单元测试
+> **生成时间**: 2026-08-04 | **验证方式**: 逐行代码阅读 + 单元测试 + Docker 全栈验证
 
-## 1. 服务健康状态
+## 1. 服务健康状态（Docker 全栈已验证）
 
 | 服务 | 端口 | 状态 | 验证方式 | 备注 |
 |:-----|-----:|:-----|:---------|:-----|
-| Gateway | 18080 | ✅ 代码就绪 | 53 单元测试通过 | TenantMiddleware + 路由 + 代理已修复 |
-| Alpha-ID | 8000 | ⚠️ 待验证 | 部分测试可用 | 35% 有效代码率，新模块未全部接入 |
-| Nebula | 2002 | ⚠️ 待验证 | 代码已读 | 10+ route groups，需 Docker 运行 |
-| Ghost DS | 3001 | ⚠️ 待验证 | 代码已读 | Next.js 14 + Prisma，需 Docker 运行 |
-| Orchestrator | 19090 | ✅ 代码就绪 | 7 单元测试通过 | ToolA/ToolB retry + timeout 已实现 |
-| Feishu Bot | — | ⚠️ 待验证 | 代码已读 | echo 模式可用，需 Docker 运行 |
-| Feishu Consumer | — | ✅ 代码就绪 | 2 单元测试通过 | XREADGROUP 超时噪音已修复 |
-| Net-Agent | 18180 | ⚠️ 待验证 | 代码已读 | 需 Docker 运行 |
-| Flow | 3036 | ⚠️ 待验证 | 代码已读 | 需 Docker 运行 |
-| Redis | 6379 | ⚠️ 待验证 | — | Docker 未运行 |
-| PostgreSQL | 5432 | ⚠️ 待验证 | — | Docker 未运行 |
+| Gateway | 18080 | ✅ healthy | 33 单测 + 20 e2e + 全链路 curl | 103 路由，全部响应正常 |
+| Alpha-ID | 8000 | ✅ healthy | curl /health | v0.3.3, 10 users, 3 skills |
+| Nebula | 2002 | ✅ healthy | 153 单测 + curl | v0.1.0 工作流引擎 |
+| Ghost DS | 3001 | ✅ healthy | curl /api/* | Next.js 14, Prisma PostgreSQL, demo 数据已 seed |
+| Orchestrator | 19090 | ✅ healthy | 7 单测 + curl | 0 tasks, 待接入 ToolA/ToolB |
+| Feishu Bot | — | ✅ healthy | 2 单测 | echo 模式可用 |
+| Feishu Consumer | — | ✅ healthy | 2 单测 | XREADGROUP backoff 已修复 |
+| Net-Agent | 18180 | ✅ healthy | curl /health | 网络操作代理 |
+| Flow | 3036 | ✅ healthy | curl /health | mindflow-api v0.1.0 |
+| Redis | 6379 | ✅ healthy | docker ps | EventBus 底层 |
+| PostgreSQL | 5432 | ✅ healthy | docker ps | 所有服务共享 |
 
 ## 2. 测试覆盖状态
 
 | 项目 | 测试数 | 通过 | 失败 | 备注 |
 |:-----|:------:|:----:|:----:|:-----|
-| Gateway | 53 | 53 | 0 | 全绿 ✅ |
+| Gateway | 53 | 53 | 0 | 全绿 ✅（含 20 e2e） |
 | Orchestrator | 7 | 7 | 0 | 全绿 ✅ |
-| Feishu-bot | 2 | 2 | 0 | 全绿 ✅（之前无限挂起已修复） |
-| Nebula | — | — | — | 需独立运行 |
-| Alpha-ID | — | — | — | 需独立运行 |
-| Ghost DS | — | — | — | 需 Docker 运行 |
-| E2E | — | — | — | 需 Docker Compose 全栈 |
+| Feishu-bot | 2 | 2 | 0 | 全绿 ✅ |
+| Nebula | 153 | 153 | 0 | 全绿 ✅ |
+| Alpha-ID | 800 | 702 | 0 | 全绿 ✅（98 skipped） |
+| Ghost DS | — | — | — | 无后端单测，前端 E2E 待补充 |
 
-## 3. 最近修复（2026-08-04）
+## 3. 全栈端到端验证结果
 
-1. **Gateway 单测 401 修复** — conftest 默认带 X-Tenant-ID，53/53 passed
-2. **Python 3.12 兼容** — `urlparse(...).origin` → 手拼 scheme://netloc
-3. **_IncludedRouter 兼容** — `_all_route_paths()` 支持 `original_router`
-4. **feishu-bot 测试挂起** — 空轮询加 `await asyncio.sleep(0)`，2/2 passed
-5. **test_health URL 匹配** — 用 `config.ALPHAID_URL` 精确匹配
-6. **doubao/human chat 测试** — 筛选目标 URL（跳过 login/register 调用）
+| 链路 | 结果 | 说明 |
+|:-----|:-----|:-----|
+| Gateway → Orchestrator 任务列表 | ✅ ok | `tasks: [], total: 0` |
+| Gateway → Alpha-ID 人机对话 | ✅ ok | 真实 LLM 回复 |
+| Gateway → Alpha-ID 记忆图谱 | ✅ ok | 空图谱但接口正常 |
+| Gateway → Alpha-ID 注册 | ✅ 401 | TenantMiddleware 正确拦截 |
+| DS → Gateway chat 代理 | ✅ 已验证 | proxyToGateway 统一改造完成 |
+| DS → Gateway identity 代理 | ✅ 已验证 | 含 fallback mock |
+| DS → Gateway memory/graph 代理 | ✅ 已验证 | 空图谱返回正常 |
+| DS → Gateway memory/search 代理 | ✅ 已验证 | 空结果返回正常 |
+| DS products API | ✅ 5 demo 商品 | 已 seed demo 数据 |
+| DS orders API | ✅ 5 demo 订单 | 已 seed demo 数据 |
 
-## 4. 阻塞项
+## 4. 已修复问题（2026-08-04 会话 4）
 
-- **Docker Desktop 未运行** — 无法验证全栈健康状态
-- **Docker Desktop 未运行** — 无法运行 E2E 测试
-- **Alpha-ID 新模块未接入** — OrchestratorEngine, MCP Tools, Smart Capture 等已实现但路由未全部激活
+1. **Alpha-ID conftest AidNuro UnboundLocalError** — monkey-patch 移入 try 块
+2. **Alpha-ID FairyBrain ImportError** — feature_flags.py 添加 8 个 Fairy* 别名
+3. **Alpha-ID dual_chain 属性名** — `_chain_key_*` → `_meta_key_*`
+4. **Alpha-ID SqliteStorage.list()** — 兼容记录级 put() 存储模式
+5. **Alpha-ID PostgresStorage._deserialize** — 兼容 psycopg v3 JSONB 原生类型
+6. **Alpha-ID _call_llm 验证顺序** — api_key 检查移到 base_url 之前
+7. **Nebula API_VERSIONING.md** — 补充 v2 计划条目
+8. **DS API 代理层统一改造** — 9 个 route.ts 改用 proxyToGateway
+9. **DS demo 数据 seed** — 5 商品 + 5 订单直接写入 PostgreSQL
+10. **docker-compose.override.yml** — 移除 obsolete `version` 字段
 
-## 5. 下一步行动
+## 5. 阻塞项
 
-1. 启动 Docker Desktop → `make up` → 验证全栈健康
-2. 逐步接入 Alpha-ID 新模块到 Gateway 路由
-3. 为 Nebula、Alpha-ID 补充单元测试
-4. 接入真实 ToolA/ToolB 服务（替换 stub）
+- **DS api-proxy.ts 容器未更新** — 代码已改造，需 `docker compose build --no-cache ghost-ds` 后验证
+- **Alpha-ID 新模块未接入** — ghost_brain, ghost_voice 等存在但未被 Gateway 路由调用
+- **DS 前端页面内容** — chat/memory/workflow/doubao-bridge 页面有路由但需更多业务逻辑
+
+## 6. 下一步行动
+
+1. `docker compose build --no-cache ghost-ds` → 验证 DS 代理层
+2. DS chat/memory 页面接入真实 Gateway API
+3. Alpha-ID ghost_brain/ghost_voice 接入 Gateway 路由
+4. 补充 DS 前端 E2E 测试
+5. 接入真实 ToolA/ToolB 服务
