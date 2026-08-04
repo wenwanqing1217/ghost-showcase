@@ -1,0 +1,200 @@
+# Ghost Platform — 架构决策日志
+
+> **用途:** 记录所有重要架构和设计决策，包括背景、选项、选择理由  
+> **使用方式:** 每次做重要技术决策时记录，避免重复讨论  
+> **关联:** 工作进度见 `WORK_LOG.md`，当前状态见 `PROJECT_STATUS_REPORT.md`
+
+---
+
+## 决策格式
+
+```markdown
+### D-YYYYMMDD-N: 决策标题
+
+**日期:** YYYY-MM-DD  
+**状态:** Proposed / Accepted / Deprecated / Superseded  
+**背景:** 为什么需要做这个决策  
+**选项:** 考虑过的方案  
+**决定:** 选择了什么  
+**理由:** 为什么选这个  
+**后果:** 带来了什么影响
+```
+
+---
+
+## 已记录决策
+
+### D-20260804-1: 建立项目状态追踪体系
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** 项目进度、决策、讨论只在对话框里流转，新对话完全不知道之前的进度。每次换对话都要重新理解项目。  
+**选项:** 
+- A) 每次对话开头让 AI 读大量文件理解项目
+- B) 建立轻量级的持久化状态文件体系
+- C) 使用项目管理工具（Jira/Notion 等）
+
+**决定:** B — 建立三文件体系（PROJECT_STATUS_REPORT.md + WORK_LOG.md + DECISIONS.md）  
+**理由:** 
+- 零外部依赖，纯 Markdown 文件
+- 文件在 Git 仓库中，天然版本控制
+- 新对话只需读 3 个文件即可了解全貌
+- WORK_LOG.md 记录每次会话成果，DECISIONS.md 记录技术决策
+
+**后果:** 建立了可持久化的项目状态追踪机制
+
+---
+
+### D-20260804-2: DS 前端首页改为 Ghost 品牌页
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** 原有首页是数据看板（收入图表、订单状态等），需要改为 Ghost 品牌展示页  
+**选项:**
+- A) 保留数据看板，添加品牌元素
+- B) 完全改为品牌展示页，数据看板移到 /dashboard
+- C) 品牌展示页 + 数据看板合并
+
+**决定:** B — 完全改为品牌展示页（CosmicBackground + GhostSprite + 标题/标签）  
+**理由:** Ghost 是 Web4.0 平台，品牌展示比数据看板更重要；数据看板可后续添加  
+**后果:** 首页从 242 行数据看板改为 373 行品牌页，删除 RevenueChart 组件
+
+---
+
+### D-20260804-3: DS 前端设计系统 — Ghost Cosmic Theme
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** 需要统一的前端设计语言，替代之前散乱的样式  
+**选项:**
+- A) 使用 Tailwind CSS 原子类
+- B) 使用 CSS 变量 + 组件库
+- C) 使用 shadcn/ui + 自定义主题
+
+**决定:** B — CSS 变量 + 共享组件库  
+**理由:** 轻量、不引入重型依赖、与 Ghost cosmic 主题契合  
+**后果:** 建立 GlassCard, GhostSprite, Tag, CosmicBackground 等共享组件，globals.css 1032 行变更
+
+---
+
+### D-20260804-4: DS 前端删除 Sidebar，改为顶部导航
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** Sidebar 导航组件（79 行）与新的 Ghost 品牌设计不协调  
+**选项:**
+- A) 保留 Sidebar，调整样式
+- B) 删除 Sidebar，使用顶部导航
+- C) 折叠式 Sidebar
+
+**决定:** B — 删除 Sidebar，使用顶部导航  
+**理由:** 品牌展示页需要最大视觉空间，Sidebar 占用侧边栏  
+**后果:** Sidebar.tsx 删除，导航移至 Header 组件
+
+---
+
+### D-20260804-5: 统一 API 网关架构
+
+**日期:** 2026-08-04（继承自历史）  
+**状态:** Accepted  
+**背景:** 多个前端（Ghost DS, Ghost.html, MindFlow, Feishu Bot, NURO）需要统一的后端访问方式  
+**选项:**
+- A) 每个前端直连各自后端
+- B) 统一 Gateway 作为所有外部请求的唯一入口
+
+**决定:** B — Gateway 是强制瓶颈点  
+**理由:** 安全（CORS/速率限制/认证）、可观测性（统一日志/metrics）、简化前端配置  
+**后果:** Gateway (:18080) 代理所有后端服务（Alpha-ID, Nebula, Flow, Net-Agent, DS）
+
+---
+
+### D-20260804-6: 多租户隔离 — JWT DID + X-Tenant-ID
+
+**日期:** 2026-08-04（继承自历史）  
+**状态:** Accepted  
+**背景:** 需要支持多个用户/店铺使用同一套基础设施  
+**选项:**
+- A) 每个租户独立数据库
+- B) 共享数据库 + tenantId 字段隔离
+- C) 共享数据库 + schema 隔离
+
+**决定:** B — 共享数据库 + tenantId 字段隔离  
+**理由:** 部署简单、运维成本低、适合个人使用场景  
+**后果:** 所有 Prisma 模型添加 tenantId 字段和索引
+
+---
+
+### D-20260804-7: 货源适配器 — OneBound 标准化
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** 需要从多个货源平台（1688, CJ Dropshipping）获取商品数据  
+**选项:**
+- A) 每个货源写独立的 API 客户端
+- B) 标准化 Schema + 适配器模式
+
+**决定:** B — 标准化 Schema + 适配器模式（OneBound）  
+**理由:** 新增货源只需添加适配器，不影响核心业务逻辑  
+**后果:** DS/src/lib/onebound.ts 建立货源适配器框架
+
+---
+
+### D-20260804-8: 可观测性 — Prometheus + Grafana + Loki
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** 需要监控微服务健康状况、请求延迟、错误率  
+**选项:**
+- A) 每个服务独立日志
+- B) ELK 栈（Elasticsearch + Logstash + Kibana）
+- C) Prometheus + Grafana + Loki
+
+**决定:** C — Prometheus + Grafana + Loki  
+**理由:** 轻量、内存占用低、与 Docker Compose 集成简单  
+**后果:** docker-compose.override.yml 添加 4 个监控服务，9 个 scrape target
+
+---
+
+### D-20260804-9: 事件总线 — Redis Streams
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** 需要服务间异步通信（如订单状态变更 → 飞书通知）  
+**选项:**
+- A) RabbitMQ
+- B) Redis Pub/Sub
+- C) Redis Streams
+
+**决定:** C — Redis Streams + 消费者组 + DLQ  
+**理由:** Redis 已部署、支持消息持久化、消费者组保证 Exactly-Once 语义、DLQ 处理失败消息  
+**后果:** DS/src/lib/eventbus.ts 建立事件总线，Feishu Consumer 消费事件
+
+---
+
+### D-20260804-10: 飞书总线 — 4-in-1 架构
+
+**日期:** 2026-08-04  
+**状态:** Accepted  
+**背景:** 飞书需要同时处理对话、执行、通知、审批四种场景  
+**选项:**
+- A) 四个独立服务
+- B) 单一服务内多模块
+- C) Gateway 直接处理飞书请求
+
+**决定:** B — 单一服务内多模块（CHAT + CODE + 通知 + 审批）  
+**理由:** 共享飞书 WebSocket 连接、统一消息处理逻辑  
+**后果:** ghost-main/feishu-bot/ 建立 4-in-1 服务，Feishu Consumer 处理事件
+
+---
+
+## 待记录决策
+
+- [ ] DS 前端路由结构（/app/* vs /dashboard/*）
+- [ ] Prisma 迁移策略（migrate dev vs db push）
+- [ ] 真实货源 API 接入方案
+- [ ] Shoplazza 履约 API 接入方案
+- [ ] Flow 数据库选择（PostgreSQL vs SQLite）
+
+---
+
+*最后更新: 2026-08-04*
