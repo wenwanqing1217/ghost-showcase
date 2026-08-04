@@ -1,53 +1,82 @@
-<!-- STATUS: REFERENCE -->
+<!-- STATUS: ACTIVE -->
+<!-- 项目入口：快速了解 + 快速启动。详细架构见 GHOST.md。 -->
 
-# Ghost — Web4.0 人机共生基础设施
+# Ghost Platform
 
-> 国内合规、以人为核心的 Web4.0 人机共生基础设施。
-> 一人一生唯一 Alpha-ID + 双大脑架构 + A2A 智能体协同 + Obsidian 知识闭环。
+Web4.0 人机共生基础设施。一人一生唯一 Alpha-ID + A2A 智能体协同。
 
----
+## 快速启动
 
-## 架构全景
+```bash
+# 1. 克隆（含 submodule）
+git clone --recursive <repo-url>
+cd ghost-platform
 
-```
-┌─────────────────────────────────────────────────────────────────────┐
-│  L1  用户交互层                                                      │
-│  Ghost.html(2.5K)  飞书WS(200L)  NURO桌宠(1.7K)  豆包阅读器(1.1K)    │
-├─────────────────────────────────────────────────────────────────────┤
-│  L2  身份管理层 — Alpha-ID                        ~35K+ 行 / 150+文件│
-│  DID + 签名 + AgentLoop + 双链记忆 + TwinBrain + 采集 + CLI + 新模块│
-├─────────────────────────────────────────────────────────────────────┤
-│  L3  记忆知识库层                                                    │
-│  双链记忆 + TwinBrain + Coala记忆 + 记忆防御 + Obsidian 双向同步     │
-├─────────────────────────────────────────────────────────────────────┤
-│  L4  Agent调度层                                                     │
-│  AgentLoop + Orchestrator + Tenant + Risk + Recovery + A2A          │
-│  + AgentFeed + SmartCapture + SelfEvolution (自进化循环)             │
-├─────────────────────────────────────────────────────────────────────┤
-│  L5  网关管控层 — Gateway :18080                  1,857 行 / 17文件  │
-│  /v1/human/* /v1/agent/* /v1/internal/* /v1/net/*                   │
-├─────────────────────────────────────────────────────────────────────┤
-│  L6  底层通信层                                   AI Mesh (未开发)     │
-└─────────────────────────────────────────────────────────────────────┘
+# 2. 配置环境变量
+cp DS/.env.example DS/.env
+cp ghost-main/gateway/.env.example ghost-main/gateway/.env
+cp alphaid/projects/.env.example alphaid/projects/.env
+
+# 3. 启动所有服务
+docker compose up -d
+
+# 4. 验证
+curl http://localhost:18080/health
+curl http://localhost:8000/health
 ```
 
----
+## 服务清单
 
-## 组件速查
+| 服务 | 端口 | 说明 |
+|:-----|:----:|:-----|
+| Alpha-ID | 8000 | 身份层 + 记忆 + AgentLoop |
+| Gateway | 18080 | 统一 API 网关 |
+| Orchestrator | 19090 | 双工具协同调度 |
+| Nebula | 2002 | 工作流引擎 |
+| Flow | 3036 | 工作流编排 |
+| Ghost DS | 3001 | 电商看板 |
+| Net-Agent | 18180 | 网络管理 |
+| Feishu Bot | — | 飞书 WebSocket Bot |
+| Redis | 6379 | 缓存 + 事件总线 |
+| PostgreSQL | 5432 | 持久化 |
 
-| 组件 | 端口 | 代码量 | 状态 | 本质 |
-|:-----|:----:|:------:|:----:|:-----|
-| Alpha-ID | 8000 | ~35K+ / 150+文件 | ✅ 运行中 | 身份+记忆+AgentLoop+新模块 全栈核心 |
-| Nebula | 2002 | ~7.7K / 67文件 | ✅ 运行中 | 工作流引擎+飞书WS+AI网关 |
-| Gateway | 18080 | 1,857 / 17文件 | ✅ 运行中 | 统一网关 四层路由+限流+信封 |
-| Ghost.html | — | 2,515 / 1文件 | ✅ 可用 | Web展示层(注册/仪表盘/聊天) |
-| NURO 桌宠 | — | 1,719 / 7文件 | ✅ 可用 | 纯本地AI贾维斯(桌面悬浮精灵) |
-| 豆包阅读器 | — | 1,055 / 5文件 | ✅ 可用 | LevelDB扫描→精炼→Obsidian |
-| Flow/API | 3036 | ~4.4K TS | ⚠️ 部分 | 工作流/地图/Computer Use |
+## 关键端点
 
----
+```
+GET  /health                    — 服务健康检查
+POST /v1/chat                   — 聊天（需 alpha_id + message）
+POST /v1/human/chat             — 聊天（需 tenant 身份）
+GET  /docs                      — API 文档
+```
 
-## Alpha-ID 新模块 (v0.4.0)
+## 开发命令
+
+```bash
+make help     # 查看所有可用命令
+make up       # 启动服务
+make down     # 停止服务
+make logs     # 查看日志
+make test     # 运行测试
+make lint     # 代码检查
+```
+
+## 文档
+
+| 文档 | 用途 |
+|:-----|:-----|
+| `GHOST.md` | 项目唯一真相源（架构 + 术语 + 服务清单） |
+| `AGENTS.md` | 项目级 AI Agent 指令（TERM 规则 + 死代码处理） |
+| `DECISIONS.md` | 架构决策日志 |
+| `PHASE1_PLAN.md` | 实施计划 |
+| `CODEOWNERS` | 代码归属 |
+| `CONTRIBUTING.md` | 贡献规范 |
+
+## 当前状态
+
+- 11/12 服务运行中（feishu-bot / feishu-consumer 需配置 `FEISHU_APP_ID` / `FEISHU_APP_SECRET`）
+- `/v1/chat` 链路已验证可用
+- CI 配置完整（GitHub Actions）
+
 
 | 模块 | 文件 | 行数 | 状态 | 本质 |
 |:-----|:-----|:----:|:----:|:-----|
