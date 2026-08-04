@@ -172,7 +172,7 @@ flowchart TB
 |:-----|:-----|:-----|
 | `bot.py` | WebSocket 长连接 + TaskQueue 离线定时任务 | ✅ 运行中 |
 | `code_runner.py` | 3 后端 (echo/atomcode/codex) + prompt 消毒 | ✅ echo 模式可用 |
-| `feishu_consumer.py` | Redis Streams → 飞书通知 | ⚠️ XREADGROUP 已修复 |
+| `feishu_consumer.py` | Redis Streams → 飞书通知 | ✅ XREADGROUP 已修复，运行中 |
 
 ### Net-Agent (`ghost-main/net_agent_server/`)
 
@@ -268,13 +268,14 @@ OneBound/Shoplazza（货源/店铺）
 | Redis Streams 消费休眠 | `eventbus-init.ts` 加 `startConsuming()` | DS 日志显示 worker 启动 |
 | 两个 MasterOrchestrator 冲突 | 合并为 `OrchestratorEngine`，旧类为兼容层 | Python import 正常 |
 | EventBus blinker ↔ TS 不互通 | Python 改用 Redis Streams，接口不变 | 跨服务事件可达 |
+| `/v1/agent/topology` 404 | Gateway 加 `/v1/agent/topology` 代理路由 | 返回 Alpha-ID A2A graph 数据 |
+| Nebula `/health` 404 | 添加 308 重定向到 `/health/` | `curl /health` 正常返回 |
+| Alpha-ID 12 条死代码（social/risk/gdpr/observability） | Gateway 新增代理路由 | 路由可达，返回 Alpha-ID 原生响应 |
 
 ### 仍待修复
 
 | 优先级 | 问题 | 影响 | 建议方案 |
 |:------:|:-----|:-----|:---------|
-| P0 | `/v1/agent/topology` 返回 404 | A2A 网络可视化不可用 | 检查 Gateway 路由注册 |
-| P0 | Nebula 无 `/health` 端点 | 健康检查不标准 | 添加 `/health` alias → `/` |
 | P1 | Orchestrator ToolA/ToolB 为 stub | 代码调度不可用 | 接入真实生成/优化服务 |
 | P1 | DS 无种子数据 | 看板为空 | 添加 demo seed script |
 | P2 | Feishu bot unhealthy | 容器健康检查失败 | 添加 WebSocket 心跳检测 |
