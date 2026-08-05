@@ -185,6 +185,15 @@
 **理由:** 共享飞书 WebSocket 连接、统一消息处理逻辑  
 **后果:** ghost-main/feishu-bot/ 建立 4-in-1 服务，Feishu Consumer 处理事件
 
+### D-20260805-1: git filter-branch 重写历史（移除 625MB 大文件 + 飞书凭证）
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** GitHub Push Protection 拒绝推送（Secret Scanning 拦截）。master 历史含 `DockerDesktopInstaller.exe`（625MB，超 GitHub 100MB 限制）+ `ghost-main/feishu-bot/.env`（真实 FEISHU_APP_SECRET，commit 497b88c/2ac205a 等 6 处）  
+**决定:** 用 `git filter-branch --index-filter 'git rm --cached --ignore-unmatch <path>'` 从全部历史移除这两个路径；删除 refs/original 备份 + reflog expire + gc 彻底清理对象；force push 到 master  
+**后果:** master 历史全部重写（旧 commit ID 失效），远程与本地一致；Push Protection 解除；`.git` 从 600MB+ 降至 35.5MB；子模块 gitlink（37021b6）保留完好。**注意**：App Secret 曾存在于远程历史，仍应去飞书开放平台轮换  
+**教训:** ① 误提交安装包/凭证的根因是 `.gitignore` 覆盖不全——大文件入库前应有 hooks/CI 拦截；② GFW 环境下 `http.postBuffer=65536`（64KB 分块）可规避大块上传被 reset 的问题
+
 ---
 
 ## 待记录决策

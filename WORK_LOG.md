@@ -452,6 +452,15 @@
 
 **结果:** 完成。全仓 lint 干净、1138 测试连过；net-agent 从"测试目录为空（CI exit 5）"到 12 passed 并修出 4 个真实 bug；文档 L1-L4 齐备。
 
+**推送 + 历史清理（本会话追加）:**
+- 网络排障：github.com HTTPS 被 GFW 间歇性干扰（curl 通 / git connect 超时 + TLS reset 交替）；`http.postBuffer=65536`（64KB 分块）后连接稳定
+- 推送顺序：先推子模块 `alphaid/projects` wip/2026-07-27（37021b6，领先远程 5 提交）→ 再 force push 主仓库 master
+- GitHub Push Protection 拦截两次，filter-branch 重写历史解决：
+  - `DockerDesktopInstaller.exe`（625MB，超 100MB 限制，源自 91ea228 误提交）
+  - `ghost-main/feishu-bot/.env`（真实 FEISHU_APP_SECRET，6 处提交）
+- 清理后 `.git` 600MB+ → 35.5MB；子模块 gitlink（37021b6）保留完好；远程 master = 78e9bd1（force update）
+- 决策记录：DECISIONS.md D-20260805-1；状态报告同步（致命问题 #1 已解决）
+
 **提交:** 见下方 git commit（Session 15）。
 
 ---

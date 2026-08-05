@@ -97,7 +97,7 @@
 
 | # | 问题 | 文件 | 说明 |
 |:--|:-----|:-----|:-----|
-| 1 | 飞书 App Secret 已进 git 历史 | [feishu-bot/.env:3-4](file:///d:/MW/ghost-main/feishu-bot/.env#L3-L4) | P0-1 移除了工作区追踪，但 cde0528/91ea228/f0c0811 三次提交历史仍含真实凭证。**用户必须去飞书开放平台轮换 App Secret**，然后用 git filter-repo 清理历史 |
+| 1 | 飞书 App Secret 曾进 git 历史 | [feishu-bot/.env.example](file:///d:/MW/ghost-main/feishu-bot/.env.example) | ~~已修复~~（Session 15）：filter-branch 已从全部历史移除 `.env`（commit 497b88c/2ac205a 等 6 处），Push Protection 拦截解除，master 已 force push 成功。**但 Secret 曾在远程存在，仍须去飞书开放平台轮换** |
 
 ### ⚠️ 严重 — 应尽快处理
 
@@ -125,15 +125,14 @@
 **已完成**：P0（凭证移除/网络/flow 入库）、P1（9 个 DS 致命 bug）、P2（调度层免费优先 + 每日最优自替换 + 飞书社交 + DIY CLI + 多租户面板）、P3（AgentGraph/alpha_social/diy_cli/tenant_panel 补测 64 passed；DIY adapter + 外部 skill 市场 + 6 业务意图落地；渠道助手 + 飞书指令中心 + 内容生成闭环）、**质量加固（上轮）**：ruff 全绿 + alphaid 859 测试全绿 + DS 构建链路全绿（tsc/vitest/build）+ #13-#23 真实 bug 修复 + 种子数据 + 本地冒烟通过、**lint 硬化（Session 15）**：统一 ruff 配置全绿 + net-agent 测试 0→12 + 修出循环导入/async with/str+bytes/F821 等 10+ 真实 bug + SYSTEM_MAP/PROJECT_MAP 文档补全 + 全仓 1138 测试连过
 
 **待办（按优先级）**：
-1. **用户操作**：去飞书开放平台轮换 App Secret（历史提交含凭证，必须轮换）
+1. **用户操作**：去飞书开放平台轮换 App Secret（曾泄露到远程历史，虽已清理仍应轮换）
 2. **Docker 全栈验证**：启动 Docker Desktop → `make up` → `make test`，实测 11 服务健康（当前代码级已验证，容器级未验）
 3. **打包分发**：按 docs/planning/PACKAGING_STRATEGY.md 完成安全审查 → 补测 → 打包（Trae 式可下载客户端）
 4. **#21 catch 静默吞错误**：obsidian/social 页面 catch 块补用户可见错误提示，随版本迭代清理
 
 **用户必须操作**：
-1. 去飞书开放平台 https://open.feishu.cn/app 轮换 `cli_aad59b68b879dbe7` 的 App Secret
-2. （可选）安装 git filter-repo 后运行 `git filter-repo --path ghost-main/feishu-bot/.env --invert-paths` 清理历史
-3. 启动 Docker Desktop 后才能验证服务健康状态
+1. 去飞书开放平台 https://open.feishu.cn/app 轮换 `cli_aad59b68b879dbe7` 的 App Secret（历史已由 filter-branch 清理，但 Secret 曾在远程存在）
+2. 启动 Docker Desktop 后才能验证服务健康状态
 
 ---
 
@@ -205,5 +204,13 @@
 ### 验证
 - 全仓 **1138 passed**：alphaid 859 / nebula 153 / gateway 32 / orchestrator 7 / net-agent 12 / DS 45 / flow 30，ruff 全绿（2026-08-05 亲自执行）
 
+### 推送 + 历史清理（本会话追加）
+- **master 已推送到 GitHub**（78e9bd1，force update）：先推子模块 wip/2026-07-27（37021b6）→ 再 force push 主仓库
+- **filter-branch 历史重写**（详见 DECISIONS.md D-20260805-1）：
+  - 移除 `DockerDesktopInstaller.exe`（625MB，超 GitHub 100MB 限制）
+  - 移除 `ghost-main/feishu-bot/.env`（真实 App Secret，6 处提交）→ GitHub Push Protection 拦截解除
+  - 删除 refs/original 备份 + reflog expire + gc；`.git` 600MB+ → 35.5MB
+- **网络对策**：GFW 干扰下 `http.postBuffer=65536`（64KB 分块）规避大块上传 reset；子模块先于主仓库推送保证 CI 可检出 gitlink
+
 ### 待办不变
-- 用户轮换飞书 App Secret；启动 Docker Desktop 跑全栈 E2E；打包分发按 PACKAGING_STRATEGY.md 前置条件推进
+- 用户轮换飞书 App Secret（历史已清理，但 Secret 曾在远程存在）；启动 Docker Desktop 跑全栈 E2E；打包分发按 PACKAGING_STRATEGY.md 前置条件推进
