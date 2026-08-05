@@ -1,9 +1,9 @@
 /**
  * Server-side EventBus initialization for Next.js
  * 
- * This module initializes the EventBus and starts consumers
- * when the Next.js server process starts. Import this module
- * from any server-side code to ensure it runs once.
+ * This module initializes the EventBus and registers local handlers.
+ * Events are published through the Gateway (HTTP), which writes to Redis Streams.
+ * Consumption from Redis Streams is handled by OrchestratorEngine (alphaid).
  * 
  * Usage: import '@/lib/eventbus-init' from any server-only module.
  * 
@@ -11,30 +11,22 @@
  * (API routes, server components, etc.). Never import from client components.
  */
 
-import { Redis } from 'ioredis';
 import { initEventBus, getEventBus, EventType } from './eventbus';
 
 let initialized = false;
-let redis: Redis | null = null;
 
 /**
  * Initialize the EventBus — called automatically on module import.
- * Creates Redis connection, registers handlers, starts consumer loop.
+ * Registers local handlers. Publishing goes through Gateway → Redis.
+ * Consumption is handled by OrchestratorEngine via Redis consumer groups.
  */
 async function initialize(): Promise<void> {
   if (initialized) return;
 
   try {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    redis = new Redis(redisUrl, {
-      retryStrategy: (times) => Math.min(times * 200, 2000),
-      maxRetriesPerRequest: 3,
-      lazyConnect: true,
-    });
+    const eventBus = initEventBus();
 
-    const eventBus = initEventBus(redis);
-    
-    // Register event handlers for fulfillment
+    // Register local event handlers (for in-process emitLocal calls)
     eventBus.on(EventType.ORDER_CREATED, async (event) => {
       console.log('[EventBus] order:created:', event.id);
     });
@@ -54,14 +46,11 @@ async function initialize(): Promise<void> {
       console.log('[EventBus] supply:inventory:updated:', event.id);
     });
 
-    // Connect to Redis
-    await redis.connect();
-
-    // Start consuming events (activates consumer groups + XREADGROUP loop)
+    // Start local handler loop (no-op for Gateway-mediated emit)
     await eventBus.startConsuming();
 
     initialized = true;
-    console.log('[EventBus] Server-side initialization complete');
+    console.log('[EventBus] Server-side initialization complete (Gateway-mediated)');
   } catch (error) {
     console.error('[EventBus] Server-side initialization failed:', error);
   }
@@ -70,7 +59,6 @@ async function initialize(): Promise<void> {
 /**
  * Ensure EventBus is ready — synchronous check.
  * If not initialized, triggers async initialization.
- * (Merged from eventbus-server.ts for backward compat)
  */
 export function ensureEventBusReady(): void {
   if (!initialized) {
@@ -80,7 +68,6 @@ export function ensureEventBusReady(): void {
 
 /**
  * Get the EventBus instance — throws if not initialized.
- * (Merged from eventbus-server.ts for backward compat)
  */
 export function getEventBusInstance() {
   if (!initialized) {
@@ -90,16 +77,9 @@ export function getEventBusInstance() {
 }
 
 /**
- * Shutdown the EventBus — disconnect Redis.
- * (Merged from eventbus-server.ts for backward compat)
+ * Shutdown the EventBus — no-op (no persistent connections to close).
  */
 export function shutdownEventBus(): void {
-  if (redis) {
-    redis.disconnect();
-    redis = null;
-  }
   initialized = false;
+  console.log('[EventBus] Shutdown complete');
 }
-
-// Initialize on import (server-side only)
-initialize();

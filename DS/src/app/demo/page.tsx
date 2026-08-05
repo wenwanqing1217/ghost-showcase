@@ -240,7 +240,7 @@ export default function DemoPage() {
                   重新演示
                 </button>
                 <button
-                  onClick={() => window.location.href = '/app/register'}
+                  onClick={() => window.location.href = '/register'}
                   className="text-sm px-4 py-2 rounded-lg"
                   style={{
                     background: 'rgba(139,92,246,0.15)',

@@ -97,7 +97,7 @@ export default function SettingsPage() {
   const handleModeChange = async (mode: StoreMode) => {
     setStoreMode(mode);
     try {
-      const res = await fetch('/api/shop/mode', {
+      const res = await fetch(getApiUrl('/api/shop'), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ storeMode: mode }),

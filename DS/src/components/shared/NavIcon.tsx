@@ -22,7 +22,12 @@ type IconType =
   | 'voice'
   | 'a2a'
   | 'obsidian'
-  | 'tools';
+  | 'tools'
+  | 'content'
+  | 'channels'
+  | 'growth'
+  | 'my-agents'
+  | 'agent-market';
 
 interface NavIconProps {
   type: IconType;
@@ -172,6 +177,44 @@ export default function NavIcon({ type, active = false, size = 18 }: NavIconProp
         <path d="M12 10l6 6" />
         <circle cx="7" cy="7" r="2.5" />
         <line x1="2" y1="16" x2="16" y2="16" />
+      </svg>
+    ),
+    content: (
+      <svg width={size} height={size} viewBox="0 0 18 18" fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="4" width="12" height="10" rx="1.5" />
+        <polygon points="16,6 16,12 10,9" fill={color} stroke="none" />
+      </svg>
+    ),
+    channels: (
+      <svg width={size} height={size} viewBox="0 0 18 18" fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 7v4l8 4V3L3 7z" />
+        <path d="M3 9H1.5v0M14 5l2.5-1M14 13l2.5 1" />
+        <path d="M3 7c0-1 1-1.5 2-1.5" strokeDasharray="1.5 1.5" />
+      </svg>
+    ),
+    growth: (
+      <svg width={size} height={size} viewBox="0 0 18 18" fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 16c0-4 0-7-3-10" />
+        <path d="M9 16c0-4 0-7 3-10" />
+        <circle cx="9" cy="16" r="0.5" fill={color} />
+        <path d="M6 6c0-1.5 1.5-3 3-3s3 1.5 3 3-1.5 3-3 3" />
+      </svg>
+    ),
+    'my-agents': (
+      <svg width={size} height={size} viewBox="0 0 18 18" fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2.5" y="3" width="13" height="9" rx="1.5" />
+        <line x1="2.5" y1="6" x2="15.5" y2="6" />
+        <circle cx="5" cy="4.5" r="0.6" fill={color} stroke="none" />
+        <circle cx="7" cy="4.5" r="0.6" fill={color} stroke="none" />
+        <line x1="6" y1="14" x2="12" y2="14" />
+        <line x1="9" y1="12" x2="9" y2="14" />
+      </svg>
+    ),
+    'agent-market': (
+      <svg width={size} height={size} viewBox="0 0 18 18" fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 6h12l-1 8H4L3 6z" />
+        <path d="M6 6V4a3 3 0 0 1 6 0v2" />
+        <circle cx="9" cy="10" r="1.2" fill={color} stroke="none" />
       </svg>
     ),
   };

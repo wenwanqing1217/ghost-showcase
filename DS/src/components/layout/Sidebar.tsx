@@ -23,6 +23,8 @@ const NAV_GROUPS = [
       { href: '/workflow', label: '工作流', icon: 'workflow' as const },
       { href: '/dashboard', label: '运营看板', icon: 'dashboard' as const },
       { href: '/content', label: '内容库', icon: 'content' as const },
+      { href: '/channels', label: '渠道助手', icon: 'channels' as const },
+      { href: '/growth', label: '成长地图', icon: 'growth' as const },
     ],
   },
   {
@@ -30,6 +32,8 @@ const NAV_GROUPS = [
     items: [
       { href: '/ecosystem', label: '生态总览', icon: 'network' as const },
       { href: '/ecosystem/a2a', label: 'A2A 协议', icon: 'a2a' as const },
+      { href: '/ecosystem/agent-market', label: 'Agent 市场', icon: 'agent-market' as const },
+      { href: '/ecosystem/my-agents', label: '我的 Agent', icon: 'my-agents' as const },
       { href: '/ecosystem/obsidian', label: '知识图谱', icon: 'obsidian' as const },
       { href: '/social', label: '社交', icon: 'social' as const },
     ],

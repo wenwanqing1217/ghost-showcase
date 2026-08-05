@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Sidebar from '@/components/layout/Sidebar';
+import AppShell from '@/components/layout/AppShell';
 
 // TERM: EventBus — Redis Streams 跨服务事件总线
 // 在服务器启动时初始化 EventBus，确保事件处理程序注册 + consumer loop 启动
@@ -26,12 +26,7 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body>
-        <div className="app-shell">
-          <Sidebar />
-          <main className="main-content">
-            {children}
-          </main>
-        </div>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );

@@ -109,3 +109,50 @@ model SyncLog {
   @@index([shopId, entity, startedAt])
   @@index([tenantId, startedAt])
 }
+
+/// 租户映射：将 Alpha-ID 用户映射到 tenant_id 以实现数据隔离
+model TenantMapping {
+  id         String   @id @default(cuid())
+  alphaId    String   @unique @map("alpha_id")
+  tenantId   String   @default("default") @db.Text
+  plan       String?  @default("free") // "free" | "pro" | "enterprise"
+  metadata   Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([tenantId])
+  @@map("TenantMapping")
+}
+
+/// AI 生成内容（视频/游戏）
+model Content {
+  id           String   @id @default(cuid())
+  contentType  String   @default("video") // "video" | "game"
+  title        String
+  description  String?  @db.Text
+  status       String   @default("generating") // "generating" | "completed" | "failed"
+  taskId       String?
+
+  // 视频字段
+  videoUrl     String?
+  thumbnailUrl String?
+  duration     Int?     // seconds
+  script       String?  @db.Text
+  aspectRatio  String?  // "9:16" | "16:9" | "1:1"
+
+  // 游戏字段
+  gameUrl      String?
+  gameType     String?  // "space_shooter" | "platformer" | etc.
+  theme        String?  // "cyberpunk" | "japanese_anime" | etc.
+
+  tags         Json     @default("[]") // JSON array
+  metadata     Json?
+  tenantId     String   @default("default")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([contentType])
+  @@index([status])
+  @@index([createdAt])
+}

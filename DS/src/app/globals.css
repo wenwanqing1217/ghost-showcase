@@ -25,6 +25,7 @@
   --text-muted: #5a5e72;
 
   /* 品牌色 — 柔和紫蓝 */
+  --primary-color: #8b5cf6;
   --nebula: #8b5cf6;
   --nebula-soft: rgba(139, 92, 246, 0.12);
   --nebula-light: #a78bfa;
@@ -262,6 +263,11 @@ body {
   flex: 1;
   min-height: 100vh;
   animation: page-in 0.25s ease-out;
+}
+
+/* 当 Sidebar 不渲染时（如 /login 页面），main-content 占满宽度 */
+.app-shell:not(:has(.sidebar)) .main-content {
+  margin-left: 0;
 }
 
 /* ── 响应式 ── */

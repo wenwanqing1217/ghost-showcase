@@ -277,3 +277,184 @@ export async function batchGenerateCopy(
   }
   return results;
 }
+
+// ════════════════════════════════════════════════════════════════════
+// 渠道文案生成 — 闲鱼 / 小红书（低成本出海/变现渠道）
+// 复用 AI_API_KEY：有 Key 走 LLM，无 Key 走本地模板（零成本）
+// ════════════════════════════════════════════════════════════════════
+
+export type ChannelPlatform = 'xianyu' | 'xiaohongshu';
+
+export interface ChannelCopyInput {
+  platform: ChannelPlatform;
+  product: string;          // 商品名/主题
+  description?: string;     // 卖点描述
+  price?: string;           // 价格（闲鱼用）
+  condition?: string;       // 成色（闲鱼用，如"全新未拆"）
+  tone?: 'professional' | 'casual' | 'luxury' | 'fun';
+}
+
+export interface ChannelCopyOutput {
+  platform: ChannelPlatform;
+  title: string;
+  body: string;             // 正文（小红书笔记 / 闲鱼描述）
+  tags: string[];           // 话题标签
+  checklist: string[];      // 发布清单提示
+  mode: 'demo' | 'api';
+  usage: { prompt_tokens: number; completion_tokens: number };
+}
+
+// ── 闲鱼本地模板 ──
+function demoXianyu(input: ChannelCopyInput): ChannelCopyOutput {
+  const { product, description, price, condition, tone = 'casual' } = input;
+  const core = extractCoreWord(product);
+
+  const title = `${condition || '全新'} · ${core} ${price ? `¥${price}` : '低价出'}`.slice(0, 50);
+
+  const body = [
+    `【出】${product} ${condition || '全新未拆'}`,
+    description ? `【卖点】${description}` : `【卖点】${core}，正品保证，成色极佳`,
+    price ? `【价格】${price} 元，爽快包邮` : `【价格】私聊，爽快包邮`,
+    `【交易】支持验货，闲鱼担保交易，发货前拍视频确认`,
+    `【原因】个人闲置，回血出，非诚勿扰`,
+  ].join('\n');
+
+  const tags = [core, condition || '全新', '闲置回血', '包邮', '正品保证', '个人闲置'];
+  const checklist = [
+    '上传 3-9 张实拍图（首图最关键）',
+    '标题前缀加【出】或【全新】提高点击率',
+    '价格设略低于心理价，留议价空间',
+    '发布后每天顶帖 1-2 次保持曝光',
+    '回复问价要快，"亲要吗"主动促单',
+  ];
+
+  return { platform: 'xianyu', title, body, tags, checklist, mode: 'demo', usage: { prompt_tokens: 0, completion_tokens: 0 } };
+}
+
+// ── 小红书本地图 ──
+function demoXiaohongshu(input: ChannelCopyInput): ChannelCopyOutput {
+  const { product, description, tone = 'fun' } = input;
+  const core = extractCoreWord(product);
+
+  const emoji = ['✨', '🔥', '💕', '🌟', '💫', '🎁'];
+  const e1 = emoji[Math.floor(Math.random() * emoji.length)];
+  const e2 = emoji[Math.floor(Math.random() * emoji.length)];
+
+  const titleMap: Record<string, string> = {
+    professional: `${e1} ${core} 深度测评｜入手前必看`,
+    casual: `${e1} 被问爆的${core}！真心推荐给大家`,
+    luxury: `${e1} 高质感${core}｜提升幸福感的好物`,
+    fun: `${e1}${e2} 救命！这个${core}也太绝了吧`,
+  };
+
+  const title = (titleMap[tone] || titleMap.fun).slice(0, 20);
+
+  const body = [
+    `${e1} 姐妹们！！这个${core}我真的逢人就推`,
+    description ? `📌 ${description}` : `📌 用了一段时间，真心觉得值`,
+    ``,
+    `✅ 优点：`,
+    `1️⃣ 颜值在线，摆哪儿都好看`,
+    `2️⃣ 实用性强，日常必备`,
+    `3️⃣ 性价比高，闭眼入不亏`,
+    ``,
+    `💡 适合人群：学生党 / 上班族 / 送礼`,
+    ``,
+    `姐妹们冲就完了！评论区问链接哈～`,
+    `${e2} 收藏不迷路，点赞分享给需要的人`,
+  ].join('\n');
+
+  const tags = [`#${core}`, `#${core}推荐`, '#好物分享', '#种草', '#生活好物', '#平价好物', `#${core}测评`];
+  const checklist = [
+    '封面图用 3:4 竖图，文字大且醒目',
+    '首图加 1-2 行大字标题（吸引点击）',
+    '正文用 emoji 分段，易读性强',
+    '发布时间：午休 12-13 点 / 晚上 20-22 点',
+    '话题标签 5-8 个，混搭大词+精准词',
+    '评论区主动互动，引导私信成交',
+  ];
+
+  return { platform: 'xiaohongshu', title, body, tags, checklist, mode: 'demo', usage: { prompt_tokens: 0, completion_tokens: 0 } };
+}
+
+function demoChannel(input: ChannelCopyInput): ChannelCopyOutput {
+  return input.platform === 'xianyu' ? demoXianyu(input) : demoXiaohongshu(input);
+}
+
+// ── LLM 模式 ──
+async function apiChannel(input: ChannelCopyInput): Promise<ChannelCopyOutput> {
+  const { platform, product, description, price, condition, tone = 'casual' } = input;
+
+  const platformBrief = platform === 'xianyu'
+    ? `闲鱼二手交易平台。标题≤50字前缀加成色/价格；正文含【出】【卖点】【价格】【交易】【原因】；风格真诚简短；tags 5-6 个含"全新/闲置/包邮"等。`
+    : `小红书种草平台。标题≤20字带 emoji 制造好奇；正文 emoji 分段，语气亲切（姐妹们/绝绝子）；结尾引导互动；tags 5-8 个带 # 话题。`;
+
+  const systemPrompt = `你是社媒运营专家，为商品生成平台原生文案。
+- 平台：${platformBrief}
+- 风格：${tone}
+- 输出纯 JSON：{"title":"...","body":"...","tags":["..."],"checklist":["..."]}
+- checklist 给 5 条发布实操建议
+- 不要 Markdown 包裹`;
+
+  const userContent = JSON.stringify({ product, description, price, condition });
+
+  const response = await fetch(`${AI_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${AI_API_KEY}`,
+    },
+    body: JSON.stringify({
+      model: AI_MODEL,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userContent },
+      ],
+      temperature: 0.8,
+      max_tokens: 1200,
+      response_format: { type: 'json_object' },
+    }),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`AI API ${response.status}: ${text}`);
+  }
+
+  const data = await response.json();
+  const content = data.choices?.[0]?.message?.content;
+  if (!content) throw new Error('AI 返回空内容');
+
+  let parsed: { title: string; body: string; tags: string[]; checklist: string[] };
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    const m = content.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
+    parsed = m ? JSON.parse(m[1]) : demoChannel(input);
+  }
+
+  return {
+    platform,
+    title: parsed.title || '',
+    body: parsed.body || '',
+    tags: parsed.tags || [],
+    checklist: parsed.checklist || [],
+    mode: 'api',
+    usage: {
+      prompt_tokens: data.usage?.prompt_tokens || 0,
+      completion_tokens: data.usage?.completion_tokens || 0,
+    },
+  };
+}
+
+export async function generateChannelCopy(input: ChannelCopyInput): Promise<ChannelCopyOutput> {
+  if (!AI_API_KEY) {
+    return demoChannel(input);
+  }
+  try {
+    return await apiChannel(input);
+  } catch (err) {
+    console.warn('[AI] channel API 失败，回退 Demo:', err);
+    return demoChannel(input);
+  }
+}

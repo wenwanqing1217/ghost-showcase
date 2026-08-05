@@ -63,7 +63,7 @@ export default function HomePage() {
             </div>
 
             {/* CTA */}
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex items-center justify-center gap-3 flex-wrap">
               <Link
                 href="/chat"
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-medium transition-all"
@@ -75,6 +75,17 @@ export default function HomePage() {
               >
                 开始使用
                 <span style={{ fontSize: 14 }}>→</span>
+              </Link>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium transition-all"
+                style={{
+                  background: 'rgba(255,255,255,0.03)',
+                  color: 'var(--nebula-light)',
+                  border: '1px solid rgba(139,92,246,0.2)',
+                }}
+              >
+                登录
               </Link>
               <Link
                 href="#capabilities"
@@ -204,9 +215,9 @@ export default function HomePage() {
                 },
                 {
                   num: '06',
-                  title: '飞书 + 豆包集成',
-                  desc: '飞书 WebSocket Bot · 豆包对话自动同步 · Obsidian 双向同步',
-                  tags: ['飞书', '豆包', 'Obsidian'],
+                  title: '飞书 + Obsidian 集成',
+                  desc: '飞书 WebSocket Bot · 记忆图谱 · Obsidian 双向同步',
+                  tags: ['飞书', 'Obsidian', '记忆图谱'],
                 },
               ].map((cap, i) => (
                 <GlassCard

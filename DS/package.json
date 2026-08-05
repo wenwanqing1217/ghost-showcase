@@ -14,7 +14,9 @@
     "prisma:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts",
-    "health": "node -e \"require('http').get('http://localhost:3004/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\""
+    "health": "node -e \"require('http').get('http://localhost:3004/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))\"",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -29,6 +31,7 @@
     "@types/node": "^20.16.0",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
+    "@vitest/coverage-v8": "^4.1.10",
     "autoprefixer": "^10.5.4",
     "eslint": "^8.57.0",
     "eslint-config-next": "14.2.15",
@@ -37,6 +40,7 @@
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.19",
     "tsx": "^4.19.1",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "^4.1.10"
   }
 }

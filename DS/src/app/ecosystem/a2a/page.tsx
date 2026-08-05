@@ -67,7 +67,8 @@ export default function A2APage() {
           skills: a.skills || [],
           last_seen: a.last_seen,
           call_count: a.call_count ?? a.calls ?? 0,
-          success_rate: a.success_rate ?? (Math.random() * 20 + 80),
+          // 成功率只展示后端真实数据，不造假
+          success_rate: a.success_rate,
         })));
       }
 
@@ -181,7 +182,7 @@ export default function A2APage() {
                     )}
                     {agent.call_count !== undefined && (
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                        调用 {agent.call_count} 次 · 成功率 {(agent.success_rate || 0).toFixed(1)}%
+                        调用 {agent.call_count} 次{agent.success_rate !== undefined && ` · 成功率 ${agent.success_rate.toFixed(1)}%`}
                       </div>
                     )}
                   </div>

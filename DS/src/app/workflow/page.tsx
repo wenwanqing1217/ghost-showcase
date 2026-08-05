@@ -3,24 +3,13 @@
 import TopBar from '@/components/layout/TopBar';
 import AuthGuard from '@/components/layout/AuthGuard';
 import { useEffect, useState } from 'react';
-import { getApiUrl } from '@/lib/gateway-client';
-import { DEMO_EXECUTIONS } from '@/lib/demo-data';
+import { DEMO_EXECUTIONS, WorkflowExecution } from '@/lib/demo-data';
 
 interface WorkflowTemplate {
   id: string;
   name: string;
   description: string;
   examples: string[];
-}
-
-interface WorkflowExecution {
-  id: string;
-  template_id: string;
-  status: 'running' | 'completed' | 'failed';
-  input: string;
-  result?: string;
-  started_at: string;
-  finished_at?: string;
 }
 
 export default function WorkflowPage() {
@@ -50,7 +39,8 @@ export default function WorkflowPage() {
 
   const loadTemplates = async () => {
     try {
-      const res = await fetch(getApiUrl('/v1/human/workflows'));
+      // 走 DS 代理路由 → Gateway → Nebula（真实路径：/api/v1/workflow/templates）
+      const res = await fetch('/api/v1/workflow/templates');
       const data = await res.json();
       if (data.templates) {
         setTemplates(data.templates);
@@ -74,23 +64,14 @@ export default function WorkflowPage() {
   };
 
   const loadExecutions = async () => {
+    // 后端暂无 executions 查询端点，直接使用演示记录（有真实端点后再接入）
     if (demoMode) {
       setExecutions(DEMO_EXECUTIONS);
       setLoading(false);
       return;
     }
-    try {
-      const res = await fetch(getApiUrl('/v1/human/workflows/executions'));
-      const data = await res.json();
-      if (data.executions) {
-        setExecutions(data.executions);
-      }
-    } catch (err) {
-      console.error('[WorkflowPage] loadExecutions error:', err);
-      setExecutions(DEMO_EXECUTIONS);
-    } finally {
-      setLoading(false);
-    }
+    setExecutions(DEMO_EXECUTIONS);
+    setLoading(false);
   };
 
   const executeWorkflow = async () => {
@@ -99,7 +80,8 @@ export default function WorkflowPage() {
     setResult(null);
 
     try {
-      const res = await fetch(getApiUrl('/v1/human/workflows/execute'), {
+      // 走 DS 代理路由 → Gateway → Nebula（真实路径：/api/v1/workflow/execute）
+      const res = await fetch('/api/v1/workflow/execute', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ template_id: selectedTemplate, input: input.trim() }),

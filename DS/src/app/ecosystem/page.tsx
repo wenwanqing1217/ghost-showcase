@@ -24,10 +24,17 @@ export default function EcosystemPage() {
 
   const loadAgents = async () => {
     try {
-      const res = await fetch(getApiUrl('/v1/human/agents'));
+      // 真实 Agent 网络端点（A2A 注册表）
+      const res = await fetch('/api/v1/agent/a2a/agents');
       const data = await res.json();
-      if (data.agents && data.agents.length > 0) {
-        setAgents(data.agents);
+      const agentList = (data.data?.agents || data.data || data.agents || []) as any[];
+      if (agentList.length > 0) {
+        setAgents(agentList.map((a) => ({
+          name: a.name || a.agent_id || 'Unknown',
+          role: a.role || a.type || 'Agent',
+          status: a.status === 'online' ? 'online' : 'offline',
+          desc: a.description || a.desc || '',
+        })));
         setIsDemo(false);
       } else {
         throw new Error('empty');
