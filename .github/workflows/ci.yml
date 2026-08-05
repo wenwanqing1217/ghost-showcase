@@ -181,11 +181,12 @@ jobs:
       DB_USER: ghost
       DB_PASSWORD: ghost-ci-password
       DB_NAME: ghost
+      DOCKER_HOST: tcp://docker:2375
     services:
       docker:
         image: docker:24-dind
-        privileged: true
         options: >-
+          --privileged
           --health-cmd "docker info"
           --health-interval 10s
           --health-timeout 5s
