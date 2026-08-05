@@ -19,14 +19,12 @@ def metrics() -> MetricsRegistry:
 
 
 @pytest.fixture()
-def event_queue() -> EventQueue:
+async def event_queue() -> EventQueue:
+    # 异步 fixture：EventQueue 在测试的同一个事件循环内创建与销毁，
+    # 避免跨循环 await 已关闭循环上的任务触发 "Event loop is closed"（Linux 严格模式）。
     queue = EventQueue()
     yield queue
-    try:
-        loop = asyncio.get_running_loop()
-        loop.run_until_complete(queue.stop())
-    except RuntimeError:
-        asyncio.run(queue.stop())
+    await queue.stop()
 
 
 class TestEventQueue:
