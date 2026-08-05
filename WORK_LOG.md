@@ -537,3 +537,12 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 8. **run #63 成果确认** — Registration CI **success**（gitlink + 子模块远程推送修复生效）；All CI Passed 判定逻辑正确工作（nebula 失败时如实标红）。
 
 **结果:** gitlink + 子模块远程推送 + all-pass 判定修复已提交；等待 CI run #63 全绿确认。
+
+### 会话 21：CI 全绿冲刺 — prometheus-client 缺失 + Event loop is closed 修复
+
+**工作内容:**
+1. **nebula CI Test exit 4 残留修复（P0）** — run #63/64 修复 pytest-cov 后，run #64 暴露新失败：干净 venv 下 `MetricsRegistry` 无 `_counters/_gauges/_histograms`（仅装有 prometheus_client 时 `__init__` 才初始化）→ 指标测试 AttributeError。修复：nebula 主依赖补 `prometheus-client>=0.19.0` + [test_performance.py](file:///d:/MW/nebula/tests/unit/test_performance.py) TestMetrics 加 autouse skip 守卫。干净 venv 验证 **162 passed**。
+2. **run #65 暴露 "Event loop is closed" ×8（P0，最后一个失败点）** — 根因：`event_queue` 是**同步 fixture**，在同步上下文创建 `EventQueue`；测试内 `await queue.stop()` 创建的 consumer task 绑定测试事件循环，pytest-asyncio 在 Linux 严格模式下**测试结束后关闭循环**，而同步 fixture 的 teardown 此时用 `asyncio.run()` 去 await 已关闭循环上的 task → "Event loop is closed"（Windows 循环管理宽松，本地无法复现）。修复：fixture 改为 **async generator fixture**，队列在测试同一循环内创建/销毁（teardown `await queue.stop()` 幂等兜底）。本地全量 **162 passed** 无回归。
+3. **推送受阻（GFW）** — github.com:443 间歇不可达，提交 `8e2a1fc` 安全在本地，待网络恢复后推送（`http.postBuffer` 已配，重试循环 5 次 × 10s 暂未成功）。
+
+**结果:** nebula 单测全绿（162 passed）；等待推送后 CI run #66 验证 3 Python 版本 Test + Registration + all-pass 全绿。
