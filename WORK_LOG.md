@@ -577,3 +577,16 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 11. **提交与推送** — alphaid 子模块 `043b782`（/ready + key 清洗 + contract 测试，已推送）；主仓库 `ce46795`（子模块指针提升 + .gitignore 加 `.venv-ci/`）；`1fd9f03`（DS 源码跟踪 + gateway /app 回退 + orchestrator lint）→ **已推送 master**。
 
 **结果:** alphaid 867 passed；本地所有已知失败清零；CI run #70 已触发（Monorepo CI queued），待验证 3 Python Test + Registration + all-pass + E2E 全绿。
+
+### 会话 23：GFW 网络战 — Git Data API 绕过 github.com:443 封锁触发全量 CI
+
+**工作内容:**
+1. **workflow_dispatch 支持（P0）** — [ci.yml](file:///d:/MW/.github/workflows/ci.yml) 加 `workflow_dispatch` 触发，7 个 paths-filter job 的 if 改为 `github.event_name == 'workflow_dispatch' || needs.changes.outputs.xxx == 'true'`（补漏 aid job——并行 SearchReplace 有一处未落盘，grep 复查发现后 amend）。目的：master 只有 .github 改动时也能手动触发全量验证（此前 E2E 依赖子 job result==success，paths-filter skip 时 E2E 必 skip）。
+2. **GFW 封锁 github.com:443（P0 阻塞）** — 本地 push 5 连败；探测：`github.com:443` 不通，但 `api.github.com:443` 和 `github.com:22` 通。SSH 无 key 不可用，本地 8080 非代理。
+3. **Git Data API 等效 push（原创方案）** — 用 REST API 走 api.github.com 推送：`POST /git/blobs` → `POST /git/trees`（base_tree 逐层：workflows → .github → 根）→ `POST /git/commits`（parent=原 master）→ `PATCH /git/refs/heads/master`。master 从 6b2a036 快进到 01b6e1d。
+4. **PowerShell 管道损坏二进制（关键教训）** — 首版用 `git show | Out-File` 生成 blob：**blob sha ≠ 本地 git blob**，且 GitHub Actions 直接 "workflow file issue" 秒失败。字节对比定位：bash 续行 `\\\n` 的**换行符被 PowerShell 文本管道吃掉**（`\\ ` 只剩反斜杠+空格）→ YAML 解析失败。教训：**传输精确内容必须用 subprocess 捕获原始字节（`git cat-file blob`），绝不经 PowerShell 文本管道**。
+5. **Python 脚本重推（[scripts/_push_ci_via_api.py](file:///d:/MW/scripts/_push_ci_via_api.py)）** — subprocess 捕获 `git cat-file blob ceb6d67`（本地 fc2c766 的 ci.yml）原始字节 → base64 → blob → 三层 tree → commit → ref。新 blob sha = **ceb6d67（与本地完全一致，字节级无损）**。master → ebcf60c。
+6. **全量验证触发成功** — ci.yml 修复后 push run 正常解析（Registration + 其他 skip）；`gh workflow run "Monorepo CI"` **422 消除**，run 31033478781（workflow_dispatch）已 queued——3 Python Test + Registration + all-pass + E2E 全量验证进行中。
+7. **本地/远程 master 分歧待处理** — 远程 master = ebcf60c（Git Data API 创建，tree 内容 = fc2c766），本地 master = fc2c766（不同 commit sha）。网络恢复后需 fetch + reset 对齐。
+
+**结果:** ci.yml workflow_dispatch 全量 run 31033478781 已启动；待验证全绿。

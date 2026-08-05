@@ -131,7 +131,8 @@ jobs:
     with:
       project-dir: flow
       node-version: "20"
-      lint-command: 'npx eslint apps/api/src --ext .ts'
+      # flow 无 eslint 配置（npx 会下载 eslint@10 且无 config 直接崩），改用 apps/api 的 tsc 类型门禁
+      lint-command: 'npm run build -w apps/api'
       test-command: 'npm test -w apps/api'
       build-command: 'npm run build'
 
