@@ -155,6 +155,58 @@ async def voice_status(request: Request):
     return ok(data, request)
 
 
+# ── Mindflow（任务调度引擎） ──
+
+
+@router.get("/mindflow/status")
+async def mindflow_status(request: Request):
+    """Get Mindflow engine status + registered tools → proxy to Alpha-ID."""
+    data = await proxy_get("/api/v1/mindflow/status", config.ALPHAID_URL)
+    return ok(data, request)
+
+
+@router.post("/mindflow/intent")
+async def mindflow_intent(request: Request):
+    """Classify text intent → proxy to Alpha-ID mindflow/intent."""
+    body = await request.json()
+    text = body.get("text", "")
+    if not text:
+        return fail("text required", 400, request)
+    fwd_headers = forward_csrf_headers(request)
+    data = await proxy_post(
+        "/api/v1/mindflow/intent",
+        config.ALPHAID_URL,
+        body={"text": text},
+        headers=fwd_headers,
+    )
+    return ok(data, request)
+
+
+@router.post("/mindflow/execute")
+async def mindflow_execute(request: Request):
+    """Execute a task instruction → proxy to Alpha-ID mindflow/execute.
+
+    Body matches mindflow.engine.TaskInstruction:
+      {
+        "intent": "route_plan",
+        "params": {...},
+        "tools_needed": ["baidu_map"],
+        "permission_level": "L1",
+        "user_id": "Alpha-001",
+        "raw_text": "明天9点去公司"
+      }
+    """
+    body = await request.json()
+    fwd_headers = forward_csrf_headers(request)
+    data = await proxy_post(
+        "/api/v1/mindflow/execute",
+        config.ALPHAID_URL,
+        body=body,
+        headers=fwd_headers,
+    )
+    return ok(data, request)
+
+
 # ── Chat & Intent ──
 
 
@@ -354,6 +406,17 @@ async def register_send_sms(request: Request):
         return fail("Too many requests, please try again later", 429, request)
     body = await request.json()
     return await _proxy_alphaid_post("/api/v1/register/send-sms", request, body=body)
+
+
+@router.post("/register/quick-register")
+async def register_quick_register(request: Request):
+    """Quick register — skip SMS/face, create account and return JWT.
+
+    Idempotent: already-registered users just get a fresh JWT.
+    Proxy to Alpha-ID /api/v1/identity/quick-register.
+    """
+    body = await request.json()
+    return await _proxy_alphaid_post("/api/v1/identity/quick-register", request, body=body)
 
 
 @router.post("/register/verify-sms")

@@ -30,16 +30,33 @@ import time
 import uuid
 import logging
 import threading
-from datetime import datetime
+import sys
 from pathlib import Path
+from datetime import datetime
 from typing import Optional, Dict, List
 from concurrent.futures import ThreadPoolExecutor, Future
 from dataclasses import dataclass, field, asdict
 
 import uvicorn
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, HTTPException, Depends
 from fastapi.responses import JSONResponse
 import httpx
+
+# ── OrchestratorEngine import setup ──
+# Add alphaid source root so the engine is importable from the orchestrator service.
+_ALPHAID_SRC = str(Path(__file__).resolve().parent.parent / "alphaid" / "projects" / "src")
+if _ALPHAID_SRC not in sys.path:
+    sys.path.insert(0, _ALPHAID_SRC)
+
+try:
+    from orchestrator.engine import OrchestratorEngine, ChannelAdapter
+    _HAS_ENGINE = True
+except ImportError:
+    _HAS_ENGINE = False
+    ChannelAdapter = None  # type: ignore[assignment]
+    logger = logging.getLogger("orchestrator")
+    logger.warning("OrchestratorEngine 不可用 — 后台循环已禁用 (缺少 alphaid 依赖)")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,6 +82,8 @@ API_KEY = os.getenv("ORCHESTRATOR_API_KEY", "")  # 空字符串表示不校验
 MAX_WORKERS = int(os.getenv("ORCHESTRATOR_MAX_WORKERS", "4"))
 MAX_LIMIT = 100  # list_tasks 最大返回条数
 TASK_TTL_SECONDS = int(os.getenv("ORCHESTRATOR_TASK_TTL", "3600"))  # 1 小时
+# 数据循环：状态同步间隔（秒）— 定期将 orchestrator 状态上报到 Gateway memory store
+SYNC_INTERVAL_SECONDS = int(os.getenv("ORCHESTRATOR_SYNC_INTERVAL", "300"))  # 5 分钟
 
 # ---------------------------------------------------------------------------
 # Data model
@@ -155,13 +174,179 @@ class TaskManager:
 
 
 # ---------------------------------------------------------------------------
+# Real ChannelAdapter + Data Loop
+# ---------------------------------------------------------------------------
+
+
+class GatewayChannelAdapter(ChannelAdapter if _HAS_ENGINE else object):  # type: ignore[misc]
+    """
+    # TERM: ChannelAdapter — 渠道适配器基类（飞书/Web/微信/Telegram）
+
+    Gateway 渠道适配器 — 通过 Gateway HTTP API 收发消息。
+
+    入站：Gateway 接收外部渠道消息后，POST 到本服务 /v1/channel/message，
+          由路由处理器调用 engine.receive()，回复通过本适配器 send() 返回。
+    出站：engine 主动调用 send() 时，POST 到 Gateway /v1/message/send。
+    """
+
+    def __init__(self, gateway_url: str):
+        # 当 _HAS_ENGINE=False 时，跳过 ChannelAdapter.__init__（object 无参 init）
+        if _HAS_ENGINE:
+            super().__init__(name="gateway")
+        else:
+            self.name = "gateway"
+        self._gateway_url = gateway_url.rstrip("/")
+
+    def send(self, chat_id: str, content) -> bool:  # type: ignore[override]
+        """通过 Gateway /v1/message/send 发送消息到指定会话"""
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                resp = client.post(
+                    f"{self._gateway_url}/v1/message/send",
+                    json={
+                        "chat_id": chat_id,
+                        "content": content,
+                        "source": "orchestrator",
+                    },
+                )
+            if resp.status_code != 200:
+                logger.warning(
+                    "GatewayChannelAdapter.send: Gateway 返回 %s",
+                    resp.status_code,
+                )
+            return resp.status_code == 200
+        except Exception as e:
+            logger.warning("GatewayChannelAdapter.send 失败: %s", e)
+            return False
+
+    def start(self):  # type: ignore[override]
+        """HTTP 渠道无需长连接 — 启动为空操作（消息由 FastAPI 路由推入）"""
+        logger.info(
+            "GatewayChannelAdapter 已就绪 (入站: POST /v1/channel/message → engine.receive)"
+        )
+
+    def stop(self):  # type: ignore[override]
+        """HTTP 渠道无需清理"""
+        pass
+
+
+def gateway_sync_loop():
+    """
+    数据循环：定期将 orchestrator 状态同步到 Gateway memory store。
+
+    每次执行：
+    - 收集 task_manager.count + engine.get_status()
+    - POST 到 Gateway /v1/memory/store 作为心跳记忆
+    - 失败仅记录日志，不抛异常（避免循环退出）
+    """
+    stats: Dict[str, object] = {
+        "tasks_total": task_manager.count,
+        "port": PORT,
+    }
+    if _orchestrator_engine is not None:
+        try:
+            engine_status = _orchestrator_engine.get_status()
+            stats["engine_running"] = engine_status.get("running", False)
+            stats["engine_channels"] = engine_status.get("channels", [])
+            stats["engine_loops"] = list(engine_status.get("data_loops", {}).keys())
+            stats["engine_stats"] = engine_status.get("stats", {})
+        except Exception as e:
+            logger.warning("gateway_sync_loop: engine status failed: %s", e)
+
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            client.post(
+                f"{GATEWAY}/v1/memory/store",
+                json={
+                    "alpha_id": os.environ.get("ALPHA_ID", "Ghost-001"),
+                    "content": (
+                        f"[Orchestrator Sync] tasks={stats['tasks_total']} "
+                        f"engine_running={stats.get('engine_running', False)} "
+                        f"channels={stats.get('engine_channels', [])} "
+                        f"loops={stats.get('engine_loops', [])}"
+                    ),
+                    "category": "orchestrator_sync",
+                    "sensitivity": 10,
+                    "source": "orchestrator",
+                    "tags": ["orchestrator", "sync", "heartbeat"],
+                },
+            )
+    except Exception as e:
+        logger.warning("gateway_sync_loop: sync to gateway failed: %s", e)
+
+
+# ---------------------------------------------------------------------------
 # Application state
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="AgentOrchestrator", version="1.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan — startup + shutdown (replaces deprecated @app.on_event)."""
+    # Startup
+    await get_http_client()
+    global _orchestrator_engine
+    if _HAS_ENGINE:
+        try:
+            alpha_id = os.environ.get("ALPHA_ID", "Ghost-001")
+            _orchestrator_engine = OrchestratorEngine(alpha_id=alpha_id)
+
+            # ── 注册真实 ChannelAdapter：Gateway 渠道 ──
+            # Gateway 收到外部消息后 POST 到 /v1/channel/message，由本适配器路由到 engine.receive
+            try:
+                gw_adapter = GatewayChannelAdapter(gateway_url=GATEWAY)
+                _orchestrator_engine.register_channel(gw_adapter)
+            except Exception as e:
+                logger.warning("注册 GatewayChannelAdapter 失败: %s", e)
+
+            # ── 注册真实数据循环：状态同步 ──
+            # 每 SYNC_INTERVAL_SECONDS 秒上报 orchestrator 状态到 Gateway memory store
+            try:
+                _orchestrator_engine.register_loop(
+                    name="gateway_sync",
+                    func=gateway_sync_loop,
+                    interval=SYNC_INTERVAL_SECONDS,
+                )
+            except Exception as e:
+                logger.warning("注册 gateway_sync 循环失败: %s", e)
+
+            _orchestrator_engine.start()
+            logger.info(
+                "OrchestratorEngine 已启动 (alpha_id=%s, channels=%d, loops=%d)",
+                alpha_id,
+                len(_orchestrator_engine._channels),
+                len(_orchestrator_engine._data_loops),
+            )
+        except Exception as e:
+            logger.error("OrchestratorEngine 启动失败: %s", e)
+            _orchestrator_engine = None
+    else:
+        logger.warning("OrchestratorEngine 不可用，跳过启动")
+    yield
+    # Shutdown
+    if _orchestrator_engine is not None:
+        try:
+            _orchestrator_engine.stop()
+            logger.info("OrchestratorEngine 已停止")
+        except Exception as e:
+            logger.error("OrchestratorEngine 停止异常: %s", e)
+        _orchestrator_engine = None
+    executor.shutdown(wait=False, cancel_futures=True)
+    if _http_client is not None:
+        await _http_client.aclose()
+
+
+app = FastAPI(title="AgentOrchestrator", version="1.1.0", lifespan=lifespan)
 task_manager = TaskManager()
 executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="task")
 _http_client: Optional[httpx.AsyncClient] = None
+
+# ── OrchestratorEngine instance ──
+_orchestrator_engine: Optional[OrchestratorEngine] = None if _HAS_ENGINE else None
+
+
+def get_engine() -> Optional[OrchestratorEngine]:
+    """Return the OrchestratorEngine singleton (may be None if engine unavailable)."""
+    return _orchestrator_engine
 
 
 async def get_http_client() -> httpx.AsyncClient:
@@ -200,7 +385,7 @@ async def sync_to_gateway(content: str, category: str = "orchestrator") -> None:
         await client.post(
             f"{GATEWAY}/v1/memory/store",
             json={
-                "alpha_id": "Alpha-001",
+                "alpha_id": os.environ.get("ALPHA_ID", "Alpha-001"),
                 "content": content,
                 "category": category,
                 "sensitivity": 30,
@@ -382,15 +567,95 @@ async def execute_task(task_id: str, _=Depends(require_api_key)):
     return {"success": True, "task_id": task_id, "status": "running"}
 
 
+@app.post("/v1/channel/message")
+async def receive_channel_message(req: Request, _=Depends(require_api_key)):
+    """
+    入站渠道消息端点 — Gateway 接收外部消息后转发到此。
+
+    Body:
+      {
+        "sender_id": "user-xxx",
+        "text": "用户消息",
+        "channel": "feishu|web|wechat|telegram",
+        "chat_id": "会话 ID（可选，用于回复）",
+        ...
+      }
+
+    若 OrchestratorEngine 可用，调用 engine.receive() 生成回复并通过
+    GatewayChannelAdapter.send() 回传 Gateway；否则返回 503。
+    """
+    if _orchestrator_engine is None:
+        return JSONResponse(
+            {"error": "OrchestratorEngine 不可用，无法处理渠道消息"},
+            status_code=503,
+        )
+
+    body = await req.json()
+    sender_id = body.get("sender_id") or body.get("from") or "unknown"
+    text = body.get("text") or body.get("content") or ""
+    channel = body.get("channel") or body.get("platform") or "gateway"
+    chat_id = body.get("chat_id") or body.get("session_id") or sender_id
+
+    if not text:
+        return JSONResponse({"error": "text required"}, 400)
+
+    try:
+        # engine.receive 返回回复文本（可能为 None）
+        reply = _orchestrator_engine.receive(
+            sender_id=sender_id,
+            text=text,
+            channel=channel,
+        )
+    except Exception as e:
+        logger.error("engine.receive 失败: %s", e)
+        return JSONResponse(
+            {"error": "处理失败", "detail": str(e)},
+            status_code=500,
+        )
+
+    # 若有回复，通过 GatewayChannelAdapter 发回 Gateway
+    sent = False
+    if reply:
+        adapter = _orchestrator_engine._channels.get("gateway")
+        if adapter is not None:
+            try:
+                sent = adapter.send(chat_id, reply)
+            except Exception as e:
+                logger.warning("回复发送失败: %s", e)
+
+    return {
+        "success": True,
+        "reply": reply,
+        "delivered": sent,
+        "engine": {
+            "running": _orchestrator_engine._running,
+            "alpha_id": _orchestrator_engine.alpha_id,
+        },
+    }
+
+
 @app.get("/health")
 async def health():
-    return {"status": "ok", "tasks": task_manager.count, "port": PORT}
+    engine_status = None
+    if _orchestrator_engine is not None:
+        try:
+            engine_status = _orchestrator_engine.get_status()
+        except Exception:
+            engine_status = {"running": False, "error": "status check failed"}
+    return {
+        "status": "ok",
+        "tasks": task_manager.count,
+        "port": PORT,
+        "engine": engine_status,
+        "channels": list(_orchestrator_engine._channels.keys()) if _orchestrator_engine else [],
+        "data_loops": list(_orchestrator_engine._data_loops.keys()) if _orchestrator_engine else [],
+    }
 
 
 @app.get("/v1/tools/status")
 async def tools_status():
     """Report reachability of ToolA and ToolB (no auth required for monitoring)."""
-    client = get_http_client()
+    client = await get_http_client()
     results = {"tool_a": None, "tool_b": None}
     for name, url, timeout in [
         ("tool_a", f"{TOOL_A_GATEWAY}/health" if TOOL_A_GATEWAY else None, TOOL_A_TIMEOUT),
@@ -405,18 +670,6 @@ async def tools_status():
         except Exception as exc:
             results[name] = {"configured": True, "reachable": False, "error": str(exc)}
     return {"success": True, "tools": results}
-
-
-# ---------------------------------------------------------------------------
-# Lifecycle
-# ---------------------------------------------------------------------------
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    executor.shutdown(wait=False, cancel_futures=True)
-    if _http_client is not None:
-        await _http_client.aclose()
 
 
 if __name__ == "__main__":

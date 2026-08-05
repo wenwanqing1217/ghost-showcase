@@ -38,7 +38,7 @@
 - 修复 Gateway _IncludedRouter 结构变化（original_router 递归）
 - 修复 feishu-bot 测试无限挂起（空轮询加 asyncio.sleep(0)）
 - 修复 test_health URL 匹配（用 config.ALPHAID_URL 精确匹配）
-- 修复 doubao/human chat 测试（筛选目标 URL 跳过 login 调用）
+- 修复 Gateway human chat 测试（筛选目标 URL 跳过 login 调用）
 - 更新 GHOST.md 为实际状态（非计划状态）
 - 创建 PROJECT_STATUS_REPORT.md（真实服务健康 + 测试覆盖 + 阻塞项）
 - 盘活 DS EventBus 死代码（layout.tsx 全局 import eventbus-init）
@@ -171,6 +171,57 @@
 
 ---
 
+## Session 9 — 2026-08-05（项目级修复 P0→P3：基础设施 + 前端 + 调度器接通）
+
+**工作内容:**
+
+### P0 — 基础设施修复
+- **凭证泄漏**: `ghost-main/feishu-bot/.env` 被 Git 跟踪 → `git rm --cached`，加入 .gitignore，创建 `.env.example`，更新 `docker-compose.feishu.yml` 使用环境变量
+- **Docker 网络错误**: `docker-compose.override.yml` 声明 `ghost-net: external: true` 但无网络定义 → 移除 external 声明
+- **源码管理**: `flow/` 被 .gitignore 排除 → 移除排除规则并加入 Git
+
+### P1 — 后端稳定性
+- **Gateway 测试阻塞**: `ghost-main/gateway/test_proxy.py` 顶层 `asyncio.run(test())` 阻塞 pytest collection → 包装 `if __name__ == "__main__":` + 重命名 `test()` → `run_smoke_test()`
+- **NameError**: `alphaid/projects/src/alpha_id/tool_orchestrator.py:342` `orch.execute(task)` 未定义 `task` → 改为 `task_id`
+- **硬编码端口**: `ghost-main/gateway/server.mjs` 硬编码 `localhost:8002` → 改用 `process.env.ALPHAID_URL`（默认 `http://localhost:8000`）
+- **空实现**: `orchestrator/engine.py` `write_note` 返回 ""、`send_feishu` 返回 false → 通过 EventBus 发布 `MEMORY_WRITTEN` / `SOCIAL_MESSAGE` 事件
+- **状态报告失真**: 重写 `PROJECT_STATUS_REPORT.md` 为真实状态（无未验证声明）
+
+### P2 — 前端功能
+- **登录绕过**: `DS/src/app/login/page.tsx` 调用不存在的 `quick-register` 并 catch 重定向 → 新增 Gateway + DS 代理路由，移除 catch 重定向
+- **AI 文案 Bug**: `DS/src/components/ProductAiDialog.tsx` 发送 `product.description` 而非 AI 优化结果 → 改用 `result.description`
+- **Sidebar 渲染**: `DS/src/app/layout.tsx` 无条件渲染 Sidebar → 在 Sidebar 内检查 pathname 隐藏登录页
+- **死代码清理**: `DS/src/lib/api.ts` 含 15+ 指向不存在端点的方法 → 删除死代码并加入 Git
+- **硬编码身份**: `DS/src/app/brain/page.tsx` 使用 `Alpha-001` → 改为 `humanApi.getIdentity()` 获取真实身份
+- **Webhook 命名不一致**: `DS/src/app/api/webhook/shoplazza/` 内容实为 OneBound → 重命名为 `onebound/`（route.ts + route.test.ts），describe 名称同步更新
+
+### P3-1 — OrchestratorEngine 注册真实 ChannelAdapter + Loop
+- 新增 `GatewayChannelAdapter`（继承 `ChannelAdapter`）— 通过 Gateway HTTP API 收发消息
+  - 出站: `send()` POST 到 Gateway `/v1/message/send`
+  - 入站: 新增 `POST /v1/channel/message` 端点，调用 `engine.receive()` 路由到 TwinBrain，回复通过 adapter.send() 回传
+- 新增 `gateway_sync_loop` 数据循环 — 每 5 分钟（`ORCHESTRATOR_SYNC_INTERVAL`）上报 orchestrator 状态到 Gateway memory store
+- 在 `lifespan()` 中 `engine.start()` 前注册 adapter + loop
+- `/health` 端点新增 `channels` + `data_loops` 字段（监控可见）
+- Orchestrator 测试 7/7 通过（含 /health 端点变更验证）
+
+### P3-2 — 接通 mindflow 包到 Gateway（经 Alpha-ID 代理）
+- 创建 `mindflow/__init__.py` — 使 mindflow 成为正式 Python 包（导出 MindflowEngine/TaskInstruction/TaskResult 等）
+- 创建 `api/mindflow.py` — Alpha-ID 路由，暴露 3 个端点：
+  - `GET /api/v1/mindflow/status` — 引擎状态 + 已注册工具 + 支持的意图列表
+  - `POST /api/v1/mindflow/intent` — 文本意图识别（关键词优先 + LLM 回退）
+  - `POST /api/v1/mindflow/execute` — 执行任务指令（TaskInstruction → TaskResult）
+- `main.py` 注册 mindflow_router + CSRF 豁免 `/api/v1/mindflow/`
+- Gateway `routes/human.py` 新增 3 个代理路由：
+  - `GET /v1/human/mindflow/status`
+  - `POST /v1/human/mindflow/intent`
+  - `POST /v1/human/mindflow/execute`
+- 修复 `mindflow/intent.py` 预存 bug：`_llm_classify` 方法被调用但未定义 → 补全实现（httpx 调用 LLM API + JSON 解析 + 降级）
+- 验证：引擎执行 OK、意图分类 OK（"导航到公司" → route_plan 0.85）、Gateway 集成路由测试 14/14 通过
+
+**结果:** P0-P3 全部完成。mindflow 死代码包已盘活，通过 Alpha-ID → Gateway 双层代理对外提供服务。
+
+---
+
 ## 待办
 
 - [x] Docker Desktop 启动后验证全栈健康
@@ -179,3 +230,52 @@
 - [ ] 接入真实 ToolA/ToolB 服务（替换 stub）
 - [x] DS 添加 demo seed script 验证
 - [x] Alpha-ID GhostBrain/GhostVoice 接入 Gateway 路由
+- [x] DS 内容库 Web UI 生成表单 + API 路由
+- [x] DS 登录页面 + 登出按钮
+- [x] 多租户 TenantMapping 模型 + 迁移
+- [x] Gateway content recovery logic (MoneyPrinterTurbo stuck state)
+- [x] 端到端视频生成管道验证
+
+---
+
+## Session 11 — 2026-08-05: 平台全链路补齐
+
+### 完成项
+
+1. **DS 内容库 Web UI 生成能力**:
+   - `/content` 页面添加「✨ 创建内容」按钮 + 模态框
+   - 视频生成表单：主题、画面比例、语言、拼接模式
+   - 游戏生成表单：游戏类型、主题风格、描述
+   - 实时轮询生成状态（5s interval），进度条显示
+   - 生成完成后自动刷新内容列表
+2. **DS 内容生成 API 路由**:
+   - `POST /api/content/generate` → proxy to Gateway `/v1/content/video|game/generate`
+   - `GET /api/content/generate/status/{task_id}` → proxy to Gateway status
+   - 使用 Zod 验证 + proxyToGateway 工具函数
+3. **DS 登录页面**:
+   - `/login` 页面：一键 quick-register → redirect to /chat
+   - 加载状态、错误处理、demo mode fallback
+4. **DS 登出按钮**:
+   - Sidebar 底部添加「退出登录」按钮
+   - 调用 `/api/v1/human/logout` → redirect to /
+   - 未连接时显示「登录」按钮（链接到 /login）
+5. **多租户 TenantMapping 模型**:
+   - Prisma schema 添加 `TenantMapping` model（alphaId → tenantId 映射）
+   - 迁移 SQL: `20250805000002_add_tenant_mapping`
+   - Gateway TenantMiddleware 重构：JWT alpha_id claim 作为 tenant_id
+   - DS `getOrCreateTenantId(alphaId)` 工具函数
+6. **Gateway Recovery Logic 修复**:
+   - 探测路径从 `/download/{task_id}/final-1.mp4` 修正为 `/api/v1/download/{task_id}/final-1.mp4`
+   - 与 MoneyPrinterTurbo 实际端点对齐
+7. **端到端验证**:
+   - 完整管道：Gateway → MoneyPrinterTurbo → DS Content → 内容页显示
+   - 任务 `af673de6` 完成时间：~70s（7 polls）
+   - 内容记录 `cmsf048a30000m06yfv3nbyur` 创建成功
+   - 所有 6 步 e2e 测试通过
+
+### 待办
+
+- [ ] 游戏生成服务实现（Phase 2）
+- [ ] DS 内容详情页 + 编辑/删除
+- [ ] 真实飞书环境验证 /video 命令
+- [ ] DS frontend Playwright E2E 测试
