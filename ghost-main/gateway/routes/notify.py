@@ -19,13 +19,12 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
-from services.proxy import ok, fail
-import config
+from services.proxy import fail, ok
 
 logger = logging.getLogger(__name__)
 

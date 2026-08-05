@@ -1,7 +1,8 @@
 """Shopify 电商运营自动化 — 复用单一 httpx 客户端"""
 
 import re
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
+
 import httpx
 
 from mindflow_map.config import settings
@@ -41,9 +42,9 @@ class ShopifyClient:
         response = await self._client.request(method, url, json=payload, headers=headers)
         response.raise_for_status()
         return response.json()
-    
+
     async def list_products(self, limit: int = 10) -> Dict[str, Any]:
         return await self._request("GET", f"/products.json?limit={limit}")
-    
+
     async def create_product(self, product: Dict[str, Any]) -> Dict[str, Any]:
         return await self._request("POST", "/products.json", {"product": product})

@@ -21,15 +21,12 @@ Routes:
 """
 
 import logging
-import os
-from typing import Optional
 
-from fastapi import APIRouter, Request, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, Request
 
-from services.proxy import proxy_get, proxy_post, ok, fail
-from middleware.rate_limit import rate_limit_check, client_ip
 import config
+from middleware.rate_limit import client_ip, rate_limit_check
+from services.proxy import fail, ok
 
 logger = logging.getLogger("ghost-gateway")
 
@@ -106,7 +103,6 @@ async def trigger_sync(request: Request):
     Body: { entity: 'products'|'orders'|'all', shopId?: string }
     """
     body = await request.json()
-    entity = body.get("entity", "all")
     ip = client_ip(request)
 
     # Rate limit sync operations (heavier than reads)

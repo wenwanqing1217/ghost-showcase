@@ -11,21 +11,21 @@ Each adapter normalizes source data into StandardizedProduct schema.
 """
 
 from mindflow_map.supply.base import (
-    SupplyAdapter,
-    SupplyRegistry,
-    StandardizedProduct,
     StandardizedOrder,
+    StandardizedProduct,
+    SupplyAdapter,
     SupplyFetchResult,
-    supply_adapter,
+    SupplyRegistry,
     get_supply_registry,
+    supply_adapter,
 )
 
 __all__ = [
-    "SupplyAdapter",
-    "StandardizedProduct",
     "StandardizedOrder",
+    "StandardizedProduct",
+    "SupplyAdapter",
     "SupplyFetchResult",
     "SupplyRegistry",
-    "supply_adapter",
     "get_supply_registry",
+    "supply_adapter",
 ]

@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import Any, Dict, Optional
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
 from mindflow_map.models.audit_store import SQLAuditStore
 from mindflow_map.models.session import Database
-from mindflow_map.schemas.audit import AuditAction, AuditLog, AuditLogFilter
+from mindflow_map.schemas.audit import AuditAction, AuditLog
 
 logger = logging.getLogger(__name__)
 

@@ -1,7 +1,8 @@
 """地图工具测试"""
 
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from mindflow_map.tools.baidu_map import BaiduMapTool
 

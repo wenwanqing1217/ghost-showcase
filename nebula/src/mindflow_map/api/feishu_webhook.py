@@ -1,20 +1,18 @@
 """飞书 Webhook 回调端点 — 统一走 Gateway → Alpha-ID TwinBrain + AgentLoop"""
 
 import asyncio
-import hashlib
 import hmac
 import json
 import logging
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 if TYPE_CHECKING:
     from mindflow_map.workflows.engine import WorkflowEngine
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
-from mindflow_map.config import settings
 from mindflow_map.api.feishu_sender import FeishuSender
-
+from mindflow_map.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +113,6 @@ async def _handle_im_message(event: Dict[str, Any]):
 
     # ── 2. 走 WorkflowEngine 自然语言 ──
     try:
-        from mindflow_map.workflows.engine import WorkflowEngine
         engine = _get_workflow_engine()
         result = await engine.execute(text, user_id=user_id or "feishu_user")
         reply = result.get("text", "") or "嗯？"

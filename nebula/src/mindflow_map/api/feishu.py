@@ -4,11 +4,10 @@ import asyncio
 import json
 import logging
 from threading import Thread
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
-from mindflow_map.config import settings
 from mindflow_map.api.feishu_sender import FeishuSender
-
+from mindflow_map.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +131,6 @@ class FeishuLongPollingClient:
                 sender = event_data.get("sender", {})
                 sender_id = sender.get("sender_id", {})
                 user_id = sender_id.get("user_id", "") or sender_id.get("open_id", "")
-                chat_id = message_info.get("chat_id", "")
 
                 logger.info("收到飞书消息 from=%s: %s", user_id, content_text)
 
@@ -180,10 +178,10 @@ class FeishuLongPollingClient:
             # 延迟导入 lark_oapi.ws.client——此时 asyncio.get_event_loop()
             # 会返回我们刚创建的 loop，不会捕获主线程的 uvicorn loop
             import lark_oapi.ws.client as _ws_mod
-            from lark_oapi.ws.client import Client as WSClient
             from lark_oapi.core.enum import LogLevel
-            from lark_oapi.ws.enum import FrameType, MessageType
+            from lark_oapi.ws.client import Client as WSClient
             from lark_oapi.ws.const import HEADER_TYPE
+            from lark_oapi.ws.enum import FrameType, MessageType
 
             # ---- PING/PONG 协议修复 ----
             # lark-oapi v1.7.1 收到服务端 PING 后只 return 不发 PONG，

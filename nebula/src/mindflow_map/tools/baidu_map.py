@@ -1,7 +1,8 @@
 """百度地图工具 - 封装百度地图 Agent Plan API — 复用单一 httpx 客户端"""
 
+from typing import Any, Dict, Optional
+
 import httpx
-from typing import Any, Dict, List, Optional
 
 from mindflow_map.config import settings
 
@@ -67,25 +68,25 @@ class BaiduMapTool:
             params["region"] = city
         if latitude is not None and longitude is not None:
             params["center"] = f"{latitude:.6f},{longitude:.6f}"
-        
+
         data = await self._request("place", params)
         return data
-    
+
     async def geocode(self, address: str, region: Optional[str] = None) -> Dict[str, Any]:
         """地址转坐标"""
         params = {"address": address}
         if region:
             params["region"] = region
-        
+
         data = await self._request("geocoding", params)
         return data
-    
+
     async def reverse_geocode(self, latitude: float, longitude: float) -> Dict[str, Any]:
         """坐标转地址"""
         params = {"location": f"{latitude:.6f},{longitude:.6f}"}
         data = await self._request("reverse_geocoding", params)
         return data
-    
+
     async def plan_route(
         self,
         origin: str,
@@ -106,21 +107,21 @@ class BaiduMapTool:
             "riding": "骑行",
         }
         travel_mode = mode_map.get(mode, "驾车")
-        
+
         if origin:
             user_raw_request = f"帮我规划从{origin}到{destination}的{travel_mode}路线"
         else:
             user_raw_request = f"帮我规划到{destination}的{travel_mode}路线"
-        
+
         params = {"user_raw_request": user_raw_request}
-        
+
         # 如果有坐标，传入 location 参数
         if origin_lat is not None and origin_lng is not None:
             params["location"] = f"{origin_lat:.6f},{origin_lng:.6f}"
-        
+
         data = await self._request("direction", params)
         return data
-    
+
     async def weather(self, region: Optional[str] = None, latitude: Optional[float] = None, longitude: Optional[float] = None) -> Dict[str, Any]:
         """天气查询"""
         params = {}
@@ -128,7 +129,7 @@ class BaiduMapTool:
             params["region"] = region
         if latitude is not None and longitude is not None:
             params["location"] = f"{latitude:.6f},{longitude:.6f}"
-        
+
         data = await self._request("weather", params)
         return data
 

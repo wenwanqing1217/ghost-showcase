@@ -17,25 +17,25 @@ Routes:
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List, Optional
+from datetime import datetime
+from typing import List
 
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, Field
 
 from mindflow_map.supply.base import (
-    get_supply_registry,
     StandardizedProduct,
     SupplyFetchResult,
+    get_supply_registry,
 )
 from mindflow_map.supply.schemas import (
-    ProductFetchRequest,
-    ProductSyncRequest,
-    InventoryCheckRequest,
-    ProductResponse,
-    ProductSyncResult,
-    InventoryCheckResponse,
-    SupplyHealthResponse,
     AdapterListResponse,
+    InventoryCheckRequest,
+    InventoryCheckResponse,
+    ProductFetchRequest,
+    ProductResponse,
+    ProductSyncRequest,
+    ProductSyncResult,
+    SupplyHealthResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -181,7 +181,7 @@ async def get_product_detail(source_id: str, adapter: str = Query(..., descripti
 
     instance = registry.create_instance(adapter)
     if instance is None:
-        raise HTTPException(status_code=500, detail=f"Failed to create adapter instance")
+        raise HTTPException(status_code=500, detail="Failed to create adapter instance")
 
     try:
         product = await instance.fetch_product_detail(source_id)

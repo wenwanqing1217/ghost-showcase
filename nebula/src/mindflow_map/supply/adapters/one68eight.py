@@ -20,13 +20,11 @@ from __future__ import annotations
 
 import logging
 import time
-import random
-from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from mindflow_map.supply.base import (
-    SupplyAdapter,
     StandardizedProduct,
+    SupplyAdapter,
     SupplyFetchResult,
     supply_adapter,
 )
@@ -251,4 +249,3 @@ class Adapter1688(SupplyAdapter):
 
 
 # Fix: import time at top level
-import time  # noqa: E402

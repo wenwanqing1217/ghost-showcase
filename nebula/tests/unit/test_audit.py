@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 
-import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
@@ -14,7 +12,6 @@ from mindflow_map.models.audit_store import SQLAuditStore
 from mindflow_map.models.database import Base
 from mindflow_map.models.session import Database
 from mindflow_map.schemas.audit import AuditAction, AuditLog, AuditLogFilter
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -38,7 +35,7 @@ async def _init_db(db: Database) -> None:
 class TestSQLAuditStore:
     def test_append_and_query_all(self):
         import asyncio
-        
+
         async def run():
             db = _make_db()
             await _init_db(db)
@@ -55,12 +52,12 @@ class TestSQLAuditStore:
                 assert len(results) == 1
                 assert results[0].resource_id == "wf-1"
             await db.close()
-        
+
         asyncio.run(run())
 
     def test_query_filter_by_action(self):
         import asyncio
-        
+
         async def run():
             db = _make_db()
             await _init_db(db)
@@ -72,12 +69,12 @@ class TestSQLAuditStore:
                 assert len(results) == 1
                 assert results[0].action == AuditAction.USER_LOGIN
             await db.close()
-        
+
         asyncio.run(run())
 
     def test_query_filter_by_tenant(self):
         import asyncio
-        
+
         async def run():
             db = _make_db()
             await _init_db(db)
@@ -89,12 +86,12 @@ class TestSQLAuditStore:
                 assert len(results) == 1
                 assert results[0].tenant_id == "t1"
             await db.close()
-        
+
         asyncio.run(run())
 
     def test_query_pagination(self):
         import asyncio
-        
+
         async def run():
             db = _make_db()
             await _init_db(db)
@@ -105,7 +102,7 @@ class TestSQLAuditStore:
                 results = await store.query(AuditLogFilter(limit=2, offset=2))
                 assert len(results) == 2
             await db.close()
-        
+
         asyncio.run(run())
 
 
@@ -117,7 +114,7 @@ class TestSQLAuditStore:
 class TestAuditMiddleware:
     def test_middleware_attaches_audit_logger(self):
         db = _make_db()
-        
+
         import asyncio
         asyncio.run(_init_db(db))
 

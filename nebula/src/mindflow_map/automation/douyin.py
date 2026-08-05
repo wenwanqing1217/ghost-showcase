@@ -3,11 +3,11 @@
 import asyncio
 import json
 import logging
-import os
 import re
 from pathlib import Path
-from typing import Dict, Any, Optional
-from playwright.async_api import async_playwright, Page, BrowserContext, Error, TimeoutError
+from typing import Any, Dict, Optional
+
+from playwright.async_api import BrowserContext, Error, Page, async_playwright
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +81,7 @@ def _validate_cover_image_path(cover_image: str) -> Optional[Path]:
 
 class DouyinAutomation:
     """抖音短剧创作者中心自动化
-    
+
     状态机：
         IDLE -> LOGIN_IN_PROGRESS -> LOGGED_IN -> PUBLISH_IN_PROGRESS -> PUBLISHED
     """
@@ -116,7 +116,7 @@ class DouyinAutomation:
 
     async def login(self, username: str = "", password: str = "") -> Dict[str, Any]:
         """登录抖音创作者中心
-        
+
         优先使用 cookie 注入，如果配置了 DOUYIN_COOKIE_JSON 环境变量。
         否则打开登录页，等待用户扫码或手动登录。
         """
@@ -191,7 +191,7 @@ class DouyinAutomation:
         cover_image: str = "",
     ) -> Dict[str, Any]:
         """发布短剧
-        
+
         流程：
             1. 确保已登录
             2. 进入发布页面

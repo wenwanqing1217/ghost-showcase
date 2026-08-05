@@ -12,12 +12,11 @@ Routes:
 """
 
 import logging
-from typing import Optional
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request
 
-from services.proxy import proxy_get, proxy_post, proxy_delete, ok, fail
 import config
+from services.proxy import fail, ok, proxy_get
 
 logger = logging.getLogger("ghost-gateway")
 
@@ -104,7 +103,6 @@ async def optimize_code(request: Request):
 @router.get("/health")
 async def tools_health(request: Request):
     """Check health of ToolA and ToolB services."""
-    from services.proxy import proxy_get
 
     tool_a_health = await proxy_get("/health", TOOL_A_URL)
     tool_b_health = await proxy_get("/health", TOOL_B_URL)

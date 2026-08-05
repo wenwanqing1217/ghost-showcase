@@ -17,13 +17,13 @@ Routes:
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from services.proxy import proxy_get, proxy_post, ok, fail, has_error
-from middleware.rate_limit import rate_limit_check, client_ip
-from services.game_engine import generate_game, get_game_status, list_generated_games
 import config
+from middleware.rate_limit import client_ip, rate_limit_check
+from services.game_engine import generate_game, get_game_status, list_generated_games
+from services.proxy import fail, has_error, ok, proxy_get, proxy_post
 
 logger = logging.getLogger("ghost-gateway")
 
@@ -257,9 +257,8 @@ async def publish_video(request: Request, body: VideoPublishRequest):
 
     需要 Gateway 配置 UPLOAD_POST_API_KEY + UPLOAD_POST_USERNAME。
     """
+
     import httpx
-    import tempfile
-    import os
 
     # ── 1. 检查 Upload-Post 配置 ──
     if not config.UPLOAD_POST_API_KEY or not config.UPLOAD_POST_USERNAME:
@@ -335,7 +334,7 @@ async def publish_video(request: Request, body: VideoPublishRequest):
 
     except Exception as e:
         logger.error(f"下载视频失败: {e}")
-        return fail(f"下载视频异常: {str(e)}", 502, request)
+        return fail(f"下载视频异常: {e!s}", 502, request)
 
     # ── 4. 调用 Upload-Post API 发布 ──
     try:
@@ -389,7 +388,7 @@ async def publish_video(request: Request, body: VideoPublishRequest):
 
     except Exception as e:
         logger.error(f"Upload-Post API 调用异常: {e}")
-        return fail(f"发布异常: {str(e)}", 500, request)
+        return fail(f"发布异常: {e!s}", 500, request)
 
 
 @router.get("/video/publish/status/{request_id}")
@@ -413,7 +412,7 @@ async def get_publish_status(request_id: str, request: Request):
 
         return ok(resp.json(), request)
     except Exception as e:
-        return fail(f"查询异常: {str(e)}", 500, request)
+        return fail(f"查询异常: {e!s}", 500, request)
 
 
 # ── Game Generation (Phase 2 Placeholder) ──────────────────────────────────
@@ -455,7 +454,7 @@ async def generate_game_route(request: Request, body: GameGenerateRequest):
         return fail(str(e), 500, request)
     except Exception as e:
         logger.error(f"Game generation failed: {e}", exc_info=True)
-        return fail(f"Game generation failed: {str(e)}", 500, request)
+        return fail(f"Game generation failed: {e!s}", 500, request)
 
 
 @router.get("/game/status/{task_id}")
@@ -474,7 +473,7 @@ async def get_game_status_route(task_id: str, request: Request):
         return ok(result, request)
     except Exception as e:
         logger.error(f"Game status check failed: {e}")
-        return fail(f"Status check failed: {str(e)}", 500, request)
+        return fail(f"Status check failed: {e!s}", 500, request)
 
 
 @router.get("/game/list")
@@ -493,4 +492,4 @@ async def list_games(request: Request):
         return ok({"games": games, "total": len(games)}, request)
     except Exception as e:
         logger.error(f"Game list failed: {e}")
-        return fail(f"List failed: {str(e)}", 500, request)
+        return fail(f"List failed: {e!s}", 500, request)

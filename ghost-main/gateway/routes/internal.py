@@ -3,23 +3,19 @@
 Platform internal use only, not exposed to public.
 """
 
-import os
-import logging
 import asyncio
-from typing import Any
+import logging
+import os
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
-from services.proxy import proxy_get, proxy_post, ok, fail, has_error
+import config
 from services.eventbus_client import get_gateway_eventbus
-from middleware.rate_limit import client_ip
 from services.obsidian import (
     check_vault_status,
-    write_conversation_async,
-    trigger_organization,
 )
-import config
+from services.proxy import fail, has_error, ok, proxy_get, proxy_post
 
 logger = logging.getLogger("ghost-gateway")
 
@@ -34,7 +30,7 @@ async def monitoring_dashboard(request: Request):
     """Internal: Serve the Ghost Platform monitoring dashboard."""
     html_path = os.path.join(os.path.dirname(__file__), "..", "monitoring.html")
     if os.path.exists(html_path):
-        html = open(html_path, "r", encoding="utf-8").read()
+        html = open(html_path, encoding="utf-8").read()
         return HTMLResponse(content=html)
     return HTMLResponse(content="<h1>Monitoring dashboard not found</h1>", status_code=404)
 
@@ -42,15 +38,15 @@ async def monitoring_dashboard(request: Request):
 @router.get("/monitoring/metrics")
 async def monitoring_metrics(request: Request):
     """Internal: Aggregate metrics from all backend services.
-    
+
     Calls each service's /metrics endpoint and returns combined health + metrics.
     This replaces the need for a separate Prometheus server.
     """
     import time
-    
+
     # Use the shared httpx client from proxy module
     from services.proxy import _proxy_request
-    
+
     services = {
         "gateway": f"http://localhost:{config.GATEWAY_PORT}/metrics",
         "alphaid": f"{config.ALPHAID_URL}/metrics",
@@ -60,17 +56,17 @@ async def monitoring_metrics(request: Request):
         "netagent": f"{config.NETAGENT_URL}/metrics",
         "ghost-ds": f"{config.DS_URL}/api/metrics",
     }
-    
+
     results = {}
     health = {}
-    
+
     async def _fetch(name: str, url: str) -> tuple[str, dict]:
         try:
             start = time.perf_counter()
             # Use the shared client (connection pool)
             data = await _proxy_request("GET", url, "")
             duration = time.perf_counter() - start
-            
+
             if isinstance(data, dict) and data.get("_error"):
                 return name, {
                     "status": 0,
@@ -78,13 +74,13 @@ async def monitoring_metrics(request: Request):
                     "error": data["_error"],
                     "duration_ms": round(duration * 1000, 1),
                 }
-            
+
             # Convert to text for display
             if isinstance(data, dict):
                 text = "\n".join(f"{k} {v}" for k, v in data.items())
             else:
                 text = str(data)
-            
+
             return name, {
                 "status": 200,
                 "ok": True,
@@ -99,20 +95,20 @@ async def monitoring_metrics(request: Request):
                 "error": str(e),
                 "duration_ms": 0,
             }
-    
+
     # Fetch all concurrently
     tasks = [_fetch(name, url) for name, url in services.items()]
     completed = await asyncio.gather(*tasks, return_exceptions=True)
-    
+
     for result in completed:
         if isinstance(result, Exception):
             continue
         name, data = result
         results[name] = data
         health[name] = "ok" if data.get("ok") else "error"
-    
+
     overall = "ok" if all(v == "ok" for v in health.values()) else "degraded"
-    
+
     return ok({
         "overall": overall,
         "services": health,
@@ -124,9 +120,9 @@ async def monitoring_metrics(request: Request):
 @router.get("/monitoring/health")
 async def monitoring_health(request: Request):
     """Internal: Quick health summary for monitoring dashboards."""
-    import time
+
     from services.proxy import _proxy_request
-    
+
     services = {
         "alphaid": config.ALPHAID_URL,
         "nebula": config.NEBULA_URL,
@@ -135,31 +131,29 @@ async def monitoring_health(request: Request):
         "flow": config.FLOW_URL,
         "ghost-ds": config.DS_URL,
     }
-    
+
     health = {}
-    
+
     async def _check(name: str, base_url: str) -> None:
         try:
-            start = time.perf_counter()
             data = await _proxy_request("GET", f"{base_url}/health", "")
-            duration = time.perf_counter() - start
-            
+
             if isinstance(data, dict) and data.get("_error"):
                 health[name] = "error"
             else:
                 health[name] = "ok"
         except Exception:
             health[name] = "error"
-    
+
     tasks = [_check(name, url) for name, url in services.items()]
     await asyncio.gather(*tasks)
-    
+
     # Obsidian vault check
     vault_status = check_vault_status()
     health["obsidian"] = "ok" if vault_status.get("exists") else "not_found"
-    
+
     overall = "ok" if all(v == "ok" for v in health.values()) else "degraded"
-    
+
     return ok({"overall": overall, "services": health}, request)
 
 
@@ -189,7 +183,7 @@ async def wechat_webhook(request: Request):
         if msg_type is not None and msg_type.text == "text" and content is not None:
             bus = get_gateway_eventbus()
             event = bus.emit(
-                EventType.SOCIAL_MESSAGE.value if hasattr(EventType, "value") else "social.message",
+                "social.message",
                 {
                     "platform": "wechat",
                     "action_type": "MESSAGE_RECEIVED",
@@ -282,7 +276,6 @@ async def alphaid_ready(request: Request):
 @router.get("/observability/metrics")
 async def alphaid_metrics(request: Request):
     """Alpha-ID Prometheus metrics → proxy to Alpha-ID."""
-    from fastapi.responses import PlainTextResponse
     data = await proxy_get("/api/v1/observability/metrics", config.ALPHAID_URL)
     if isinstance(data, dict) and data.get("_error"):
         return fail(f"Alpha-ID metrics error: {data.get('_error')}", 502, request)

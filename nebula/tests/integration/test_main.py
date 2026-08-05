@@ -1,6 +1,5 @@
 """MindFlow Map 集成测试"""
 
-import pytest
 from fastapi.testclient import TestClient
 
 from mindflow_map.main import app

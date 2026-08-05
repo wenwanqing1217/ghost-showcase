@@ -55,7 +55,7 @@ def get_allowed_origins() -> list[str]:
     """
     Compute allowed CORS origins based on environment.
     Zero-trust default: wildcard (*) is rejected in production.
-    
+
     Priority:
       1. Explicit AID_ALLOWED_ORIGINS env var (comma-separated)
       2. Development: localhost defaults

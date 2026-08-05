@@ -1,11 +1,12 @@
 """LLM 意图识别测试"""
 
 import json
-import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
+import pytest
+
+from mindflow_map.ai.intent import IntentParser
 from mindflow_map.ai.llm import LLMClient
-from mindflow_map.ai.intent import IntentParser, _INTENT_SYSTEM_PROMPT
 
 
 @pytest.fixture

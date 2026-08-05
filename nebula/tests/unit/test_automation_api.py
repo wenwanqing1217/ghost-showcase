@@ -1,15 +1,13 @@
 """自动化模块 API 测试"""
 
-import pytest
-from unittest.mock import patch, AsyncMock
 
-from mindflow_map.api.automation import router
-from mindflow_map.config import settings
+import pytest
 
 
 @pytest.fixture
 def client():
     from fastapi.testclient import TestClient
+
     from mindflow_map.main import app
     return TestClient(app)
 

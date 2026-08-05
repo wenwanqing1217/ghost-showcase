@@ -1,13 +1,11 @@
 """短剧剧本生成器"""
 
-from typing import Dict, Any, Optional
-
-from mindflow_map.config import settings
+from typing import Any, Dict
 
 
 class DramaScriptGenerator:
     """短剧剧本生成器"""
-    
+
     async def generate(self, title: str, style: str = "甜宠") -> Dict[str, Any]:
         return {
             "ok": True,

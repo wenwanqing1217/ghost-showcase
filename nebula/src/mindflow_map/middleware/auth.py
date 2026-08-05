@@ -6,7 +6,7 @@ import ipaddress
 import logging
 from typing import Optional
 
-from fastapi import Depends, HTTPException, Request
+from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from mindflow_map.config import settings

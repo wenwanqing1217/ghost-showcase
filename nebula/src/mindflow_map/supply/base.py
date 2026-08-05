@@ -23,7 +23,6 @@ from __future__ import annotations
 import abc
 import logging
 import time
-import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Type
@@ -301,7 +300,7 @@ def supply_adapter(
             cls.name = name
         if display_name:
             cls.display_name = display_name
-        _global_supply_registry.register(cls, name=cls.name)
+        _supply_registry.register(cls, name=cls.name)
         return cls
     return decorator
 

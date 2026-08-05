@@ -1,9 +1,8 @@
 """Obsidian vault operations."""
 
-import os
 import logging
-from pathlib import Path
-from typing import List, Dict, Any, Optional
+import os
+from typing import Any, Dict, List, Optional
 
 logger = logging.getLogger("ghost-gateway")
 
@@ -54,7 +53,7 @@ def search_vault(keyword: str = "", limit: int = 20) -> List[Dict[str, Any]]:
                 continue
             fpath = os.path.join(root, fname)
             try:
-                text = open(fpath, "r", encoding="utf-8").read()
+                text = open(fpath, encoding="utf-8").read()
             except Exception:
                 continue
 
@@ -119,7 +118,7 @@ def get_feeds(industry: Optional[str] = None, limit: int = 20) -> List[Dict[str,
                 continue
             fpath = os.path.join(root, fname)
             try:
-                text = open(fpath, "r", encoding="utf-8").read()
+                text = open(fpath, encoding="utf-8").read()
             except Exception:
                 continue
             if industry and industry.lower() not in text.lower():
@@ -148,7 +147,7 @@ def write_conversation_async(
     metadata: dict, messages: list, session_id: str, bot_id: str = ""
 ):
     """Write conversation to Obsidian vault in background executor.
-    
+
     NOTE: Conversation capture feature removed. This is a no-op stub kept for import compat.
     """
     logger.debug("write_conversation_async: no-op (capture feature removed)")
@@ -156,7 +155,7 @@ def write_conversation_async(
 
 def trigger_organization():
     """Trigger Obsidian organization in background thread.
-    
+
     NOTE: Conversation capture feature removed. This is a no-op stub kept for import compat.
     """
     logger.debug("trigger_organization: no-op (capture feature removed)")
@@ -164,7 +163,7 @@ def trigger_organization():
 
 def run_batch_link():
     """Run batch link related files in Obsidian vault.
-    
+
     NOTE: Conversation capture feature removed. This is a no-op stub kept for import compat.
     """
     logger.debug("run_batch_link: no-op (capture feature removed)")

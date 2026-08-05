@@ -8,9 +8,9 @@ from starlette.requests import Request
 from starlette.responses import Response
 
 from mindflow_map.core.metrics import (
-    record_http_request,
-    increment_active_requests,
     decrement_active_requests,
+    increment_active_requests,
+    record_http_request,
 )
 
 logger = logging.getLogger(__name__)

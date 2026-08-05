@@ -1,8 +1,8 @@
 """Correlation ID + Access Log middleware."""
 
+import logging
 import time
 import uuid
-import logging
 
 from fastapi import Request
 

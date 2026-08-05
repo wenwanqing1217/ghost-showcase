@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-from typing import AsyncGenerator, Dict, Any
+from typing import Any, AsyncGenerator, Dict
 
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
@@ -54,7 +54,7 @@ async def _stream_workflow_execution(text: str, user_id: str) -> AsyncGenerator[
         yield f"event: message\ndata: {json.dumps({'text': reply})}\n\n"
         yield f"event: done\ndata: {json.dumps({'success': True})}\n\n"
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("SSE workflow execution failed: %s", exc)
         yield f"event: error\ndata: {json.dumps({'error': str(exc)})}\n\n"
         yield f"event: done\ndata: {json.dumps({'success': False})}\n\n"

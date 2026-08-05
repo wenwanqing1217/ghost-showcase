@@ -9,7 +9,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from logging.handlers import RotatingFileHandler
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 # 标准 LogRecord 属性，不进入 extra
 _STANDARD_ATTRS: set[str] = {

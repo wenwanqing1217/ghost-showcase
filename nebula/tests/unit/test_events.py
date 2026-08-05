@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 from unittest.mock import AsyncMock, MagicMock
 
-import pytest
 from fastapi.testclient import TestClient
 
 from mindflow_map.main import app
@@ -173,7 +172,7 @@ class TestWechatCallback:
                 b"<FromUserName><![CDATA[fromUser]]></FromUserName>"
                 b"<CreateTime>1234567890</CreateTime>"
                 b"<MsgType><![CDATA[text]]></MsgType>"
-                b"<Content><![CDATA[" + "你好".encode("utf-8") + b"]]></Content>"
+                b"<Content><![CDATA[" + "你好".encode() + b"]]></Content>"
                 b"</xml>"
             )
             resp = client.post(

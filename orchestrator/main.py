@@ -24,24 +24,22 @@ OrchestratorEngine — Ghost 平台统一调度引擎（入口文件）
   - 异步 HTTP 客户端复用
 """
 
+import logging
 import os
-import json
+import sys
+import threading
 import time
 import uuid
-import logging
-import threading
-import sys
-from pathlib import Path
-from datetime import datetime
-from typing import Optional, Dict, List
-from concurrent.futures import ThreadPoolExecutor, Future
-from dataclasses import dataclass, field, asdict
-
-import uvicorn
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, HTTPException, Depends
-from fastapi.responses import JSONResponse
+from dataclasses import asdict, dataclass
+from pathlib import Path
+from typing import Dict, List, Optional
+
 import httpx
+import uvicorn
+from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 # ── OrchestratorEngine import setup ──
 # Add alphaid source root so the engine is importable from the orchestrator service.
@@ -50,7 +48,7 @@ if _ALPHAID_SRC not in sys.path:
     sys.path.insert(0, _ALPHAID_SRC)
 
 try:
-    from orchestrator.engine import OrchestratorEngine, ChannelAdapter
+    from orchestrator.engine import ChannelAdapter, OrchestratorEngine
     _HAS_ENGINE = True
 except ImportError:
     _HAS_ENGINE = False
@@ -341,7 +339,8 @@ executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="task"
 _http_client: Optional[httpx.AsyncClient] = None
 
 # ── OrchestratorEngine instance ──
-_orchestrator_engine: Optional[OrchestratorEngine] = None if _HAS_ENGINE else None
+# 模块级初始为 None；lifespan() 中在 _HAS_ENGINE 时实例化并 start()
+_orchestrator_engine: Optional[OrchestratorEngine] = None
 
 
 def get_engine() -> Optional[OrchestratorEngine]:

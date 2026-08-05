@@ -2,9 +2,10 @@
 Gateway test fixtures — mock backend services for isolated gateway testing.
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import patch, AsyncMock, MagicMock
+from httpx import ASGITransport, AsyncClient
 
 from app import app
 

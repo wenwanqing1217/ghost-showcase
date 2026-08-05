@@ -1,15 +1,20 @@
 """微信公众号 API 测试"""
 
 import hashlib
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
+from mindflow_map.api.wechat import (
+    _build_xml,
+    _check_signature,
+    _parse_xml,
+    get_wechat_access_token,
+    invalidate_wechat_access_token,
+)
 from mindflow_map.main import app
-from mindflow_map.api.wechat import _check_signature, _build_xml, _parse_xml, get_wechat_access_token, invalidate_wechat_access_token
-
 
 client = TestClient(app)
 
@@ -147,7 +152,7 @@ class TestWechatMessage:
             b"<FromUserName><![CDATA[fromUser]]></FromUserName>"
             b"<CreateTime>1234567890</CreateTime>"
             b"<MsgType><![CDATA[text]]></MsgType>"
-            b"<Content><![CDATA[" + "你好".encode("utf-8") + b"]]></Content>"
+            b"<Content><![CDATA[" + "你好".encode() + b"]]></Content>"
             b"</xml>"
         )
         resp = client.post(
@@ -182,7 +187,7 @@ class TestWechatMessage:
             headers={"Content-Type": "application/xml"},
         )
         assert resp.status_code == 200
-        assert "只支持文字消息".encode("utf-8") in resp.content
+        assert "只支持文字消息".encode() in resp.content
 
 
 # ---------------------------------------------------------------------------

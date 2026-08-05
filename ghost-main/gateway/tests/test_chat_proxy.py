@@ -7,9 +7,10 @@ Validates:
   - alpha_id from body is forwarded as X-Tenant-ID if no header present
 """
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import patch, AsyncMock, MagicMock
+from httpx import ASGITransport, AsyncClient
 
 from app import app
 

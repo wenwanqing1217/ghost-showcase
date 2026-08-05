@@ -25,7 +25,6 @@ import os
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger("ghost-gateway")
 
@@ -113,7 +112,6 @@ def _generate_game_id() -> str:
 def _generate_space_shooter(theme: str, description: str) -> str:
     """Generate a space shooter game HTML."""
     t = _get_theme("space_shooter", theme)
-    game_id = _generate_game_id()
 
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">

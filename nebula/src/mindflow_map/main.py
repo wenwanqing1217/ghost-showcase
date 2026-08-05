@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import os
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -11,21 +10,32 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from mindflow_map.config import settings
-from mindflow_map.config_validator import check_all
-from mindflow_map.api import approvals, automation, events, health, map, shortdramas, streaming, workflow, feishu_webhook, wechat
+from mindflow_map.api import (
+    approvals,
+    automation,
+    events,
+    feishu_webhook,
+    health,
+    map,
+    shortdramas,
+    streaming,
+    wechat,
+    workflow,
+)
 from mindflow_map.api import supply as supply_routes
 from mindflow_map.api.openapi_config import custom_openapi
-from mindflow_map.core.metrics import get_metrics_bytes, get_content_type
+from mindflow_map.config import settings
+from mindflow_map.config_validator import check_all
+from mindflow_map.core.metrics import get_content_type, get_metrics_bytes
 from mindflow_map.logging_config import setup_logging
 from mindflow_map.middleware.audit import AuditMiddleware
 from mindflow_map.middleware.auth import AuthMiddleware
 from mindflow_map.middleware.correlation_id import CorrelationIdMiddleware
+from mindflow_map.middleware.csrf import CSRFMiddleware
 from mindflow_map.middleware.error_handler import register_error_handlers
 from mindflow_map.middleware.prometheus import PrometheusMiddleware
-from mindflow_map.middleware.csrf import CSRFMiddleware
 from mindflow_map.middleware.rate_limit import RateLimitMiddleware
-from mindflow_map.models.session import init_db, close_db, get_database
+from mindflow_map.models.session import close_db, get_database, init_db
 from mindflow_map.workflows.engine import WorkflowEngine
 
 logger = logging.getLogger(__name__)
@@ -83,9 +93,9 @@ async def lifespan(app: FastAPI):
         _feishu_client.stop()
     # 关闭共享 httpx 客户端
     from mindflow_map.api.feishu_sender import FeishuSender
-    
+
     await FeishuSender.close_shared_client()
-    
+
     await engine.shutdown()
     try:
         await engine.alpha_id_client.close()

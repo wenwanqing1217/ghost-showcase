@@ -2,13 +2,12 @@
 
 import json
 from pathlib import Path
-from typing import List, Dict
+from typing import Dict, List
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import model_validator, field_validator
 
 from mindflow_map.secrets import get_secret_provider
-
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
@@ -127,11 +126,11 @@ class Settings(BaseSettings):
         """Load secrets from provider when not in local env mode."""
         if not isinstance(data, dict):
             return data
-        
+
         provider_type = _get_secret("SECRET_PROVIDER", "env")
         if provider_type == "env":
             return data
-        
+
         # Map of field names to environment variable names
         secret_fields = {
             "feishu_app_id": "FEISHU_APP_ID",
@@ -153,13 +152,13 @@ class Settings(BaseSettings):
             "shortdramas_api_key": "SHORTDRAMAS_API_KEY",
             "shortdramas_webhook_secret": "SHORTDRAMAS_WEBHOOK_SECRET",
         }
-        
+
         for field_name, env_var in secret_fields.items():
             if field_name not in data or not data[field_name]:
                 secret_value = _get_secret(env_var, "")
                 if secret_value:
                     data[field_name] = secret_value
-        
+
         return data
 
 

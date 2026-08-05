@@ -3,14 +3,13 @@
 import asyncio
 import logging
 import re
-import json
 from abc import ABC, abstractmethod
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from concurrent.futures import ThreadPoolExecutor
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
-from mindflow_map.tools.baidu_map import BaiduMapTool
-from mindflow_map.identity.aid_client import AlphaIDClient
 from mindflow_map.ai.intent import IntentParser
+from mindflow_map.identity.aid_client import AlphaIDClient
+from mindflow_map.tools.baidu_map import BaiduMapTool
 
 if TYPE_CHECKING:
     from mindflow_map.plugins.registry import PluginRegistry
@@ -107,9 +106,9 @@ class ShortDramasPrecheckTool(Tool):
 
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         try:
-            from mindflow_map.integration.shortdramas import ShortDramasClient, AIContentScanner
-            from mindflow_map.memory.store import MemoryStore
             from mindflow_map.config import settings
+            from mindflow_map.integration.shortdramas import AIContentScanner, ShortDramasClient
+            from mindflow_map.memory.store import MemoryStore
 
             title = params.get("title", "")
             content = params.get("content", "")
@@ -144,7 +143,7 @@ class ShortDramasPrecheckTool(Tool):
             # 3. 提交到短剧平台
             client = ShortDramasClient()
             callback_url = f"{settings.shortdramas_api_url.rstrip('/')}/api/v1/webhook/shortdramas/callback" if settings.shortdramas_api_url else None
-            
+
             platform_result = await client.submit_precheck(
                 title=title,
                 content=content,
@@ -237,6 +236,7 @@ class ChannelCopyTool(Tool):
 
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         import httpx
+
         from mindflow_map.config import settings
 
         product = params.get("product") or params.get("title") or params.get("text", "")
@@ -298,6 +298,7 @@ class VideoGenerateTool(Tool):
 
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         import httpx
+
         from mindflow_map.config import settings
 
         subject = params.get("subject") or params.get("title") or params.get("text", "")
@@ -344,6 +345,7 @@ class VideoPublishTool(Tool):
 
     async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
         import httpx
+
         from mindflow_map.config import settings
 
         task_id = params.get("task_id", "")
@@ -489,6 +491,7 @@ class WorkflowEngine:
         """
         try:
             import httpx
+
             from mindflow_map.config import settings
 
             result_type = result.get("type", "unknown")
@@ -498,7 +501,7 @@ class WorkflowEngine:
 
             # 构建 Markdown 内容
             content_lines = [
-                f"## 任务执行记录",
+                "## 任务执行记录",
                 "",
                 f"**用户**：{user_id}",
                 f"**时间**：{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
@@ -507,7 +510,7 @@ class WorkflowEngine:
                 f"**状态**：{'成功' if success else '失败'}",
                 f"**原始指令**：{text}",
                 "",
-                f"### 执行结果",
+                "### 执行结果",
                 "",
                 "```json",
                 __import__("json").dumps(data, ensure_ascii=False, indent=2)[:2000],
@@ -549,6 +552,7 @@ class WorkflowEngine:
         """
         try:
             import httpx
+
             from mindflow_map.config import settings
 
             result_type = result.get("type", "unknown")
@@ -748,18 +752,18 @@ class WorkflowEngine:
             status = data.get("status", "")
             job_id = data.get("job_id", "")
             message = data.get("message", "")
-            
+
             if not success and data.get("rejected_by") == "ai_local":
                 violations = "、".join(data.get("ai_scan_result", {}).get("violations", []))
                 return f"内容未通过 AI 预检，已拦截：{violations}。请修改后重新提交。"
-            
+
             if demo:
                 return f"短剧预审服务未配置，演示模式：{message or '请先配置 SHORTDRAMAS_API_URL 和 SHORTDRAMAS_API_KEY'}"
-            
+
             if not success:
                 # 真实 API 调用失败（非演示、非 AI 拦截），明确标为错误
                 return f"预审失败：{message or '平台返回错误，请稍后重试'}"
-            
+
             if status == "rejected":
                 return f"预审被拒绝：{message}"
             elif status == "approved":
@@ -851,7 +855,7 @@ class WorkflowEngine:
         if any(kw in text for kw in precheck_keywords):
             title_match = re.search(r"《(.+?)》", text)
             title = title_match.group(1) if title_match else ""
-            
+
             return {
                 "type": "shortdramas",
                 "action": "precheck",

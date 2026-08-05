@@ -119,7 +119,7 @@ class ShortDramasClient:
     ) -> Dict[str, Any]:
         """
         提交内容预审
-        
+
         返回结构：
         {
             "success": true/false,
@@ -139,11 +139,11 @@ class ShortDramasClient:
             payload["callback_url"] = callback_url
 
         result = await self._request("POST", "/api/v1/precheck/submit", payload)
-        
+
         # 标准化返回
         if "demo" in result:
             return result
-            
+
         return {
             "success": result.get("success", False),
             "job_id": result.get("job_id", ""),
@@ -156,10 +156,10 @@ class ShortDramasClient:
     async def query_precheck(self, job_id: str) -> Dict[str, Any]:
         """查询预审任务状态"""
         result = await self._request("GET", f"/api/v1/precheck/query/{job_id}")
-        
+
         if "demo" in result:
             return result
-            
+
         return {
             "success": result.get("success", False),
             "job_id": job_id,
@@ -192,7 +192,7 @@ class AIContentScanner:
     async def scan(self, title: str, content: str) -> Dict[str, Any]:
         """
         对内容进行 AI 快速扫描
-        
+
         返回：
         {
             "risk_level": "safe|warning|blocked",
@@ -239,7 +239,7 @@ class AIContentScanner:
                 temperature=0.1,
                 max_tokens=256,
             )
-            
+
             # 解析 JSON
             result_text = result_text.strip()
             if result_text.startswith("```"):
@@ -247,7 +247,7 @@ class AIContentScanner:
                 if result_text.startswith("json"):
                     result_text = result_text[4:]
                 result_text = result_text.strip()
-            
+
             return json.loads(result_text)
         except Exception as e:
             logger.error("AI content scan failed: %s", e)

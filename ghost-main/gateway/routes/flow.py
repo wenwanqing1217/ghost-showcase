@@ -15,17 +15,16 @@ import logging
 
 from fastapi import APIRouter, Request
 
+import config
 from services.proxy import (
+    fail,
+    filter_headers,
+    get_client,
+    ok,
     proxy_get,
     proxy_post,
-    ok,
-    fail,
     unwrap_flow_response,
-    get_client,
-    filter_headers,
 )
-
-import config
 
 logger = logging.getLogger("ghost-gateway")
 
@@ -133,7 +132,7 @@ async def delete_aid_session(session_id: str, request: Request):
             return ok(unwrap_flow_response(resp.json()), request)
         return fail(f"Flow returned {resp.status_code}", resp.status_code, request)
     except Exception as e:
-        return fail(f"Flow unreachable: {str(e)}", 502, request)
+        return fail(f"Flow unreachable: {e!s}", 502, request)
 
 
 # ── Map / POI ──
@@ -186,7 +185,7 @@ async def delete_route(route_id: str, request: Request):
             return ok(unwrap_flow_response(resp.json()), request)
         return fail(f"Flow returned {resp.status_code}", resp.status_code, request)
     except Exception as e:
-        return fail(f"Flow unreachable: {str(e)}", 502, request)
+        return fail(f"Flow unreachable: {e!s}", 502, request)
 
 
 # ── Computer Use ──

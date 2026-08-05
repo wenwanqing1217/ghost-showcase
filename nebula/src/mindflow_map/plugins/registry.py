@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import inspect
 from dataclasses import dataclass, field
-from typing import Any, Awaitable, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from mindflow_map.workflows.engine import Tool
 

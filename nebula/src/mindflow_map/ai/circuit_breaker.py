@@ -77,7 +77,7 @@ class CircuitBreaker:
 
             try:
                 result = await fn(*args, **kwargs)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:
                 self._record_failure()
                 logger.warning(
                     "Circuit breaker failure #%d: %s",

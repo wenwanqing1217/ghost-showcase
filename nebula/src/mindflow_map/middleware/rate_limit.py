@@ -132,7 +132,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                         status_code=429,
                         content={
                             "error": "rate_limit_exceeded",
-                            "message": f"Too many requests. Limit exceeded",
+                            "message": "Too many requests. Limit exceeded",
                             "retry_after": 60,
                         },
                         headers={"Retry-After": "60"},

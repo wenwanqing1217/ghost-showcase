@@ -1,12 +1,12 @@
 """地图相关 API"""
 
-from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
+
 import httpx
+from fastapi import APIRouter, HTTPException, Query
 
 from mindflow_map.config import settings
 from mindflow_map.schemas.map import (
-    GeocodeRequest,
     LocationSearchRequest,
     RoutePlanRequest,
     WeatherQueryRequest,

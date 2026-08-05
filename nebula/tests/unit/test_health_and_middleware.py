@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from fastapi.testclient import TestClient
 
 from mindflow_map.main import app
@@ -90,8 +89,9 @@ class TestRateLimitMiddleware:
         # Rate limit middleware should return 429 with standardized format
         # Note: This test creates a fresh app to avoid accumulated rate limit state
         from fastapi import FastAPI
-        from mindflow_map.middleware.rate_limit import RateLimitMiddleware
         from fastapi.testclient import TestClient
+
+        from mindflow_map.middleware.rate_limit import RateLimitMiddleware
 
         test_app = FastAPI()
 

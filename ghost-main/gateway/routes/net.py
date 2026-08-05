@@ -9,8 +9,8 @@ Net-Agent handles its own permission checks.
 
 from fastapi import APIRouter, Request
 
-from services.proxy import proxy_get, proxy_post, filter_headers
 import config
+from services.proxy import filter_headers, proxy_get, proxy_post
 
 router = APIRouter(prefix="/v1/net", tags=["net"])
 

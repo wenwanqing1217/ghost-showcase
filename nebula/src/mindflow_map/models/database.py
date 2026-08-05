@@ -2,19 +2,18 @@
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Text, Boolean, DateTime, JSON, Enum as SQLEnum, ForeignKey
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, String, Text
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from mindflow_map.memory.store import Base
-from mindflow_map.schemas.approval import ApprovalStatus, ApprovalLevel as ApprovalLevelSchema
-from mindflow_map.schemas.auth import RoleType, PermissionType, TenantStatus
+from mindflow_map.schemas.approval import ApprovalStatus
 from mindflow_map.schemas.audit import AuditAction
-
+from mindflow_map.schemas.auth import RoleType, TenantStatus
 
 # ---------------------------------------------------------------------------
 # Multi-tenancy / Auth models
@@ -33,7 +32,7 @@ class Tenant(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
-    users: Mapped[list["User"]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
+    users: Mapped[list[User]] = relationship(back_populates="tenant", cascade="all, delete-orphan")
 
 
 class User(Base):
@@ -50,8 +49,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
-    tenant: Mapped["Tenant"] = relationship(back_populates="users")
-    tokens: Mapped[list["Token"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    tenant: Mapped[Tenant] = relationship(back_populates="users")
+    tokens: Mapped[list[Token]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 class Token(Base):
@@ -68,7 +67,7 @@ class Token(Base):
     is_revoked: Mapped[bool] = mapped_column(Boolean, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
 
-    user: Mapped["User"] = relationship(back_populates="tokens")
+    user: Mapped[User] = relationship(back_populates="tokens")
 
 
 # ---------------------------------------------------------------------------
@@ -96,7 +95,7 @@ class ApprovalModel(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=func.now(), onupdate=func.now())
 
-    history: Mapped[list["ApprovalHistoryModel"]] = relationship(back_populates="approval", cascade="all, delete-orphan")
+    history: Mapped[list[ApprovalHistoryModel]] = relationship(back_populates="approval", cascade="all, delete-orphan")
 
 
 class ApprovalHistoryModel(Base):
@@ -111,7 +110,7 @@ class ApprovalHistoryModel(Base):
     comment: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     detail: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
-    approval: Mapped["ApprovalModel"] = relationship(back_populates="history")
+    approval: Mapped[ApprovalModel] = relationship(back_populates="history")
 
 
 # ---------------------------------------------------------------------------

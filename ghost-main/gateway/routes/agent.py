@@ -4,14 +4,13 @@ All agent-facing interfaces, separate from human traffic.
 """
 
 import logging
-
-from fastapi import APIRouter, Request
 from typing import Optional
 
-from services.proxy import proxy_get, proxy_post, ok, fail, forward_csrf_headers
-from services.obsidian import get_feeds
+from fastapi import APIRouter, Request
 
 import config
+from services.obsidian import get_feeds
+from services.proxy import fail, forward_csrf_headers, ok, proxy_get, proxy_post
 
 logger = logging.getLogger("ghost-gateway")
 
@@ -89,7 +88,7 @@ async def a2a_proxy_audit(request: Request):
 
     # 转发查询参数
     query_params = request.query_params
-    url = f"/api/v1/a2a/audit"
+    url = "/api/v1/a2a/audit"
     if query_params:
         url += "?" + str(query_params)
 

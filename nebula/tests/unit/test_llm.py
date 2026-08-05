@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-from openai import AsyncOpenAI
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from mindflow_map.ai.llm import LLMClient

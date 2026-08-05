@@ -7,10 +7,9 @@ Design:
   - Single _proxy_request method to eliminate duplication
 """
 
-import time
-import logging
 import asyncio
-from typing import Optional
+import logging
+import time
 
 import httpx
 from fastapi import Request
@@ -135,7 +134,7 @@ async def _proxy_request(
                 "_backend": base_url,
             }
         except httpx.TimeoutException as e:
-            last_error = f"timeout: {str(e)}"
+            last_error = f"timeout: {e!s}"
             if attempt < _MAX_RETRIES:
                 logger.warning("Proxy timeout, retrying %s %s", method, url)
                 await asyncio.sleep(_RETRY_DELAY)
@@ -146,7 +145,7 @@ async def _proxy_request(
             }
         except Exception as e:
             return {
-                "_error": f"backend unreachable: {str(e)}",
+                "_error": f"backend unreachable: {e!s}",
                 "_backend": base_url,
             }
 

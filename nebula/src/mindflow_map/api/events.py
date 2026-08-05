@@ -147,7 +147,7 @@ async def feishu_event_subscription(
         result = await _dispatch_to_workflow_engine(event, engine)
         logger.info("Feishu event %s handled: %s", event_id, result)
         return {"handled": True, "result": result}
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("Feishu event %s failed: %s", event_id, exc)
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -216,7 +216,7 @@ async def wechat_event_subscription(
     try:
         result = await _dispatch_to_workflow_engine(event, engine)
         text = result.get("text") if isinstance(result, dict) else str(result)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.error("WeChat event failed: %s", exc)
         text = "处理你的消息时出错了，请稍后再试。"
 

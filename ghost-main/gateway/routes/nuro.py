@@ -24,7 +24,7 @@ import asyncio
 import json
 import logging
 import time
-from typing import Dict, Optional, Set
+from typing import Dict
 
 from fastapi import APIRouter, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse

@@ -15,40 +15,38 @@ Design principles:
   - Role-agnostic design: users can be consumer/creator/developer at the same time, no fixed role binding
 """
 
-import os
 import logging
-import threading
+import os
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import httpx
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-
-from dotenv import load_dotenv
 
 load_dotenv()
 
 import config  # noqa: E402
 import services.proxy as _proxy  # noqa: E402
-from services.proxy import ok  # noqa: E402
-from services.metrics import record_request, set_backend_health, get_metrics_response  # noqa: E402
 from middleware.correlation import correlation_id_middleware  # noqa: E402
-from routes.human import router as human_router  # noqa: E402
+from middleware.tenant import TenantMiddleware  # noqa: E402
 from routes.agent import router as agent_router  # noqa: E402
+from routes.content import router as content_router  # noqa: E402
+from routes.ecom import router as ecom_router  # noqa: E402
+from routes.flow import router as flow_router  # noqa: E402
+from routes.human import router as human_router  # noqa: E402
 from routes.internal import router as internal_router  # noqa: E402
 from routes.net import router as net_router  # noqa: E402
-from routes.flow import router as flow_router  # noqa: E402
-from routes.ecom import router as ecom_router  # noqa: E402
 from routes.notify import router as notify_router  # noqa: E402
+from routes.nuro import router as nuro_router  # noqa: E402
 from routes.obsidian_bridge import router as obsidian_bridge_router  # noqa: E402
 from routes.tools import router as tools_router  # noqa: E402
-from routes.content import router as content_router  # noqa: E402
-from routes.nuro import router as nuro_router  # noqa: E402
-from middleware.tenant import TenantMiddleware  # noqa: E402
+from services.metrics import get_metrics_response, record_request, set_backend_health  # noqa: E402
+from services.proxy import ok  # noqa: E402
 
 # ============================================================
 # Structured Logger
@@ -184,7 +182,6 @@ app.include_router(nuro_router)
 app.mount("/workbench", StaticFiles(directory="static", html=True), name="workbench")
 
 # Game Storage — serve generated HTML5 games at /games/
-from pathlib import Path
 game_storage = Path(config.GAME_STORAGE_DIR)
 if game_storage.is_dir():
     app.mount("/games", StaticFiles(directory=str(game_storage), html=True), name="games")

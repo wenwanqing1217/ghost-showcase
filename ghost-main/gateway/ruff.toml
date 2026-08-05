@@ -1,0 +1,22 @@
+# ruff 配置：与 alphaid/projects 的 [tool.ruff] 保持一致
+# 本服务无 pyproject.toml，故用独立的 ruff.toml
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "N", "W", "UP", "RUF"]
+ignore = [
+    "E501",   # line too long（交给 formatter）
+    "RUF001", # 中文注释/文案的全角标点被误报为歧义字符
+    "RUF002",
+    "RUF003",
+    "UP006",  # typing.List → list 现代化改写（代码库统一旧式注解，保持一致）
+    "UP035",  # deprecated-import（同上）
+    "UP045",  # Optional → X | None（同上）
+    "RUF013", # implicit-optional（代码库风格）
+    "BLE001", # blind-except（API 兜底风格）
+    "DTZ003", # datetime.utcnow（代码库统一使用）
+    "S110",   # try-except-pass（资源探测场景）
+    "SIM115", # open-file-with-context-handler（测试临时文件场景）
+    "UP042",  # str+Enum → StrEnum 现代化改写（现有模式可用，避免行为变更）
+]

@@ -23,7 +23,6 @@ Knowledge card types:
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 import os
@@ -111,7 +110,7 @@ tags:
         return md
 
     @classmethod
-    def from_markdown(cls, file_path: str, text: str) -> Optional["KnowledgeCard"]:
+    def from_markdown(cls, file_path: str, text: str) -> Optional[KnowledgeCard]:
         """Parse a knowledge card from Obsidian markdown."""
         if not text.startswith("---"):
             return None

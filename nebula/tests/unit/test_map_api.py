@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from unittest.mock import AsyncMock, patch
 
-from fastapi.testclient import TestClient
 import httpx
 import pytest
+from fastapi.testclient import TestClient
 
 from mindflow_map.main import app
 from mindflow_map.tools.baidu_map import BaiduMapTool

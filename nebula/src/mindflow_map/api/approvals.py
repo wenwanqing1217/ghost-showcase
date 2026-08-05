@@ -114,7 +114,7 @@ async def decide_approval(
     if approval.status != ApprovalStatus.PENDING:
         raise HTTPException(status_code=400, detail=f"Approval is already {approval.status}")
 
-    level_def = next((l for l in approval.levels if l.level == approval.current_level), None)
+    level_def = next((lvl for lvl in approval.levels if lvl.level == approval.current_level), None)
     if not level_def:
         raise HTTPException(status_code=400, detail=f"Invalid level: {approval.current_level}")
 

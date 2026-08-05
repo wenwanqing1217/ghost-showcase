@@ -37,6 +37,6 @@ async def check_llm_health() -> Dict[str, Any]:
             "model": client.model,
         }
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug("LLM health check failed: %s", exc)
         return {"status": "error", "error": str(exc)}

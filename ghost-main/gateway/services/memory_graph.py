@@ -1,10 +1,10 @@
 """Memory knowledge graph operations."""
 
-import os
-import sqlite3
 import json
 import logging
-from typing import Dict, Any
+import os
+import sqlite3
+from typing import Any, Dict
 
 logger = logging.getLogger("ghost-gateway")
 

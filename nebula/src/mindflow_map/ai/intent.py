@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional
 from mindflow_map.ai.circuit_breaker import CircuitBreaker
 from mindflow_map.ai.llm import LLMClient
 
-
 logger = logging.getLogger(__name__)
 
 _INTENT_SYSTEM_PROMPT = """\

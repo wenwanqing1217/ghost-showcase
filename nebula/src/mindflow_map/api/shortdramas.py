@@ -6,7 +6,7 @@ import time
 import uuid
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel
 
 from mindflow_map.config import settings

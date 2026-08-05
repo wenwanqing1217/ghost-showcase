@@ -3,16 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock
+from datetime import datetime
 
-import pytest
-from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from mindflow_map.main import app
 from mindflow_map.schemas.approval import (
-    ApprovalDecisionRequest,
     ApprovalDefinition,
     ApprovalLevel,
     ApprovalStatus,

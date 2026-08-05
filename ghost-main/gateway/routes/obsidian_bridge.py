@@ -16,20 +16,18 @@ Routes:
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Request, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from services.obsidian_bridge import (
-    get_obsidian_bridge,
     KnowledgeCard,
     KnowledgeType,
     SyncDirection,
-    SyncStatus,
+    get_obsidian_bridge,
 )
-from services.proxy import ok, fail
+from services.proxy import fail, ok
 
 logger = logging.getLogger(__name__)
 

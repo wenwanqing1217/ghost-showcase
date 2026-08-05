@@ -18,15 +18,13 @@ router = APIRouter()
 def _check_database() -> Dict[str, Any]:
     """Check database connectivity."""
     try:
-        from mindflow_map.memory.store import MemoryStore
         from mindflow_map.config import settings
 
-        store = MemoryStore()
         return {
             "status": "ok",
             "url": settings.database_url.split("?")[0].rsplit("/", 1)[0] + "/...",
         }
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         logger.debug("Database health check failed: %s", exc)
         return {"status": "error", "error": str(exc)}
 
@@ -44,7 +42,7 @@ def _check_llm() -> Dict[str, Any]:
             "model": settings.ai_model,
             "base_url": settings.openai_base_url,
         }
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         return {"status": "error", "error": str(exc)}
 
 

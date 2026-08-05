@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-import pytest
-
-from mindflow_map.plugins import ToolRegistry, tool, get_global_registry
-from mindflow_map.plugins.registry import ToolDefinition
+from mindflow_map.plugins import ToolRegistry, get_global_registry, tool
 from mindflow_map.workflows.engine import Tool, WorkflowEngine
 
 

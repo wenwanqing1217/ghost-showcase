@@ -3,15 +3,20 @@
 from __future__ import annotations
 
 import logging
-import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mindflow_map.models.database import ApprovalModel, ApprovalHistoryModel
-from mindflow_map.schemas.approval import ApprovalDefinition, ApprovalDecisionRequest, ApprovalHistoryItem, ApprovalLevel, ApprovalStatus
+from mindflow_map.models.database import ApprovalHistoryModel, ApprovalModel
+from mindflow_map.schemas.approval import (
+    ApprovalDecisionRequest,
+    ApprovalDefinition,
+    ApprovalHistoryItem,
+    ApprovalLevel,
+    ApprovalStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +122,7 @@ class SQLApprovalStore:
         # Find current level
         levels = [ApprovalLevel(**level) for level in model.levels]
         current_level = model.current_level
-        level_def = next((l for l in levels if l.level == current_level), None)
+        level_def = next((lvl for lvl in levels if lvl.level == current_level), None)
         if not level_def:
             return None
 

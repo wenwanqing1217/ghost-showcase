@@ -10,12 +10,11 @@ from typing import Optional
 
 from fastapi import APIRouter, Request
 
-from services.proxy import proxy_get, proxy_post, proxy_delete, ok, fail, forward_csrf_headers
-from middleware.rate_limit import rate_limit_check, client_ip
+import config
+from middleware.rate_limit import client_ip, rate_limit_check
 from services.memory_graph import get_memory_graph
 from services.obsidian import search_vault
-
-import config
+from services.proxy import fail, forward_csrf_headers, ok, proxy_delete, proxy_get, proxy_post
 
 logger = logging.getLogger("ghost-gateway")
 
@@ -310,7 +309,7 @@ async def parse_intent(request: Request):
 @router.post("/memory/store")
 async def memory_store(request: Request):
     """Store memory → proxy to Alpha-ID /api/v1/dual-chain/save.
-    
+
     自动 quick-register 获取 JWT（已注册则直接登录），避免 401。
     """
     body = await request.json()

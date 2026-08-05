@@ -15,12 +15,11 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from mindflow_map.supply.base import (
-    SupplyAdapter,
     StandardizedProduct,
+    SupplyAdapter,
     SupplyFetchResult,
     supply_adapter,
 )

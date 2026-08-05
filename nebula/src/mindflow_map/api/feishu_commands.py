@@ -23,8 +23,8 @@ import logging
 import re
 from typing import Any, Dict, Optional, Tuple
 
-from mindflow_map.config import settings
 from mindflow_map.api.feishu_sender import FeishuSender
+from mindflow_map.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -244,7 +244,7 @@ async def _cmd_video_status(args: Dict[str, str], after: str) -> str:
         # 如果完成，附上视频链接
         videos = task.get("videos", [])
         if state == 1 and videos:
-            msg += f"\n\n视频链接：\n" + "\n".join(videos[:2])
+            msg += "\n\n视频链接：\n" + "\n".join(videos[:2])
             msg += "\n\n💡 可发送：发布视频 <task_id> 标题=XX 平台=tiktok"
 
         return msg

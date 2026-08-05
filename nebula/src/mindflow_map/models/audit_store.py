@@ -5,13 +5,12 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
 
-from sqlalchemy import select, desc
+from sqlalchemy import desc, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from mindflow_map.models.database import AuditLogModel
-from mindflow_map.schemas.audit import AuditAction, AuditLog, AuditLogFilter
+from mindflow_map.schemas.audit import AuditLog, AuditLogFilter
 
 logger = logging.getLogger(__name__)
 

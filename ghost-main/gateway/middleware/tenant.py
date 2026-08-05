@@ -16,13 +16,12 @@ Integration with AlphaID:
 """
 
 import logging
-import os
 from typing import Optional
 
-from fastapi import Request, HTTPException
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
 
-import config  # noqa: E402
+import config
 
 logger = logging.getLogger("ghost-gateway")
 
@@ -158,8 +157,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
         """
         try:
             import base64
-            import hmac
             import hashlib
+            import hmac
 
             # JWT format: header.payload.signature
             parts = token.split(".")
@@ -169,16 +168,16 @@ class TenantMiddleware(BaseHTTPMiddleware):
             header_b64, payload_b64, signature_b64 = parts
 
             # Verify signature if AUTH_MASTER_KEY is available
-            _AUTH_MASTER_KEY = config.AUTH_MASTER_KEY if config else ""
-            if _AUTH_MASTER_KEY:
+            auth_master_key = config.AUTH_MASTER_KEY if config else ""
+            if auth_master_key:
                 # HKDF-SHA256 key derivation (same as Alpha-ID)
-                _HKDF_SALT = b"\x00" * 32
-                _HKDF_INFO = b"alpha-id-jwt-signing-key-v1"
-                prk = hmac.new(_HKDF_SALT, _AUTH_MASTER_KEY.encode("utf-8"), hashlib.sha256).digest()
-                signing_key = hmac.new(prk, _HKDF_INFO + b"\x01", hashlib.sha256).digest()
+                hkdf_salt = b"\x00" * 32
+                hkdf_info = b"alpha-id-jwt-signing-key-v1"
+                prk = hmac.new(hkdf_salt, auth_master_key.encode("utf-8"), hashlib.sha256).digest()
+                signing_key = hmac.new(prk, hkdf_info + b"\x01", hashlib.sha256).digest()
 
                 # Compute expected signature
-                message = f"{header_b64}.{payload_b64}".encode("utf-8")
+                message = f"{header_b64}.{payload_b64}".encode()
                 expected_sig = hmac.new(signing_key, message, hashlib.sha256).digest()
                 expected_b64 = base64.urlsafe_b64encode(expected_sig).rstrip(b"=").decode("utf-8")
 
@@ -191,7 +190,7 @@ class TenantMiddleware(BaseHTTPMiddleware):
             # Decode payload
             padding = 4 - len(payload_b64) % 4
             if padding != 4:
-                payload_b64 += b"=" * padding
+                payload_b64 += "=" * padding
 
             payload_json = base64.urlsafe_b64decode(payload_b64)
             import json

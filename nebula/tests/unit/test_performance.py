@@ -6,9 +6,9 @@ import asyncio
 
 import pytest
 
-from mindflow_map.core.cache import InMemoryCache, RedisCache, get_cache
-from mindflow_map.core.events import Event, EventQueue, get_event_queue
-from mindflow_map.core.metrics import MetricsRegistry, get_metrics
+from mindflow_map.core.cache import InMemoryCache, get_cache
+from mindflow_map.core.events import Event, EventQueue
+from mindflow_map.core.metrics import MetricsRegistry
 
 
 @pytest.fixture()

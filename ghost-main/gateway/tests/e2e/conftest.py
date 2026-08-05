@@ -11,6 +11,7 @@ Skip automatically if a service is unreachable.
 """
 
 import os
+
 import httpx
 import pytest
 

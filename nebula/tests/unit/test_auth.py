@@ -2,22 +2,14 @@
 
 from __future__ import annotations
 
-import uuid
-from typing import Optional
-
-import pytest
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.testclient import TestClient
 
-from mindflow_map.core.auth import AuthProvider, get_auth_provider
-from mindflow_map.main import app as main_app
+from mindflow_map.core.auth import get_auth_provider
 from mindflow_map.middleware.auth import (
     AuthMiddleware,
-    get_current_tenant_id,
-    get_current_user_id,
     get_tenant_context,
     require_permission,
-    require_role,
 )
 from mindflow_map.models.session import Database
 from mindflow_map.schemas.auth import (
@@ -25,10 +17,8 @@ from mindflow_map.schemas.auth import (
     RoleType,
     Tenant,
     TenantContext,
-    TenantStatus,
     User,
 )
-
 
 # ---------------------------------------------------------------------------
 # AuthProvider unit tests
@@ -149,7 +139,7 @@ class TestAuthMiddleware:
 
     def test_bearer_token_sets_context(self):
         import asyncio
-        
+
         async def setup():
             db = Database("sqlite+aiosqlite:///:memory:")
             async with db.get_session() as session:
@@ -159,7 +149,7 @@ class TestAuthMiddleware:
                 await provider.create_user(User(user_id="u1", tenant_id="t1", email="u1@test.com", name="User One"))
                 token_value = await provider.issue_token(user_id="u1", tenant_id="t1", role=RoleType.ADMIN)
                 return db, token_value
-        
+
         db, token_value = asyncio.run(setup())
 
         app = FastAPI()
@@ -184,7 +174,7 @@ class TestAuthMiddleware:
 class TestPermissionDependencies:
     def test_require_permission_grants_access(self):
         import asyncio
-        
+
         async def setup():
             db = Database("sqlite+aiosqlite:///:memory:")
             async with db.get_session() as session:
@@ -196,7 +186,7 @@ class TestPermissionDependencies:
                 )
                 token = await provider.issue_token(user_id="u1", tenant_id="t1", role=RoleType.ADMIN)
                 return db, token
-        
+
         db, token = asyncio.run(setup())
 
         app = FastAPI()
@@ -212,7 +202,7 @@ class TestPermissionDependencies:
 
     def test_require_permission_denies_access(self):
         import asyncio
-        
+
         async def setup():
             db = Database("sqlite+aiosqlite:///:memory:")
             async with db.get_session() as session:
@@ -224,7 +214,7 @@ class TestPermissionDependencies:
                 )
                 token = await provider.issue_token(user_id="u1", tenant_id="t1", role=RoleType.VIEWER)
                 return db, token
-        
+
         db, token = asyncio.run(setup())
 
         app = FastAPI()

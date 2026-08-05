@@ -5,11 +5,9 @@ Exposes /metrics endpoint for Prometheus scraping.
 Tracks request counts, durations, and backend health.
 """
 
-import time
 import logging
 from typing import Optional
 
-from fastapi import Request
 from fastapi.responses import Response
 
 logger = logging.getLogger("ghost-gateway")
@@ -17,12 +15,12 @@ logger = logging.getLogger("ghost-gateway")
 # ── Prometheus client (optional dependency) ──
 try:
     from prometheus_client import (
-        Counter,
-        Histogram,
-        Gauge,
-        generate_latest,
         CONTENT_TYPE_LATEST,
         CollectorRegistry,
+        Counter,
+        Gauge,
+        Histogram,
+        generate_latest,
     )
     PROMETHEUS_AVAILABLE = True
 except ImportError:

@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mindflow_map.tools.baidu_map import BaiduMapTool
 from mindflow_map.workflows.engine import MapNavigationTool
 
 

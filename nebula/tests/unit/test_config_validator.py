@@ -1,7 +1,6 @@
 """配置校验测试"""
 
-import pytest
-from mindflow_map.config_validator import check_all, check_wechat, check_douyin, check_shopify, check_shortdramas
+from mindflow_map.config_validator import check_all, check_douyin, check_shopify, check_shortdramas, check_wechat
 
 
 def test_check_wechat_when_configured(monkeypatch):

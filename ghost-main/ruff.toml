@@ -1,0 +1,18 @@
+# ruff 配置：ghost-main 根（net_agent_server / net_agent_common 共享）
+# gateway/ 使用其子目录下更具体的 ruff.toml
+line-length = 120
+target-version = "py312"
+
+[lint]
+select = ["E", "F", "I", "N", "W", "UP", "RUF"]
+ignore = [
+    "E501",   # line too long（交给 formatter）
+    "RUF001", # 中文注释/文案的全角标点被误报为歧义字符
+    "RUF002",
+    "RUF003",
+    "UP006",  # typing.List → list 现代化改写（代码库统一旧式注解，保持一致）
+    "UP035",  # deprecated-import（同上）
+    "UP045",  # Optional → X | None（同上）
+    "RUF013", # implicit-optional（代码库风格）
+    "E402",   # sys.path 引导后再 import（net_agent_server/main.py 标准模式）
+]

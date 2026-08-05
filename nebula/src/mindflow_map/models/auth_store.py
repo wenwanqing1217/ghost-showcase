@@ -2,17 +2,18 @@
 
 from __future__ import annotations
 
-import secrets
 import logging
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from mindflow_map.models.database import Tenant as TenantModel, User as UserModel, Token as TokenModel
+from mindflow_map.models.database import Tenant as TenantModel
+from mindflow_map.models.database import Token as TokenModel
+from mindflow_map.models.database import User as UserModel
 from mindflow_map.schemas.auth import PermissionType, RoleType, Tenant, TenantContext, TokenPayload, User
-
 
 logger = logging.getLogger(__name__)
 
