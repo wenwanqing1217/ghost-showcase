@@ -22,9 +22,23 @@ NETAGENT_URL = os.getenv("NETAGENT_URL", "http://netagent:18180")
 DS_URL = os.getenv("DS_URL", "http://ghost-ds:3000")
 TOOL_A_URL = os.getenv("TOOL_A_URL", "http://tool-a:8081")
 TOOL_B_URL = os.getenv("TOOL_B_URL", "http://tool-b:8082")
+MONEYPRINTER_URL = os.getenv("MONEYPRINTER_URL", "http://moneyprinter:8080")
+MONEYPRINTER_PUBLIC_URL = os.getenv("MONEYPRINTER_PUBLIC_URL", "http://localhost:8080")
+
+# --- Upload-Post (跨平台视频发布：TikTok / Instagram / YouTube) ---
+# 文档: https://docs.upload-post.com
+# 在 upload-post.com 注册获取 API Key 和 Username
+UPLOAD_POST_API_KEY = os.getenv("UPLOAD_POST_API_KEY", "")
+UPLOAD_POST_USERNAME = os.getenv("UPLOAD_POST_USERNAME", "")
+UPLOAD_POST_API_BASE = os.getenv("UPLOAD_POST_API_BASE", "https://api.upload-post.com")
+
+# --- Game Generation ---
+GAME_STORAGE_DIR = os.getenv("GAME_STORAGE_DIR", "/app/generated_games")
+GAME_PUBLIC_URL = os.getenv("GAME_PUBLIC_URL", "http://localhost:18080/games")
 
 # --- Identity ---
 DEFAULT_ALPHA_ID = os.getenv("DEFAULT_ALPHA_ID", "")
+AUTH_MASTER_KEY = os.getenv("AUTH_MASTER_KEY", "")
 
 # --- Runtime ---
 GATEWAY_PORT = int(os.getenv("GATEWAY_PORT", "18080"))

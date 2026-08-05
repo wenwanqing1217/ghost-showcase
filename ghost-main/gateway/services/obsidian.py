@@ -10,7 +10,6 @@ logger = logging.getLogger("ghost-gateway")
 
 def get_vault_path() -> str:
     """Get Obsidian vault path from environment."""
-    # 默认路径与 doubao_reader/obsidian_writer.py / obsidian_organizer.py 保持一致
     return os.environ.get(
         "OBSIDIAN_VAULT", r"D:\Obsidian\Ghost知识库"
     )
@@ -148,40 +147,24 @@ def get_feeds(industry: Optional[str] = None, limit: int = 20) -> List[Dict[str,
 def write_conversation_async(
     metadata: dict, messages: list, session_id: str, bot_id: str = ""
 ):
-    """Write conversation to Obsidian vault in background executor."""
-    try:
-        from doubao_reader.obsidian_writer import ObsidianWriter
-
-        ow = ObsidianWriter()
-        loop = asyncio.get_event_loop()
-        loop.run_in_executor(
-            None,
-            lambda: ow.write_conversation(
-                metadata=metadata,
-                messages=messages,
-                session_id=session_id,
-                bot_id=bot_id,
-            ),
-        )
-    except Exception as ow_err:
-        logger.warning("Obsidian write failed (non-fatal): %s", ow_err)
+    """Write conversation to Obsidian vault in background executor.
+    
+    NOTE: Conversation capture feature removed. This is a no-op stub kept for import compat.
+    """
+    logger.debug("write_conversation_async: no-op (capture feature removed)")
 
 
 def trigger_organization():
-    """Trigger Obsidian organization in background thread."""
-    try:
-        from doubao_reader.obsidian_organizer import run_organization
-
-        threading.Thread(target=run_organization, daemon=True).start()
-    except Exception as org_err:
-        logger.debug("Organization trigger error: %s", org_err)
+    """Trigger Obsidian organization in background thread.
+    
+    NOTE: Conversation capture feature removed. This is a no-op stub kept for import compat.
+    """
+    logger.debug("trigger_organization: no-op (capture feature removed)")
 
 
 def run_batch_link():
-    """Run batch link related files in Obsidian vault."""
-    try:
-        from doubao_reader.obsidian_organizer import batch_link_related
-
-        batch_link_related()
-    except Exception as org_err:
-        logger.error("Batch link error: %s", org_err)
+    """Run batch link related files in Obsidian vault.
+    
+    NOTE: Conversation capture feature removed. This is a no-op stub kept for import compat.
+    """
+    logger.debug("run_batch_link: no-op (capture feature removed)")

@@ -163,146 +163,6 @@ async def monitoring_health(request: Request):
     return ok({"overall": overall, "services": health}, request)
 
 
-# ── Doubao Capture ──
-
-
-@router.get("/doubao")
-async def doubao_page(request: Request):
-    """Internal: Serve the Doubao workspace page."""
-    html_path = os.path.join(os.path.dirname(__file__), "..", "doubao_page.html")
-    if os.path.exists(html_path):
-        html = open(html_path, "r", encoding="utf-8").read()
-        return HTMLResponse(content=html)
-    return HTMLResponse(content="<h1>Doubao page not found</h1>", status_code=404)
-
-
-@router.post("/doubao/capture")
-async def doubao_capture(request: Request):
-    """Internal: Accept Doubao conversation data from local LogReader only."""
-    ip = client_ip(request)
-    if ip not in ("127.0.0.1", "::1", "localhost"):
-        logger.warning("Rejected doubao capture from non-local IP: %s", ip)
-        return fail("Only local requests allowed", 403, request)
-    body = await request.json()
-    session_id = body.get("session_id", "")
-    messages = body.get("messages", [])
-
-    # Refine: dedup, filter noise, auto-tag
-    if messages:
-        from doubao_reader.knowledge_refiner import refine_conversation  # lazy import (not available in Docker)
-
-        messages = refine_conversation(body.get("metadata", {}), messages)
-
-    if not session_id or not messages:
-        return fail("session_id and messages required", 400, request)
-    for m in messages:
-        if not all(k in m for k in ("role", "content")):
-            return fail("Each message must have role and content", 400, request)
-
-    bot_id = body.get("bot_id", "")
-    summary = messages[0].get("content", "")[:100]
-    last = messages[-1].get("content", "")[:200] if len(messages) > 1 else ""
-
-    memory_payload = {
-        "alpha_id": os.getenv("DEFAULT_ALPHA_ID", "Alpha-001"),
-        "content": "[Doubao] " + summary + (" ... " + last if last else ""),
-        "category": "doubao_chat",
-        "sensitivity": 10,
-        "source": "doubao",
-        "tags": ["doubao", "chat"] + ([bot_id] if bot_id else []),
-        "metadata": {
-            "session_id": session_id,
-            "bot_id": bot_id,
-            "captured_at": body.get("captured_at", 0),
-            "message_count": len(messages),
-            "messages": messages,
-        },
-    }
-
-    # 获取 JWT Token（自动注册/登录默认 Alpha-ID）
-    _alpha_id = os.getenv("DEFAULT_ALPHA_ID", "Alpha-001")
-    _access_token = None
-    try:
-        # 尝试登录默认 Alpha-ID
-        login_data = await proxy_post(
-            "/api/v1/identity/login",
-            config.ALPHAID_URL,
-            body={"alpha_id": _alpha_id, "device_fingerprint": f"gateway_{_alpha_id}"},
-        )
-        if isinstance(login_data, dict):
-            _access_token = login_data.get("access_token") or (login_data.get("data", {}) or {}).get("access_token")
-        # 登录失败 → 尝试注册后再登录
-        if not _access_token:
-            reg_data = await proxy_post(
-                "/api/v1/identity/register",
-                config.ALPHAID_URL,
-                body={"alpha_id": _alpha_id, "device_fingerprint": f"gateway_{_alpha_id}"},
-            )
-            registered_aid = _alpha_id
-            if isinstance(reg_data, dict):
-                registered_aid = reg_data.get("alpha_id", _alpha_id) or _alpha_id
-            login_data2 = await proxy_post(
-                "/api/v1/identity/login",
-                config.ALPHAID_URL,
-                body={"alpha_id": registered_aid, "device_fingerprint": f"gateway_{_alpha_id}"},
-            )
-            if isinstance(login_data2, dict):
-                _access_token = login_data2.get("access_token") or (login_data2.get("data", {}) or {}).get("access_token")
-        if _access_token:
-            logger.info("Gateway→Alpha-ID auth ok (alpha_id=%s)", _alpha_id)
-    except Exception as auth_err:
-        logger.warning("Gateway→Alpha-ID auth failed: %s", auth_err)
-
-    # 调用 dual-chain/save（带 JWT Token + CSRF 头）
-    from urllib.parse import urlparse
-
-    _parsed = urlparse(config.ALPHAID_URL)
-    _alphaid_origin = f"{_parsed.scheme}://{_parsed.netloc}"
-    _headers = {
-        "X-Requested-With": "XMLHttpRequest",  # Alpha-ID CSRF 防护要求
-        "Origin": _alphaid_origin,              # Alpha-ID 允许的来源
-    }
-    if _access_token:
-        _headers["Authorization"] = f"Bearer {_access_token}"
-    data = await proxy_post(
-        "/api/v1/dual-chain/save", config.ALPHAID_URL, body=memory_payload, headers=_headers
-    )
-
-    # Also write to Obsidian vault
-    write_conversation_async(
-        metadata=memory_payload.get("metadata", {}),
-        messages=messages,
-        session_id=session_id,
-        bot_id=bot_id,
-    )
-
-    if has_error(data):
-        logger.error("Failed to store doubao memory: %s", data.get("_error"))
-        return ok(
-            {
-                "status": "stored_with_warning",
-                "session_id": session_id,
-                "error": data.get("_error"),
-            },
-            request,
-        )
-
-    # Trigger Obsidian organization in background
-    trigger_organization()
-
-    logger.info(
-        "Doubao conversation %s captured: %d messages", session_id, len(messages)
-    )
-    return ok(
-        {
-            "status": "stored",
-            "session_id": session_id,
-            "message_count": len(messages),
-        },
-        request,
-    )
-
-
 # ── WeChat Webhook ──
 
 
@@ -427,3 +287,25 @@ async def alphaid_metrics(request: Request):
     if isinstance(data, dict) and data.get("_error"):
         return fail(f"Alpha-ID metrics error: {data.get('_error')}", 502, request)
     return PlainTextResponse(content=str(data), media_type="text/plain")
+
+
+# ── Event Emit (DS / 前端事件入口) ──
+
+
+@router.post("/events/emit")
+async def emit_event(request: Request):
+    """DS / 前端事件入口 — 接收事件并写入 Redis Streams.
+
+    简化 EventBus 架构：DS 不再直接连接 Redis，
+    而是通过 Gateway 统一写入 EventBus stream。
+    """
+    bus = get_gateway_eventbus()
+    body = await request.json()
+    event_type = body.get("type", "unknown")
+    data = body.get("data", {})
+    source = body.get("source", "ds")
+
+    event = bus.emit(event_type, data, source=source)
+    if event is None:
+        return fail("EventBus unavailable — Redis not connected", 503, request)
+    return ok({"event_id": event.event_id, "type": event_type}, request)

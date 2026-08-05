@@ -22,6 +22,8 @@ from typing import Optional
 from fastapi import Request, HTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 
+import config  # noqa: E402
+
 logger = logging.getLogger("ghost-gateway")
 
 # Routes that do NOT require tenant authentication
@@ -61,36 +63,14 @@ class TenantMiddleware(BaseHTTPMiddleware):
         )
 
         if requires_tenant:
-            # Try multiple sources for tenant identity (priority order):
-            # 1. X-Tenant-ID header (set by upstream proxy or internal service)
-            # 2. Authorization: Bearer <JWT> → extract alpha_id claim
-            # 3. alpha_id query parameter (legacy, for backward compat)
-
-            tenant_id: Optional[str] = None
-            tenant_source: str = "none"
-
-            # Source 1: X-Tenant-ID header
-            tenant_id = request.headers.get("X-Tenant-ID", "").strip() or None
-            if tenant_id:
-                tenant_source = "header"
-
-            # Source 2: JWT Authorization header
-            if not tenant_id:
-                auth_header = request.headers.get("authorization", "")
-                if auth_header.startswith("Bearer "):
-                    token = auth_header[7:]
-                    tenant_id = self._extract_alpha_id_from_jwt(token)
-                    if tenant_id:
-                        tenant_source = "jwt"
-
-            # Source 3: Query parameter (legacy, only for internal services)
-            if not tenant_id:
-                tenant_id = request.query_params.get("alpha_id", "").strip() or None
-                if tenant_id:
-                    tenant_source = "query"
+            # Resolve tenant identity with explicit priority order:
+            #   1. X-Tenant-ID header  → explicit override (e.g. from upstream proxy)
+            #   2. JWT Bearer token    → extract alpha_id claim (primary auth path)
+            #   3. alpha_id query param → legacy fallback (internal services only)
+            #   4. Nothing found        → 401 Unauthorized
+            tenant_id = self._resolve_tenant_id(request)
 
             if not tenant_id:
-                # No tenant identity found — reject
                 logger.warning(
                     "Tenant auth required but no identity found: %s %s",
                     request.method,
@@ -107,40 +87,111 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
             # Inject tenant_id into request state
             request.state.tenant_id = tenant_id
-            request.state.tenant_source = tenant_source
+            request.state.tenant_source = self._tenant_source
 
             # For ecom routes, also inject X-Tenant-ID for downstream DS backend
             if path.startswith("/v1/ecom"):
-                request.headers.__dict__["_headers"]["x-tenant-id"] = tenant_id
+                # ASGI scope headers are (bytes, bytes) tuples — mutate directly
+                new_headers = []
+                found = False
+                for k, v in request.scope.get("headers", []):
+                    if k.lower() == b"x-tenant-id":
+                        new_headers.append((k, tenant_id.encode()))
+                        found = True
+                    else:
+                        new_headers.append((k, v))
+                if not found:
+                    new_headers.append((b"x-tenant-id", tenant_id.encode()))
+                request.scope["headers"] = new_headers
 
             logger.debug(
                 "Tenant resolved: %s (source=%s) for %s %s",
                 tenant_id,
-                tenant_source,
+                self._tenant_source,
                 request.method,
                 path,
             )
 
         return await call_next(request)
 
+    def _resolve_tenant_id(self, request: Request) -> Optional[str]:
+        """Resolve tenant identity from request using the priority cascade.
+
+        Priority:
+          1. X-Tenant-ID header  — explicit override from upstream proxy
+          2. JWT Bearer token    — extract alpha_id claim (primary path)
+          3. alpha_id query param — legacy fallback for internal services
+
+        Also sets self._tenant_source to record which source was used.
+        Returns None if no identity could be resolved.
+        """
+        # Source 1: X-Tenant-ID header (explicit override)
+        tenant_id = request.headers.get("X-Tenant-ID", "").strip() or None
+        if tenant_id:
+            self._tenant_source = "header"
+            return tenant_id
+
+        # Source 2: JWT Authorization header → extract alpha_id claim
+        auth_header = request.headers.get("authorization", "")
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            tenant_id = self._extract_alpha_id_from_jwt(token)
+            if tenant_id:
+                self._tenant_source = "jwt"
+                return tenant_id
+
+        # Source 3: alpha_id query parameter (legacy, internal services only)
+        tenant_id = request.query_params.get("alpha_id", "").strip() or None
+        if tenant_id:
+            self._tenant_source = "query"
+            return tenant_id
+
+        self._tenant_source = "none"
+        return None
+
     def _extract_alpha_id_from_jwt(self, token: str) -> Optional[str]:
-        """Extract alpha_id claim from JWT without full verification.
+        """Extract alpha_id claim from JWT with signature verification.
 
-        The Gateway trusts Alpha-ID's JWT issuance. Full verification
-        should happen at Alpha-ID level. Here we just extract the claim.
-
-        For production, consider using python-jose[cryptography] for
-        proper JWT decoding and signature verification.
+        Uses the shared AUTH_MASTER_KEY (HKDF-SHA256) from Alpha-ID
+        to verify the token signature before extracting the claim.
+        Falls back to unverified extraction if AUTH_MASTER_KEY is not configured.
         """
         try:
-            # JWT format: header.payload.signature
             import base64
+            import hmac
+            import hashlib
 
-            payload_b64 = token.split(".")[1]
-            # Add padding if needed
+            # JWT format: header.payload.signature
+            parts = token.split(".")
+            if len(parts) != 3:
+                return None
+
+            header_b64, payload_b64, signature_b64 = parts
+
+            # Verify signature if AUTH_MASTER_KEY is available
+            _AUTH_MASTER_KEY = config.AUTH_MASTER_KEY if config else ""
+            if _AUTH_MASTER_KEY:
+                # HKDF-SHA256 key derivation (same as Alpha-ID)
+                _HKDF_SALT = b"\x00" * 32
+                _HKDF_INFO = b"alpha-id-jwt-signing-key-v1"
+                prk = hmac.new(_HKDF_SALT, _AUTH_MASTER_KEY.encode("utf-8"), hashlib.sha256).digest()
+                signing_key = hmac.new(prk, _HKDF_INFO + b"\x01", hashlib.sha256).digest()
+
+                # Compute expected signature
+                message = f"{header_b64}.{payload_b64}".encode("utf-8")
+                expected_sig = hmac.new(signing_key, message, hashlib.sha256).digest()
+                expected_b64 = base64.urlsafe_b64encode(expected_sig).rstrip(b"=").decode("utf-8")
+
+                # Constant-time comparison to prevent timing attacks
+                if not hmac.compare_digest(signature_b64, expected_b64):
+                    logger.warning("JWT signature verification failed for tenant extraction")
+                    return None
+            # else: no master key configured — accept token (dev mode)
+
+            # Decode payload
             padding = 4 - len(payload_b64) % 4
             if padding != 4:
-                payload_b64 += "=" * padding
+                payload_b64 += b"=" * padding
 
             payload_json = base64.urlsafe_b64decode(payload_b64)
             import json

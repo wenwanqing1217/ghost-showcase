@@ -104,35 +104,6 @@ async def test_agent_topology_proxies_to_alphaid(gateway_client, mock_client):
 
 
 @pytest.mark.anyio
-async def test_internal_doubao_proxies_to_alphaid(gateway_client, mock_client):
-    """POST /v1/internal/doubao/capture proxies to Alpha-ID dual-chain save."""
-    captured = []
-
-    def mock_post(url, **kwargs):
-        captured.append((url, kwargs.get("json")))
-        return _make_response(200, {"saved": True})
-
-    mock_client.post.side_effect = mock_post
-    response = await gateway_client.post(
-        "/v1/internal/doubao/capture",
-        json={
-            "session_id": "test-session-001",
-            "messages": [
-                {"role": "user", "content": "你好"},
-                {"role": "assistant", "content": "你好！有什么可以帮你的？"},
-            ],
-        },
-        headers={"X-Forwarded-For": "127.0.0.1"},
-    )
-    assert response.status_code == 200
-    data = response.json()
-    assert data["success"] is True
-    # dual-chain/save is the final POST (after login/register auth calls)
-    dual_chain_urls = [url for url, _ in captured if "/api/v1/dual-chain/save" in url]
-    assert len(dual_chain_urls) >= 1, f"Expected dual-chain/save call, got: {captured}"
-
-
-@pytest.mark.anyio
 async def test_net_routes_proxied_to_netagent(gateway_client, mock_client):
     """GET /v1/net/* proxies to Net-Agent server."""
     captured_urls = []

@@ -10,7 +10,6 @@ logger = logging.getLogger("ghost-gateway")
 
 # Category color mapping for graph visualization
 CATEGORY_COLORS = {
-    "doubao_chat": "#38bdf8",
     "system": "#22c55e",
     "profile_cursor": "#a78bfa",
     "design": "#f59e0b",

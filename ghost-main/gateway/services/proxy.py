@@ -9,6 +9,7 @@ Design:
 
 import time
 import logging
+import asyncio
 from typing import Optional
 
 import httpx
@@ -118,7 +119,7 @@ async def _proxy_request(
                     "Proxy retry %d/%d: %s %s → %d",
                     attempt + 1, _MAX_RETRIES, method, url, resp.status_code,
                 )
-                await __import__("asyncio").sleep(_RETRY_DELAY * (attempt + 1))
+                await asyncio.sleep(_RETRY_DELAY * (attempt + 1))
                 continue
 
             # Non-retryable error — preserve details
@@ -137,7 +138,7 @@ async def _proxy_request(
             last_error = f"timeout: {str(e)}"
             if attempt < _MAX_RETRIES:
                 logger.warning("Proxy timeout, retrying %s %s", method, url)
-                await __import__("asyncio").sleep(_RETRY_DELAY)
+                await asyncio.sleep(_RETRY_DELAY)
                 continue
             return {
                 "_error": f"backend timeout after {_MAX_RETRIES + 1} attempts",

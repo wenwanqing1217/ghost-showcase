@@ -174,32 +174,32 @@ async def get_shop_config(request: Request):
     return ok(data, request)
 
 
-@router.post("/shop/connect")
+@router.post("/shop")
 async def connect_shop(request: Request):
-    """Connect a new shop (Shoplazta, etc.).
+    """Connect a new shop (OneBound, Shoplazza, etc.).
 
-    Body: { domain, accessToken, platform?, storeMode? }
+    Body: { apiKey, name?, storeMode?, platform? }
     """
     body = await request.json()
-    data = await _proxy_ds("POST", "/api/shop/connect", request, body=body)
+    data = await _proxy_ds("POST", "/api/shop", request, body=body)
     return ok(data, request)
 
 
-@router.patch("/shop/mode")
+@router.patch("/shop")
 async def update_shop_mode(request: Request):
     """Update shop store mode (marketplace/independent/both).
 
     Body: { storeMode: 'marketplace' | 'independent' | 'both' }
     """
     body = await request.json()
-    data = await _proxy_ds("PATCH", "/api/shop/mode", request, body=body)
+    data = await _proxy_ds("PATCH", "/api/shop", request, body=body)
     return ok(data, request)
 
 
-@router.delete("/shop/disconnect")
+@router.delete("/shop")
 async def disconnect_shop(request: Request):
     """Disconnect current shop."""
-    data = await _proxy_ds("DELETE", "/api/shop/disconnect", request)
+    data = await _proxy_ds("DELETE", "/api/shop", request)
     return ok(data, request)
 
 

@@ -63,13 +63,15 @@ COPY app.py config.py ./
 COPY middleware/ ./middleware/
 COPY routes/ ./routes/
 COPY services/ ./services/
-COPY doubao_reader/ ./doubao_reader/
 COPY static/ ./static/
+COPY entrypoint.sh ./
 
-# Create non-root user
+# Create non-root user and game storage directory
 RUN groupadd -r appuser \
     && useradd -r -g appuser -d /app -s /usr/sbin/nologin appuser \
-    && chown -R appuser:appuser /app /opt/venv
+    && mkdir -p /app/generated_games \
+    && chown -R appuser:appuser /app /opt/venv /app/generated_games \
+    && chmod +x /app/entrypoint.sh
 
 # Expose port
 EXPOSE 18080
@@ -81,7 +83,8 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
 # Switch to non-root user
 USER appuser
 
-# Run uvicorn
+# Run uvicorn via entrypoint (fixes volume permissions)
+ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["uvicorn", "app:app", \
      "--host", "0.0.0.0", \
      "--port", "18080", \

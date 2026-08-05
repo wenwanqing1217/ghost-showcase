@@ -5,7 +5,7 @@ Ghost Gateway — Unified API Gateway
 Single entry point for all Ghost services, four-layer routing:
   - /v1/human/*   → Human user interfaces (consumer/creator/developer roles share, unified permission control)
   - /v1/agent/*   → Agent ecosystem interfaces (feeds for industry info, A2A interaction)
-  - /v1/internal/*→ Internal operations (Doubao capture, Obsidian, orchestrator, health)
+  - /v1/internal/*→ Internal operations (Obsidian, orchestrator, health)
   - /v1/net/*     → Network operations (router management, Net-Agent proxy)
 
 Design principles:
@@ -16,15 +16,11 @@ Design principles:
 """
 
 import os
-import sys
 import logging
 import threading
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
-
-# Ensure parent directory (ghost-main/) is on path for doubao_reader imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import httpx
 from fastapi import FastAPI, Request
@@ -50,6 +46,8 @@ from routes.ecom import router as ecom_router  # noqa: E402
 from routes.notify import router as notify_router  # noqa: E402
 from routes.obsidian_bridge import router as obsidian_bridge_router  # noqa: E402
 from routes.tools import router as tools_router  # noqa: E402
+from routes.content import router as content_router  # noqa: E402
+from routes.nuro import router as nuro_router  # noqa: E402
 from middleware.tenant import TenantMiddleware  # noqa: E402
 
 # ============================================================
@@ -84,10 +82,6 @@ async def lifespan(app: FastAPI):
         os.getenv("DS_URL", config.DS_URL),
     )
 
-    # 启动豆包桌面日志扫描器（默认启用，设置 ENABLE_DOUBAO_SCANNER=0 可禁用）
-    if os.environ.get("ENABLE_DOUBAO_SCANNER", "1") != "0":
-        ensure_scanner()
-
     yield
     await _proxy.client.aclose()
     logger.info("Gateway shutdown complete")
@@ -115,7 +109,7 @@ tags_metadata = [
     },
     {
         "name": "internal",
-        "description": "Internal operations — Doubao capture, Obsidian, orchestrator.",
+        "description": "Internal operations — Obsidian, orchestrator, health.",
     },
     {
         "name": "net",
@@ -124,6 +118,10 @@ tags_metadata = [
     {
         "name": "tools",
         "description": "Code generation and optimization — ToolA (generator) and ToolB (optimizer).",
+    },
+    {
+        "name": "content",
+        "description": "AI content generation — video (MoneyPrinterTurbo) and game generation.",
     },
 ]
 
@@ -178,10 +176,18 @@ app.include_router(ecom_router)
 app.include_router(notify_router)
 app.include_router(obsidian_bridge_router)
 app.include_router(tools_router)
+app.include_router(content_router)
+app.include_router(nuro_router)
 
 # Ghost Workbench (extracted from inline _GHOST_PAGE)
 # 静态文件服务：/workbench → ghost-main/gateway/static/
 app.mount("/workbench", StaticFiles(directory="static", html=True), name="workbench")
+
+# Game Storage — serve generated HTML5 games at /games/
+from pathlib import Path
+game_storage = Path(config.GAME_STORAGE_DIR)
+if game_storage.is_dir():
+    app.mount("/games", StaticFiles(directory=str(game_storage), html=True), name="games")
 
 
 # ============================================================
@@ -208,13 +214,6 @@ async def proxy_legacy_register(action: str, request: Request):
             return JSONResponse(content=resp.json(), status_code=resp.status_code)
         except Exception as e:
             return JSONResponse(content={"success": False, "error": str(e)}, status_code=502)
-
-
-@app.get("/v1/doubao")
-async def proxy_doubao(request: Request):
-    """前端 iframe 使用 /v1/doubao，实际页面在 /v1/internal/doubao"""
-    from starlette.responses import RedirectResponse
-    return RedirectResponse(url="/v1/internal/doubao", status_code=307)
 
 
 # ── Legacy Chat Alias ──
@@ -360,10 +359,9 @@ async def api_docs(request: Request):
                 },
                 "internal": {
                     "prefix": "/v1/internal/*",
-                    "description": "Internal operations — Doubao capture, Obsidian, orchestrator",
+                    "description": "Internal operations — Obsidian, orchestrator",
                     "backend": "Various",
                     "key_routes": [
-                        "POST /v1/internal/doubao/capture",
                         "POST /v1/internal/orchestrator/task/submit",
                         "GET  /v1/internal/orchestrator/tasks",
                         "GET  /v1/internal/orchestrator/task/{id}",
@@ -400,18 +398,14 @@ async def api_docs(request: Request):
     )
 
 
-# ============================================================
-# Ghost Web UI (served at root)
-# ============================================================
-# TERM: Ghost Workbench — 豆包记忆桥操作面板
-# Extracted from inline _GHOST_PAGE to static/ghost_workbench.html
-
-
 @app.get("/", include_in_schema=False)
 def ghost_home():
-    """Ghost 工作台主页 — 豆包记忆桥操作面板."""
-    from fastapi.responses import FileResponse
-    return FileResponse(str(Path(__file__).parent / "static" / "ghost_workbench.html"))
+    """Ghost 工作台主页 — 记忆桥操作面板."""
+    html_path = Path(__file__).parent / "static" / "workbench.html"
+    html = html_path.read_text(encoding="utf-8")
+    alpha_id = os.environ.get("ALPHA_ID", "Alpha-001")
+    html = html.replace("__ALPHA_ID__", alpha_id)
+    return HTMLResponse(content=html)
 
 
 # ============================================================
@@ -486,64 +480,6 @@ async def health(request: Request):
         request,
     )
 
-
-# ============================================================
-# Periodic scanner for Doubao desktop app LevelDB
-# ============================================================
-# 扫描器在 lifespan 中启动（而非模块级别），避免 import 时产生副作用。
-# 可通过设置环境变量 ENABLE_DOUBAO_SCANNER=0 禁用。
-_scanner_started = False
-_scanner_thread = None
-
-
-def _run_scanner_loop():
-    """后台扫描循环：读取豆包 LevelDB → 通过 ASGI transport 直接调用内部 API。"""
-    from doubao_reader.log_reader import LogReader
-    from doubao_reader.obsidian_organizer import run_organization, batch_link_related
-
-    # 使用 ASGI transport 直接调用 FastAPI 应用，避免 HTTP loopback
-    import httpx
-
-    transport = httpx.ASGITransport(app=app)
-    client = httpx.Client(transport=transport, base_url="http://testserver")
-
-    reader = LogReader()
-    time.sleep(10)  # Wait for server to start
-    while True:
-        try:
-            convs = reader.read_all()
-            logger.info("Doubao scanner: found %d conversations", len(convs))
-            for conv in convs[:5]:  # Limit to 5 per scan
-                payload = conv.to_dict()
-                try:
-                    r = client.post(
-                        "/v1/internal/doubao/capture", json=payload, timeout=5
-                    )
-                    logger.debug("Scanned: %s", r.status_code)
-                except Exception as e:
-                    logger.debug("Scan send error: %s", e)
-        except Exception as e:
-            logger.error("Doubao scanner error: %s", e)
-        # Run Obsidian organization
-        try:
-            run_organization()
-            batch_link_related()
-        except Exception as org_err:
-            logger.error("Organization error: %s", org_err)
-
-        time.sleep(120)  # Scan every 2 minutes
-
-
-def ensure_scanner():
-    """Start the Doubao desktop log scanner background thread (idempotent)."""
-    global _scanner_started, _scanner_thread
-    if _scanner_started:
-        return
-    _scanner_started = True
-
-    _scanner_thread = threading.Thread(target=_run_scanner_loop, daemon=True)
-    _scanner_thread.start()
-    logger.info("Doubao desktop log scanner started")
 
 
 # ============================================================

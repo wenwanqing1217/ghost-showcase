@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>💬 豆包 · Ghost 工作台</title>
+<title>💬 Ghost 工作台</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;}
 body{
@@ -128,7 +128,7 @@ header h1 .icon{font-size:22px;}
 </head>
 <body>
 <header>
-  <h1><span class="icon">💬</span> 豆包记忆桥 <span class="badge">Ghost Capture</span></h1>
+  <h1><span class="icon">💬</span> 记忆桥 <span class="badge">Ghost Capture</span></h1>
   <div class="status-bar">
     <a href="" id="platform-link" target="_blank" style="color:#7dd3fc;text-decoration:none;font-size:12px;">🏠 Ghost Platform</a>
     <span id="gwStatus"><span class="dot red"></span>检查中</span>
@@ -139,7 +139,6 @@ header h1 .icon{font-size:22px;}
   <div class="card full">
     <h3><span class="icon">📋</span> 操作</h3>
     <div class="action-row">
-      <button class="btn primary" onclick="window.open('https://www.doubao.com','_blank')">🌐 打开豆包网页版</button>
       <button class="btn secondary" onclick="location.reload()">🔄 刷新</button>
       <button class="btn secondary" onclick="searchMemories()">🔍 搜索知识链</button>
     </div>
@@ -194,13 +193,13 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 async function searchMemories() {
-  const q = prompt('搜索豆包记忆关键词:');
+  const q = prompt('搜索记忆关键词:');
   if (!q) return;
   try {
     const r = await fetch(GATEWAY + '/v1/chat', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({alpha_id: 'Alpha-001', message: '搜索记忆: ' + q})
+      body: JSON.stringify({alpha_id: '__ALPHA_ID__', message: '搜索记忆: ' + q})
     });
     const d = await r.json();
     const reply = d?.data?.reply || d?.reply || '无结果';
