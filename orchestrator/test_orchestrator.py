@@ -14,8 +14,8 @@ def anyio_backend():
 
 @pytest.mark.anyio
 async def test_tools_status_when_not_configured():
-    """GET /v1/tools/status returns not_configured when tools are unset."""
-    with patch("main.TOOL_A", ""), patch("main.TOOL_B", ""):
+    """GET /v1/tools/status returns not_configured when Gateway tool URLs are unset."""
+    with patch("main.TOOL_A_GATEWAY", ""), patch("main.TOOL_B_GATEWAY", ""):
         from httpx import AsyncClient, ASGITransport
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:

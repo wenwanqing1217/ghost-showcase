@@ -127,10 +127,16 @@ services:
       TOOL_B_URL: http://tool-b:8082
       REDIS_URL: redis://redis:6379
       EVENT_STREAM_PREFIX: alphaid:events
+      MONEYPRINTER_URL: http://moneyprinter:8080
+      MONEYPRINTER_PUBLIC_URL: http://localhost:8080
+      GAME_STORAGE_DIR: /app/generated_games
+      GAME_PUBLIC_URL: http://localhost:18080/games
       GATEWAY_PORT: "18080"
       ENVIRONMENT: production
     env_file:
       - ./ghost-main/gateway/.env
+    volumes:
+      - ghost-games:/app/generated_games
     depends_on:
       alphaid:
         condition: service_healthy
@@ -247,6 +253,29 @@ services:
       retries: 3
       start_period: 10s
 
+  # ── MoneyPrinterTurbo (AI Video Generation) ──
+  moneyprinter:
+    build:
+      context: ./MoneyPrinterTurbo
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    command: ["python3", "main.py"]
+    volumes:
+      - ./MoneyPrinterTurbo/config.toml:/MoneyPrinterTurbo/config.toml
+      - moneyprinter-data:/MoneyPrinterTurbo/storage
+      - ghost-content:/ghost-content
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; r=urllib.request.urlopen('http://localhost:8080/api/v1/tasks'); assert r.status==200\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   # ── Redis (Cache + Event Bus + Task Queue) ──
   redis:
     image: redis:7-alpine
@@ -294,3 +323,6 @@ services:
 volumes:
   pgdata:
   redisdata:
+  moneyprinter-data:
+  ghost-content:
+  ghost-games:

@@ -36,6 +36,7 @@ temp*.py
 *.db-journal
 *.db-wal
 *.db-shm
+*.sqlite.backup
 
 # 残留空目录/第三方包（开发过程中生成的占位目录）
 echo/
@@ -97,6 +98,9 @@ pii_config.py
 secrets/
 
 # ── 非核心项目（独立仓库，不在此 monorepo 中跟踪） <longcat_arg_value>
+
+# MoneyPrinterTurbo 视频生成服务（独立仓库，本地 vendored，通过 MPT_URL 引用）
+MoneyPrinterTurbo/
 
 # ── DS 电商看板（忽略构建产物和第三方文件，跟踪核心源码） ──
 DS/node_modules/
