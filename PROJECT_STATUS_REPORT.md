@@ -47,6 +47,10 @@
 | Orchestrator | `7 passed` ✅ | engine.py 改动后（P1-5）仍全绿 |
 | Nebula | `153 passed` ✅ | 历史声称属实 |
 | Alpha-ID 核心 | `802 passed, 1 failed, 98 skipped` ⚠️ | 1 failed 是沙箱权限问题（`PermissionError` 访问 `~/.alpha-id/alpha_id.db-wal`），非代码 bug；98 skipped 多数因缺 FastAPI/Tesseract 环境 |
+| Alpha-ID 全量（本轮） | `859 passed, 0 failed, 98 skipped` ✅ | 修复 4 个失败：3 个 `asyncio.get_event_loop()` Python 3.12 兼容（测试代码）、1 个沙箱权限（测试改用 monkeypatch Path.home 隔离数据目录）；2 个坏测试补 await |
+| Alpha-ID lint（本轮） | `ruff 0 errors` ✅ | 全量清理：F401/F811/E402/F841/E741/N806/N803/N812/N818/W293/W291；真实 bug 修复：alpha_social.get_friends 重复定义、feature_flags 顶层无条件导入破坏降级、smart_capture/ghost_character 死代码 |
+| DS（本轮） | `tsc 0 errors + vitest 45 passed + next build exit 0` ✅ | 构建链路首次全绿；修复 #13-#23 真实 bug（见第 6 节） |
+| DS 本地冒烟（本轮） | `/api/stats` 200 真实种子数据 + `/dashboard` 200 ✅ | SQLite 本地模式播种 5 商品 + 6 订单，看板非空可演示 |
 | Alpha-ID 新模块 | `79 passed` ✅ | agent_graph / alpha_social / diy_cli / tenant_panel / credits_growth / critical_bugfixes 6 个测试文件（2026-08-05 新增补测） |
 | DS | `45 passed (3 test files)` ✅ | 历史报告说"无后端单测"过时；含 eventbus-init 测试 |
 
@@ -98,29 +102,30 @@
 |:--|:-----|:-----|
 | 2 | 全栈未 Docker 验证（Docker Desktop 未运行） | 需 `make up` + `make test` 实测 11 服务健康 |
 | 3 | 基建自替换 benchmark 依赖真实调用数据积累 | agent_graph.record_call 已接真数据，但冷启动无历史时评分同分不替换 |
-| 13 | demo/page.tsx 调用不存在的 generate-did API | [demo/page.tsx:33](file:///d:/MW/DS/src/app/demo/page.tsx#L33) |
-| 14 | demo/page.tsx 跳转到不存在的 /app/register 路由 | [demo/page.tsx:243](file:///d:/MW/DS/src/app/demo/page.tsx#L243) |
-| 15 | obsidian 页面 URL 拼接错误（缺 `?`） | [ecosystem/obsidian/page.tsx:82](file:///d:/MW/DS/src/app/ecosystem/obsidian/page.tsx#L82) |
-| 16 | obsidian 页面访问不存在的 updated_at 属性 | [ecosystem/obsidian/page.tsx:338](file:///d:/MW/DS/src/app/ecosystem/obsidian/page.tsx#L338) |
-| 17 | RevenueChart 使用不存在的 CSS 变量 --text | [RevenueChart.tsx:104](file:///d:/MW/DS/src/components/RevenueChart.tsx#L104) |
-| 18 | demo 订单状态值与 StatusBadge 不匹配 | [demo-data.ts:84-126](file:///d:/MW/DS/src/lib/demo-data.ts#L84) vs [StatusBadge.tsx:8-17](file:///d:/MW/DS/src/components/StatusBadge.tsx#L8) |
-| 19 | chat 离线模式固定话术 | [chat/page.tsx:178-183](file:///d:/MW/DS/src/app/chat/page.tsx#L178) |
-| 20 | AuthGuard 鉴权过松（只检查 res.ok） | [AuthGuard.tsx:23-28](file:///d:/MW/DS/src/components/layout/AuthGuard.tsx#L23) |
-| 21 | 多处 catch 静默吞错误 | obsidian/page.tsx:74,103; social/page.tsx:71 |
-| 22 | 端口三处不一致 | package.json:7 (3004) vs AGENTS.md (3000) vs compose (3001:3000) |
-| 23 | feishu-bot Dockerfile COPY 未追踪的 bot.py | [feishu-bot/Dockerfile:43](file:///d:/MW/ghost-main/feishu-bot/Dockerfile#L43) |
 
-已解决：~~#22 无 error boundary~~（已新增 [error.tsx](file:///d:/MW/DS/src/app/error.tsx)）、~~#24 内容详情页~~（/content 已加创建表单，编辑/删除仍待补）
+已解决（2026-08-05 质量加固）：
+- ~~#13 demo 调不存在的 generate-did API~~ — demo 页改为纯前端模拟（[demo/page.tsx](file:///d:/MW/DS/src/app/demo/page.tsx#L26)），不再发 404 请求，真实注册走 /register
+- ~~#14 demo 跳 /app/register~~ — 已改跳真实 /register 路由（上轮修复）
+- ~~#15 obsidian URL 拼接缺 `?`~~ — filter=all 时 `cards&limit=50` 修正为 `cards?limit=50`（[obsidian/page.tsx:82](file:///d:/MW/DS/src/app/ecosystem/obsidian/page.tsx#L82)）
+- ~~#16 obsidian updated_at 属性不存在~~ — Card 接口已加 `updated_at?`（上轮修复）
+- ~~#17 RevenueChart `var(--text)` 不存在~~ — 改为 `var(--text-primary)`（[RevenueChart.tsx:104](file:///d:/MW/DS/src/components/RevenueChart.tsx#L104)）
+- ~~#18 demo 订单状态值与 StatusBadge 不匹配~~ — processing→paid、shipped/delivered→fulfilled（[demo-data.ts](file:///d:/MW/DS/src/lib/demo-data.ts)）
+- ~~#19 chat 离线模式固定话术~~ — 回复引用用户输入，更自然（[chat/page.tsx:174](file:///d:/MW/DS/src/app/chat/page.tsx#L174)）
+- ~~#20 AuthGuard 鉴权过松~~ — 200 时校验响应含真实身份字段（alpha_id/did/id），防止异常 200 空数据绕过（[AuthGuard.tsx:23](file:///d:/MW/DS/src/components/layout/AuthGuard.tsx#L23)）
+- ~~#22 端口三处不一致~~ — package.json dev 3004→3000，与 AGENTS.md/compose 统一
+- ~~#23 feishu-bot Dockerfile COPY 未追踪文件~~ — bot.py/requirements.txt/feishu_service.py 强制纳入 git（根 .gitignore 放行 + git add -f），镜像可构建
+
+已解决（上轮）：~~#22 无 error boundary~~（新增 error.tsx）、~~#24 内容详情页~~（/content 已加创建表单）
 
 ## 7. 下一步行动
 
-**已完成**：P0（凭证移除/网络/flow 入库）、P1（9 个 DS 致命 bug）、P2（调度层免费优先 + 每日最优自替换 + 飞书社交 + DIY CLI + 多租户面板）、P3（AgentGraph/alpha_social/diy_cli/tenant_panel 补测 64 passed；DIY adapter + 外部 skill 市场 + 6 业务意图落地；渠道助手 + 飞书指令中心 + 内容生成闭环）
+**已完成**：P0（凭证移除/网络/flow 入库）、P1（9 个 DS 致命 bug）、P2（调度层免费优先 + 每日最优自替换 + 飞书社交 + DIY CLI + 多租户面板）、P3（AgentGraph/alpha_social/diy_cli/tenant_panel 补测 64 passed；DIY adapter + 外部 skill 市场 + 6 业务意图落地；渠道助手 + 飞书指令中心 + 内容生成闭环）、**质量加固（本轮）**：ruff 全绿 + alphaid 859 测试全绿 + DS 构建链路全绿（tsc/vitest/build）+ #13-#23 真实 bug 修复 + 种子数据 + 本地冒烟通过
 
 **待办（按优先级）**：
 1. **用户操作**：去飞书开放平台轮换 App Secret（历史提交含凭证，必须轮换）
 2. **Docker 全栈验证**：启动 Docker Desktop → `make up` → `make test`，实测 11 服务健康（当前代码级已验证，容器级未验）
 3. **打包分发**：按 docs/planning/PACKAGING_STRATEGY.md 完成安全审查 → 补测 → 打包（Trae 式可下载客户端）
-4. **剩余严重项**：#13-#23 的 demo/obsidian/样式/鉴权问题，随版本迭代清理
+4. **#21 catch 静默吞错误**：obsidian/social 页面 catch 块补用户可见错误提示，随版本迭代清理
 
 **用户必须操作**：
 1. 去飞书开放平台 https://open.feishu.cn/app 轮换 `cli_aad59b68b879dbe7` 的 App Secret

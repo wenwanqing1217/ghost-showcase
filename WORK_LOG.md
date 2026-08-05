@@ -355,3 +355,24 @@
 - Alpha-ID 新增测试 `79 passed`（6 个测试文件）✅；Gateway 32+20 ✅；Nebula 153 ✅；Orchestrator 7 ✅；DS 45 ✅
 - PROJECT_STATUS_REPORT.md 全面同步（P2/P3 修复记录 #8-#25、测试表、Session 12/13 模块状态全部转"已测试"）
 - 剩余待办：飞书 App Secret 轮换（用户操作）、Docker 全栈验证（用户需启动 Docker Desktop）、打包分发（见 PACKAGING_STRATEGY.md）
+
+---
+
+## 2026-08-05 会话 3：质量加固（还远远不够 → 构建链路全绿）
+
+**工作内容:**
+- **a2a.py 审计链路核查** — `SqliteAuditStore` 实际存在于 `core/audit_store.py`（main.py 已启用），字符串注解升级为真实导入
+- **ruff 全量清零（509 → 0）** — 批量修 W293/W291 行尾空白；真实 bug 修复：
+  - `alpha_social.py` `get_friends` 重复定义（433 行简单版覆盖 300 行去重版）→ 删覆盖版保留增强版
+  - `feature_flags.py` 顶层无条件导入 `tools.screen_capture`（破坏优雅降级）→ 统一改 try/except 导入模式
+  - `container.py`/`tool_orchestrator.py`/`observability.py` F401 未使用导入 → 删除
+  - `smart_capture.py` diff_result 死代码、`ghost_character.py` points/wave_points 死代码 → 删除
+  - E402 导入位置 → 移到顶部或加 noqa；E741 `l` 变量改名；N806/N803/N812/N818 项目有意命名加 noqa
+- **alphaid 测试 859 passed 全绿** — 修 4 失败：3 个 `asyncio.get_event_loop()` Python 3.12 不兼容（测试代码改 asyncio.run）；1 个沙箱权限（monkeypatch Path.home 隔离数据目录）；2 个坏测试补 await + async call_next
+- **DS 构建链路首次全绿** — tsc 0 错误 + vitest 45 + next build exit 0（38 页面）
+- **DS 严重 bug 批量修复（#13-#23）**：
+  - #13 demo 纯前端模拟（去 404 请求）；#15 obsidian URL 缺 `?`；#17 RevenueChart `var(--text)`→`var(--text-primary)`；#18 demo-data 状态值对齐 StatusBadge；#19 chat 离线话术引用用户输入；#20 AuthGuard 校验响应身份字段；#22 端口统一 3000；#23 feishu-bot Dockerfile 缺失文件强制纳入 git（根 .gitignore 放行 + git add -f）
+- **种子数据** — seed.ts 订单时间分散 7 天（趋势图有起伏）；SQLite 本地模式验证：5 商品 + 6 订单，/api/stats 返回真实数据
+- **本地冒烟通过** — DS dev server `/api/stats` 200 + `/dashboard` 200；Docker daemon 未运行（沙箱限制），容器级验证仍待用户启动 Docker Desktop
+
+**结果:** ruff 0 errors + alphaid 859 passed + DS tsc/vitest/build 全绿 + 看板非空可演示。PROJECT_STATUS_REPORT.md 已同步。
