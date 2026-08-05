@@ -39,7 +39,8 @@ from typing import Dict, List, Optional
 import httpx
 import uvicorn
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, generate_latest, REGISTRY
 
 # ── OrchestratorEngine import setup ──
 # Add alphaid source root so the engine is importable from the orchestrator service.
@@ -53,6 +54,7 @@ try:
 except ImportError:
     _HAS_ENGINE = False
     ChannelAdapter = None  # type: ignore[assignment]
+    OrchestratorEngine = None  # type: ignore[assignment]
     logger = logging.getLogger("orchestrator")
     logger.warning("OrchestratorEngine 不可用 — 后台循环已禁用 (缺少 alphaid 依赖)")
 
@@ -252,11 +254,13 @@ def gateway_sync_loop():
             logger.warning("gateway_sync_loop: engine status failed: %s", e)
 
     try:
+        tenant_id = os.environ.get("ALPHA_ID", "Ghost-001")
         with httpx.Client(timeout=5.0) as client:
             client.post(
-                f"{GATEWAY}/v1/memory/store",
+                f"{GATEWAY}/v1/human/memory/store",
+                headers={"X-Tenant-ID": tenant_id},
                 json={
-                    "alpha_id": os.environ.get("ALPHA_ID", "Ghost-001"),
+                    "alpha_id": tenant_id,
                     "content": (
                         f"[Orchestrator Sync] tasks={stats['tasks_total']} "
                         f"engine_running={stats.get('engine_running', False)} "
@@ -382,7 +386,8 @@ async def sync_to_gateway(content: str, category: str = "orchestrator") -> None:
     client = await get_http_client()
     try:
         await client.post(
-            f"{GATEWAY}/v1/memory/store",
+            f"{GATEWAY}/v1/human/memory/store",
+            headers={"X-Tenant-ID": os.environ.get("ALPHA_ID", "Alpha-001")},
             json={
                 "alpha_id": os.environ.get("ALPHA_ID", "Alpha-001"),
                 "content": content,
@@ -649,6 +654,37 @@ async def health():
         "channels": list(_orchestrator_engine._channels.keys()) if _orchestrator_engine else [],
         "data_loops": list(_orchestrator_engine._data_loops.keys()) if _orchestrator_engine else [],
     }
+
+
+# ── Prometheus 指标 ──
+# 企业级可观测性：暴露调度器指标供 Prometheus 抓取，与 gateway /metrics 对齐。
+
+_metric_tasks = Counter("orchestrator_tasks_total", "提交任务总数")
+_metric_tasks_failed = Counter("orchestrator_tasks_failed_total", "失败任务总数")
+_metric_engine_running = Gauge("orchestrator_engine_running", "Engine 是否运行", ["alpha_id"])
+_metric_engine_loops = Gauge("orchestrator_engine_loops", "活跃循环数")
+_metric_engine_channels = Gauge("orchestrator_engine_channels", "活跃渠道数")
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus 抓取端点（无需认证，仅暴露进程/调度指标，无敏感数据）。"""
+    if _orchestrator_engine is not None:
+        try:
+            status = _orchestrator_engine.get_status()
+            _metric_engine_running.labels(status.get("alpha_id", "Ghost-001")).set(
+                1 if status.get("running") else 0
+            )
+            _metric_engine_loops.set(len(status.get("data_loops", {})) + 4)
+            _metric_engine_channels.set(len(status.get("channels", [])))
+        except Exception:
+            pass
+    _metric_tasks.inc(0)
+    _metric_tasks_failed.inc(0)
+    return PlainTextResponse(
+        generate_latest(REGISTRY),
+        media_type=CONTENT_TYPE_LATEST,
+    )
 
 
 @app.get("/v1/tools/status")

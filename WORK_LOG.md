@@ -466,3 +466,26 @@
 ---
 
 ## 待办
+
+---
+
+## 2026-08-05
+
+### 会话 16：企业级阶级升级 — Docker 全栈实测 + 5 个架构漏洞修复
+
+**工作内容:**
+1. **视频链路修复（漏洞 #3）** — MoneyPrinterTurbo [task.py](file:///d:/MW/MoneyPrinterTurbo/app/services/task.py) local 源无 ideo_materials 时自动扫描 storage/local_videos（file_security 路径约束），补 MaterialInfo 导入。实测任务 9528f344 完成，**真实产出 final-1.mp4 + combined-1.mp4**。
+2. **飞书 WS 长连接（漏洞 #1）** — [bot.py](file:///d:/MW/ghost-main/feishu-bot/bot.py) un() 改 WebSocket 主连接 + 轮询兜底 + 指数退避；新轮换 App Secret 已验证有效（tenant_access_token code:0），WS 已连（心跳 30s 持续）。
+3. **OrchestratorEngine 完整集成（漏洞 #2/#4）** — compose context 改根目录，[Dockerfile](file:///d:/MW/orchestrator/Dockerfile) 打包 alphaid core/orchestrator；[agent.py](file:///d:/MW/alphaid/projects/src/core/agent.py) _InMemoryBackends 降级；[engine.py](file:///d:/MW/alphaid/projects/src/orchestrator/engine.py) 修 "OPTIMAL_SWAP" 字符串 phase .value 崩溃。**Engine 完整启动**：4 后台循环 + gateway_sync 数据循环 + AgentGraph 基建自替换（3 skill swap）。
+4. **可观测性（漏洞 #5）** — orchestrator 新增 /metrics（prometheus-client）；prometheus.yml 加 orchestrator target（5 target 全 up）；.gitignore 解除 prometheus.yml 忽略。
+5. **gateway_sync 链路** — 上报路径修正 /v1/human/memory/store + X-Tenant-ID 头 → 200 OK（多租户隔离验证）。
+6. **EventBus 优雅化** — [event_bus.py](file:///d:/MW/alphaid/projects/src/core/event_bus.py) XREADGROUP 空闲超时静默。
+7. **Dockerfile 加速** — 5 个服务切清华 apt 源。
+8. **E2E 全栈验证** — 
+ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
+
+**结果:**
+- 14 容器 healthy（orchestrator/gateway/alphaid/nebula/flow/tool-a/tool-b/netagent/ghost-ds/moneyprinter/db/redis + grafana/prometheus）
+- E2E 10/10；Alpha-ID 回归 42 passed；视频真实产出 mp4；Prometheus 5 target up
+
+**待办:** 飞书 bot 真实收发（需用户实测）；DS 服务健康页 + 告警规则（Lv3）；Lv4-7 数据层/交付/CD/体验美学

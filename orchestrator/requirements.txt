@@ -2,3 +2,8 @@ fastapi==0.115.*
 uvicorn==0.34.*
 httpx==0.28.*
 python-dotenv==1.0.*
+redis==5.*
+tenacity==9.*
+pydantic-settings==2.*
+cachetools==5.*
+prometheus-client==0.21.*

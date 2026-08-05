@@ -7,7 +7,7 @@ FROM python:3.12-slim-bookworm AS builder
 
 WORKDIR /build
 
-RUN apt-get update \
+RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null; sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list 2>/dev/null; apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
     && rm -rf /var/lib/apt/lists/*
@@ -15,7 +15,7 @@ RUN apt-get update \
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-COPY requirements.txt .
+COPY orchestrator/requirements.txt .
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple && pip config set global.timeout 120 && pip install --no-cache-dir --upgrade pip setuptools wheel \
     && pip install --no-cache-dir -r requirements.txt
 
@@ -38,7 +38,12 @@ WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
 
-COPY main.py ./
+COPY orchestrator/main.py ./
+
+# 完整集成 OrchestratorEngine：打包 alphaid 的 core（事件总线/TwinBrain/settings）
+# 与 orchestrator 包（engine.py），让 _HAS_ENGINE=True 恢复后台循环（Memory/Ops/Social/OPTIMAL_SWAP）。
+COPY alphaid/projects/src/core ./core
+COPY alphaid/projects/src/orchestrator ./orchestrator
 
 RUN groupadd -r appuser \
     && useradd -r -g appuser -d /app -s /usr/sbin/nologin appuser \

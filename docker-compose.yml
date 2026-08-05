@@ -183,8 +183,8 @@ services:
   # ── Orchestrator (Dual-Tool Coordination) ──
   orchestrator:
     build:
-      context: ./orchestrator
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: orchestrator/Dockerfile
     ports:
       - "19090:19090"
     environment:

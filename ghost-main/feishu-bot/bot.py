@@ -924,16 +924,22 @@ class FeishuEventWatcher:
         self._processed_events: OrderedDict = OrderedDict()
 
     async def run(self):
-        """纯 HTTP 轮询接收消息，每 3 秒轮询一次"""
-        poller = MessagePoller(self.token_mgr, self.handler)
-        self._poller = poller
-        logger.info("消息接收模式: HTTP 轮询（每 3 秒）")
+        """主：WebSocket 长连接（实时、免公网）；断开时 HTTP 轮询兜底 + 指数退避重连。"""
+        backoff = 1
         while self._running:
             try:
-                await poller.poll_once()
+                await self._connect_and_listen()
+                backoff = 1  # 连接成功并正常退出（异常退出走 except）后重置退避
             except Exception as e:
-                logger.error("轮询异常: %s", e)
-            await asyncio.sleep(3)
+                logger.error("WS 连接异常: %s，%s 秒后重连（HTTP 轮询兜底中）", e, min(backoff, 30))
+                # WS 断开期间用 HTTP 轮询兜底，不丢消息
+                try:
+                    await self._poller.poll_once()
+                except Exception as pe:
+                    logger.debug("轮询兜底异常: %s", pe)
+                await asyncio.sleep(min(backoff, 30))
+                backoff *= 2
+        logger.info("消息接收已停止")
 
     async def _connect_and_listen(self):
         """连接飞书 WS 并持续接收事件"""
