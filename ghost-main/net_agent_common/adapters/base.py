@@ -12,10 +12,7 @@ Design notes:
 """
 
 from abc import ABC, abstractmethod
-from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
-from typing import AsyncIterator, Optional
-
+from dataclasses import dataclass
 
 # ──────────────────────────────────────────────────────────────
 # Data types
@@ -111,13 +108,12 @@ class BaseRouterAdapter(ABC):
 
     # -- lifecycle ---------------------------------------------
 
-    @asynccontextmanager
-    async def __aenter__(self) -> AsyncIterator["BaseRouterAdapter"]:
+    async def __aenter__(self) -> "BaseRouterAdapter":
         await self._connect()
-        try:
-            yield self
-        finally:
-            await self._disconnect()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None:
+        await self._disconnect()
 
     async def _connect(self) -> None:
         """Establish connection to router. Override in subclass."""

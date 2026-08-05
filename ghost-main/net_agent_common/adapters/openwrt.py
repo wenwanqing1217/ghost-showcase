@@ -14,11 +14,9 @@ Usage::
         info = await adapter.get_wan_info()
 """
 
-import asyncio
-from typing import Optional
 
+from net_agent_common.adapter_meta.vendor_registry import register
 from net_agent_common.adapters.base import (
-    AdapterAuthError,
     AdapterConnectionError,
     AdapterError,
     BaseRouterAdapter,
@@ -27,7 +25,6 @@ from net_agent_common.adapters.base import (
     RouterBasicInfo,
     WanInfo,
 )
-from net_agent_common.adapter_meta.vendor_registry import register
 
 
 @register("openwrt")
@@ -83,7 +80,6 @@ class OpenWrtAdapter(BaseRouterAdapter):
             external_ip = ipv4[0].get("address", "") if ipv4 else (
                 ipv6[0].get("address", "") if ipv6 else ""
             )
-            routes = iface.get("route", [])
             is_up = iface.get("up", False)
 
             return WanInfo(

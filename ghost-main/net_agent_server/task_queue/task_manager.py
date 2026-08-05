@@ -6,7 +6,6 @@ This decouples the HTTP request (fast) from the actual router operation (slow, l
 """
 
 import json
-import time
 from typing import Optional
 
 from net_agent_common.db.sqlite_store import get_connection, now

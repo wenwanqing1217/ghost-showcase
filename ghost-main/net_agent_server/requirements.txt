@@ -2,3 +2,6 @@ fastapi==0.115.*
 uvicorn==0.34.*
 httpx==0.28.*
 python-dotenv==1.0.*
+# auth（CredentialCrypto AES-GCM / JWT 权限）
+cryptography>=42.0
+python-jose[cryptography]>=3.3

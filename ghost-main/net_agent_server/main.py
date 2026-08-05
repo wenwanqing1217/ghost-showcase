@@ -24,16 +24,16 @@ sys.path.insert(0, _HERE)
 
 from contextlib import asynccontextmanager
 
+from api.routes import router as net_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from net_agent_common.config.settings import (
+    GATEWAY_URL,
     NET_AGENT_HOST,
     NET_AGENT_PORT,
-    GATEWAY_URL,
     validate_security_settings,
 )
-from api.routes import router as net_router
 from net_agent_common.db.models import init_db
 from net_agent_common.db.sqlite_store import DB_PATH
 from net_agent_common.utils.logger import logger
@@ -89,7 +89,7 @@ app.include_router(net_router)
 
 if __name__ == "__main__":
     import uvicorn
-    print(f"""
+    print("""
 \u2554\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2557
 \u2551           Net-Agent Server v1.0.0                \u2551
 \u2551   Ghost Network Operations Service               \u2551

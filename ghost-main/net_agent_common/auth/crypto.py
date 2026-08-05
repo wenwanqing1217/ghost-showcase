@@ -10,10 +10,9 @@ Security model:
   - Server cannot reverse stored passwords without the master key
 """
 
-import os
 import base64
 import hashlib
-import hmac
+import os
 
 from net_agent_common.config.settings import AES_MASTER_KEY
 
@@ -32,7 +31,7 @@ class CredentialCrypto:
     def derive_key(self, salt: str) -> bytes:
         """
         Derive a 32-byte AES key from master key + user salt using PBKDF2.
-        
+
         Raises:
             RuntimeError: If master key is empty (encryption must be explicitly configured).
         """
@@ -52,7 +51,7 @@ class CredentialCrypto:
     def encrypt(self, plaintext: str, salt: str) -> dict:
         """
         Encrypt a string, return {ciphertext, nonce, tag} as base64 strings.
-        
+
         Raises:
             RuntimeError: If cryptography library is not installed.
         """
@@ -63,7 +62,7 @@ class CredentialCrypto:
                 "cryptography library is required for encryption. "
                 "Install with: pip install cryptography"
             )
-        
+
         key = self.derive_key(salt)
         nonce = os.urandom(12)
         aesgcm = AESGCM(key)
@@ -80,7 +79,7 @@ class CredentialCrypto:
     def decrypt(self, crypto_dict: dict, salt: str) -> str:
         """
         Decrypt a {ciphertext, nonce, tag} dict back to plaintext.
-        
+
         Raises:
             RuntimeError: If cryptography library is not installed.
             ValueError: If decryption fails (wrong key or corrupted data).
@@ -92,7 +91,7 @@ class CredentialCrypto:
                 "cryptography library is required for decryption. "
                 "Install with: pip install cryptography"
             )
-        
+
         key = self.derive_key(salt)
         ct = base64.b64decode(crypto_dict["ciphertext"])
         tag = base64.b64decode(crypto_dict["tag"])

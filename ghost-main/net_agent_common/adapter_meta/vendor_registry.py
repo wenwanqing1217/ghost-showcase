@@ -3,8 +3,10 @@ VendorRegistry — maps brand strings to adapter classes.
 =========================================================
 Central place to register new router brands. Adding a brand is two steps:
   1. Create the adapter subclass in adapters/
-  2. Import + register it below
+  2. Register it in the _BUILTIN_VENDOR_MODULES map below
 """
+
+import importlib
 
 from net_agent_common.adapters.base import BaseRouterAdapter
 
@@ -21,31 +23,31 @@ def register(vendor: str):
     return decorator
 
 
+# 内置厂商 → 适配器模块映射。适配器模块仅在首次 get_adapter() 查找时惰性导入，
+# 从而避免 vendor_registry ↔ adapters/* 之间的模块级循环导入。
+_BUILTIN_VENDOR_MODULES: dict[str, str] = {
+    "openwrt": "net_agent_common.adapters.openwrt",
+    "tplink": "net_agent_common.adapters.tplink",
+    "xiaomi": "net_agent_common.adapters.xiaomi",
+}
+
+
+def list_vendors() -> list[str]:
+    """Return all registered vendor strings (lazily importing built-in adapters)."""
+    for vendor in _BUILTIN_VENDOR_MODULES:
+        if vendor not in _REGISTRY:
+            importlib.import_module(_BUILTIN_VENDOR_MODULES[vendor])
+    return sorted(_REGISTRY.keys())
+
+
 def get_adapter(vendor: str) -> type[BaseRouterAdapter]:
-    """Look up adapter class by vendor string."""
+    """Look up adapter class by vendor string (lazily imports built-in adapters)."""
+    if vendor not in _REGISTRY:
+        module_name = _BUILTIN_VENDOR_MODULES.get(vendor)
+        if module_name:
+            # 导入会触发适配器类上的 @register(vendor) 装饰器
+            importlib.import_module(module_name)
     if vendor not in _REGISTRY:
         available = ", ".join(sorted(_REGISTRY.keys()))
         raise ValueError(f"Unknown vendor '{vendor}'. Available: {available}")
     return _REGISTRY[vendor]
-
-
-def list_vendors() -> list[str]:
-    """Return all registered vendor strings."""
-    return sorted(_REGISTRY.keys())
-
-
-# ── built-in registrations ───────────────────────────────────
-# NOTE: adapter imports are placed AFTER register() is defined.
-# Each adapter class uses @register(vendor) as a decorator,
-# which runs at class-definition time (i.e. during import).
-# If we imported them above, Python would try to resolve
-# 'register' before it exists → circular import error.
-
-from net_agent_common.adapters.openwrt import OpenWrtAdapter  # noqa: E402
-from net_agent_common.adapters.xiaomi import XiaomiAdapter  # noqa: E402
-from net_agent_common.adapters.tplink import TPLinkWebAdapter  # noqa: E402
-
-# Verify decorators fired correctly
-assert OpenWrtAdapter.vendor == "openwrt"
-assert XiaomiAdapter.vendor == "xiaomi"
-assert TPLinkWebAdapter.vendor == "tplink"

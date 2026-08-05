@@ -13,10 +13,10 @@ Usage::
         devices = await adapter.get_lan_devices()
 """
 
-import asyncio
 import re
 from typing import Optional
 
+from net_agent_common.adapter_meta.vendor_registry import register
 from net_agent_common.adapters.base import (
     AdapterAuthError,
     AdapterConnectionError,
@@ -27,7 +27,6 @@ from net_agent_common.adapters.base import (
     RouterBasicInfo,
     WanInfo,
 )
-from net_agent_common.adapter_meta.vendor_registry import register
 
 
 @register("tplink")

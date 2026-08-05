@@ -4,15 +4,16 @@ SQLite Store — thin wrapper around sqlite3.
 Connection-per-request pattern with FastAPI dependency injection.
 """
 
+# Ensure directory exists
+import os
 import sqlite3
 import time
 from contextlib import contextmanager
 
 from net_agent_common.config.settings import DB_PATH
+
 from .models import init_db
 
-# Ensure directory exists
-import os
 os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
 
 # Module-level: create the DB if not present

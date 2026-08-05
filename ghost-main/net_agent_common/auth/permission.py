@@ -11,10 +11,11 @@ Integration point:
 """
 
 import time
-from fastapi import Request, HTTPException
+
+from fastapi import HTTPException, Request
 from fastapi.security import HTTPBearer
 
-from net_agent_common.config.settings import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRE_HOURS
+from net_agent_common.config.settings import JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_SECRET
 
 security = HTTPBearer()
 
@@ -38,7 +39,7 @@ def create_token(user_id: str, extra_claims: dict = None) -> str:
 def verify_token(token: str) -> dict:
     """Verify a JWT and return its payload. Raises HTTPException on failure."""
     try:
-        from jose import jwt, JWTError
+        from jose import jwt
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         return payload
     except Exception:

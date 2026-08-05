@@ -16,8 +16,8 @@ Usage::
 
 import asyncio
 from functools import partial
-from typing import Optional
 
+from net_agent_common.adapter_meta.vendor_registry import register
 from net_agent_common.adapters.base import (
     AdapterConnectionError,
     AdapterError,
@@ -27,7 +27,6 @@ from net_agent_common.adapters.base import (
     RouterBasicInfo,
     WanInfo,
 )
-from net_agent_common.adapter_meta.vendor_registry import register
 
 
 @register("xiaomi")
@@ -115,7 +114,6 @@ class XiaomiAdapter(BaseRouterAdapter):
 
     async def set_wifi_channel(self, band: str, channel: int) -> bool:
         try:
-            loop = asyncio.get_running_loop()
             # Xiaomi miwifi lib does not expose channel set directly
             # Use the miwifi CLI-equivalent if available
             raise AdapterError("set_wifi_channel not yet implemented for Xiaomi")

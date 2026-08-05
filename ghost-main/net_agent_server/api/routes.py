@@ -6,12 +6,12 @@ All user-scoped routes enforce row-level isolation.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
+from task_queue.task_manager import complete_task, enqueue_task, list_pending
 
-from net_agent_common.auth.permission import get_current_user, require_same_user
-from net_agent_common.db.sqlite_store import get_connection, now
-from task_queue.task_manager import enqueue_task, claim_next_task, complete_task, list_pending
 from net_agent_common.adapter_meta.vendor_registry import get_adapter, list_vendors
-from net_agent_common.auth.crypto import encrypt_credential, decrypt_credential, generate_user_salt
+from net_agent_common.auth.crypto import encrypt_credential, generate_user_salt
+from net_agent_common.auth.permission import get_current_user
+from net_agent_common.db.sqlite_store import get_connection, now
 from net_agent_common.utils.logger import logger
 
 router = APIRouter(prefix="/v1/net", tags=["net-agent"])
