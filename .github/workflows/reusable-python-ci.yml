@@ -10,6 +10,11 @@ on:
         required: false
         type: string
         default: '["3.11"]'
+      lint-python-version:
+        required: false
+        type: string
+        default: "3.11"
+        description: lint job 的 Python 版本（部分项目 requires-python 更高，如 alphaid >=3.12）
       lint-command:
         required: false
         type: string
@@ -34,7 +39,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ inputs.lint-python-version }}
           cache: "pip"
           cache-dependency-path: ${{ inputs.project-dir }}/pyproject.toml
 
@@ -92,6 +97,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ${{ inputs.project-dir }}-coverage-py${{ matrix.python-version }}
+          # project-dir 可能含斜杠（如 ghost-main/gateway），artifact name 不允许
+          name: ${{ replace(inputs.project-dir, '/', '-') }}-coverage-py${{ matrix.python-version }}
           path: ${{ inputs.project-dir }}/coverage.xml
           retention-days: 7

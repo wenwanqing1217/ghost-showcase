@@ -102,6 +102,7 @@ jobs:
     with:
       project-dir: alphaid/projects
       python-versions: '["3.12"]'
+      lint-python-version: "3.12"
       lint-command: 'ruff check src/'
       test-command: 'pytest tests/ -q --tb=short --cov=src --cov-report=term-missing --cov-fail-under=67'
 
