@@ -31,6 +31,8 @@ coverage.xml
 htmlcov/
 nul
 temp*.py
+# 本地 CI 虚拟环境（nebula test job 复用）
+.venv-ci/
 
 # Database
 *.db
