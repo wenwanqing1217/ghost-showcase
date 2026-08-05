@@ -107,7 +107,6 @@ DS/prisma/migrations/
 DS/public/
 DS/postcss.config.js
 DS/tailwind.config.ts
-DS/src/lib/api.ts
 DS/src/lib/auth.ts
 DS/src/lib/eventbus.ts
 DS/src/lib/tenant.ts
@@ -141,8 +140,6 @@ DS/scripts/apply-migration.sh
 !DS/src/app/api/v1/human/register/complete/route.ts
 !DS/src/app/api/doubao/route.ts
 !DS/src/app/api/internal/monitoring/route.ts
-flow/
-!flow/README.md
 obsidian-plugin/
 profile-readme/
 Ghost.html

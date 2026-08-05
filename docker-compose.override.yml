@@ -15,8 +15,6 @@ services:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=15d"
       - "--web.enable-lifecycle"
-    networks:
-      - ghost-net
 
   grafana:
     image: grafana/grafana:11.1.0
@@ -34,13 +32,7 @@ services:
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
-    networks:
-      - ghost-net
 
 volumes:
   prometheus-data: {}
   grafana-data: {}
-
-networks:
-  ghost-net:
-    external: true

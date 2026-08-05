@@ -12,12 +12,18 @@ services:
       context: ./ghost-main/feishu-bot
       dockerfile: Dockerfile
     environment:
+      # 飞书凭证（必填，从主 .env 读取，不再使用 feishu-bot/.env 文件）
       FEISHU_APP_ID: ${FEISHU_APP_ID:?FEISHU_APP_ID required}
       FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:?FEISHU_APP_SECRET required}
-      CODEX_MAX_CONCURRENT: ${CODEX_MAX_CONCURRENT:-3}
+      # 已知会话白名单（可选，逗号分隔 chat_id）
+      KNOWN_CHAT_IDS: ${KNOWN_CHAT_IDS:-}
+      # 默认后端 / 工作目录 / 速率限制
+      DEFAULT_BACKEND: ${DEFAULT_BACKEND:-echo}
       CODE_RUNNER_DIR: ${CODE_RUNNER_DIR:-/app/workspace}
-    env_file:
-      - ./ghost-main/feishu-bot/.env
+      CODEX_MAX_CONCURRENT: ${CODEX_MAX_CONCURRENT:-3}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-20}
+      # Gateway 回调
+      GATEWAY_URL: http://gateway:18080
     depends_on:
       gateway:
         condition: service_healthy
@@ -40,8 +46,8 @@ services:
       EVENT_STREAM_PREFIX: alphaid:ecom
       FEISHU_CONSUMER_GROUP: feishu-notifiers
       FEISHU_CONSUMER_NAME: feishu-consumer-1
-    env_file:
-      - ./ghost-main/feishu-bot/.env
+      FEISHU_BLOCK_TIMEOUT: ${FEISHU_BLOCK_TIMEOUT:-5000}
+      FEISHU_BATCH_SIZE: ${FEISHU_BATCH_SIZE:-10}
     depends_on:
       redis:
         condition: service_healthy
