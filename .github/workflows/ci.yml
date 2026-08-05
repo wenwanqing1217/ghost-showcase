@@ -26,7 +26,7 @@ jobs:
       orchestrator: ${{ steps.filter.outputs.orchestrator }}
       ds: ${{ steps.filter.outputs.ds }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -71,7 +71,7 @@ jobs:
       run:
         working-directory: alphaid/projects
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - uses: actions/setup-python@v5
@@ -190,7 +190,7 @@ jobs:
       DB_PASSWORD: ghost-ci-password
       DB_NAME: ghost
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: true
       - name: Install Node.js
