@@ -1,11 +1,22 @@
-"""Test what Gateway receives from Alpha-ID."""
+"""Manual smoke test for Gateway → Alpha-ID chain.
+
+This is NOT a pytest test — it makes real HTTP calls against a running
+Alpha-ID. Run it directly:
+
+    python test_proxy.py
+
+It is guarded by `if __name__ == "__main__":` so pytest collection no
+longer executes it (which previously blocked the whole test session
+with a real asyncio.run at module top-level).
+"""
 import httpx
 import asyncio
 import json
+import os
 
-ALPHAID_URL = "http://localhost:8002"
+ALPHAID_URL = os.environ.get("ALPHAID_URL", "http://localhost:8000")
 
-async def test():
+async def run_smoke_test():
     client = httpx.AsyncClient(timeout=30.0)
 
     # Use a unique device fingerprint
@@ -57,4 +68,5 @@ async def test():
 
     await client.aclose()
 
-asyncio.run(test())
+if __name__ == "__main__":
+    asyncio.run(run_smoke_test())
