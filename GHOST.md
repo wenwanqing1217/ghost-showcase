@@ -446,8 +446,11 @@ make ps
 | 文档 | 用途 | 说明 |
 |:-----|:-----|:-----|
 | `GHOST.md` | 项目唯一真相源 | 本章所有内容，v3.0 基于逐行代码阅读 + 运行时验证 |
+| `DATA_FLOW.md` | 数据流 + 验证状态 | 6 条业务闭环 + 1126 测试验证矩阵 + 诚实未落地清单 |
+| `SYSTEM_MAP.md` | 服务拓扑地图 | L3：调用链 / 端口 / 部署关系 |
+| `PROJECT_MAP.md` | 术语权威表 | L4：TERM 规则 + 端口表 + 冲突解决 |
 | `DECISIONS.md` | 架构决策日志 | 10 条已记录的关键决策 |
-| `Makefile` | 统一命令入口 | `up`/`down`/`test`/`lint`/`fmt` |
+| `Makefile` | 统一命令入口 | `up`/`down`/`smoke`/`test`/`lint`/`fmt` |
 | `AGENTS.md` | 项目级 AI Agent 指令 | TERM 规则 + 文档更新规则 |
 | `CODEOWNERS` | 代码归属自动分配 | 按服务分区 |
 | `CONTRIBUTING.md` | 开发者 onboarding | 环境搭建 + 规范 |

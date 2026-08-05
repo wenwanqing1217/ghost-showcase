@@ -54,7 +54,8 @@
 | Alpha-ID 新模块 | `79 passed` ✅ | agent_graph / alpha_social / diy_cli / tenant_panel / credits_growth / critical_bugfixes 6 个测试文件（2026-08-05 新增补测） |
 | DS | `45 passed (3 test files)` ✅ | 历史报告说"无后端单测"过时；含 eventbus-init 测试 |
 | flow（会话 4 新增） | `30 passed (7 test files)` ✅ | workspace 依赖 `workspace:*` → `file:` 修复后，npm test 全绿 |
-| **全仓合计（会话 4）** | **1126 passed** ✅ | alphaid 859 + nebula 153 + gateway 32 + orchestrator 7 + DS 45 + flow 30；详见 [DATA_FLOW.md](DATA_FLOW.md) |
+| net-agent（Session 15 新增） | `12 passed (3 test files)` ✅ | 从"测试目录为空（CI exit 5）"补测至 12 passed；修出循环导入/`async with` 缺失等 4 个真实 bug |
+| **全仓合计（会话 15）** | **1138 passed** ✅ | alphaid 859 + nebula 153 + gateway 32 + orchestrator 7 + net-agent 12 + DS 45 + flow 30；ruff 全绿；详见 [DATA_FLOW.md](DATA_FLOW.md) |
 
 ## 3. P0 阶段修复（2026-08-05）
 
@@ -121,7 +122,7 @@
 
 ## 7. 下一步行动
 
-**已完成**：P0（凭证移除/网络/flow 入库）、P1（9 个 DS 致命 bug）、P2（调度层免费优先 + 每日最优自替换 + 飞书社交 + DIY CLI + 多租户面板）、P3（AgentGraph/alpha_social/diy_cli/tenant_panel 补测 64 passed；DIY adapter + 外部 skill 市场 + 6 业务意图落地；渠道助手 + 飞书指令中心 + 内容生成闭环）、**质量加固（本轮）**：ruff 全绿 + alphaid 859 测试全绿 + DS 构建链路全绿（tsc/vitest/build）+ #13-#23 真实 bug 修复 + 种子数据 + 本地冒烟通过
+**已完成**：P0（凭证移除/网络/flow 入库）、P1（9 个 DS 致命 bug）、P2（调度层免费优先 + 每日最优自替换 + 飞书社交 + DIY CLI + 多租户面板）、P3（AgentGraph/alpha_social/diy_cli/tenant_panel 补测 64 passed；DIY adapter + 外部 skill 市场 + 6 业务意图落地；渠道助手 + 飞书指令中心 + 内容生成闭环）、**质量加固（上轮）**：ruff 全绿 + alphaid 859 测试全绿 + DS 构建链路全绿（tsc/vitest/build）+ #13-#23 真实 bug 修复 + 种子数据 + 本地冒烟通过、**lint 硬化（Session 15）**：统一 ruff 配置全绿 + net-agent 测试 0→12 + 修出循环导入/async with/str+bytes/F821 等 10+ 真实 bug + SYSTEM_MAP/PROJECT_MAP 文档补全 + 全仓 1138 测试连过
 
 **待办（按优先级）**：
 1. **用户操作**：去飞书开放平台轮换 App Secret（历史提交含凭证，必须轮换）
@@ -184,3 +185,25 @@
 
 ### 待办不变
 - 用户轮换飞书 App Secret；启动 Docker Desktop 跑 `make up` + `node scripts/e2e_test.mjs --wait`
+
+---
+
+## 10. Session 15 — 2026-08-05（lint 硬化 + 真实 bug 修复 + net-agent 补测）
+
+**背景:** 承接 Session 14 继续推进，把"CI 能跑"落到"本地 lint 全绿 + 全仓测试连过"，并补齐 net-agent 测试空白。
+
+### 成果
+1. **ruff 全绿** — 统一 ruff 配置（ghost-main/gateway/orchestrator 新建 ruff.toml + nebula pyproject.toml），中文注释豁免 RUF001/2/3，全仓 lint 0 errors
+2. **10+ 真实 bug 修复**（lint 揪出，非格式）：
+   - F821 未定义名：nebula `supply.py` 缺 `datetime` 导入、`supply/base.py` `_global_supply_registry` 未定义、gateway `internal.py` `EventType.SOCIAL_MESSAGE` 不存在 — 均为运行时必炸
+   - gateway `tenant.py` `str += bytes` TypeError（JWT 未对齐即炸）+ N806 大写常量规范
+   - net-agent：vendor_registry 循环导入（改 `importlib` 惰性加载 + 恢复误删的 `list_vendors()`）；`adapters/base.py` `async with` 从未实现（`@asynccontextmanager` 误装饰 `__aenter__`，重写手写协议）
+3. **net-agent 测试 0 → 12** — 新建 conftest.py（env + sys.path）+ test_auth.py + test_adapters.py；补 requirements（cryptography/python-jose）；新建 ghost-main/requirements.txt 供 CI 安装
+4. **构建/CI 硬化** — compose MoneyPrinterTurbo 改 `profiles: ["media"]` 可选；.gitignore 移除全局 package.json 忽略（flow/gateway 清单入库根因）；flow map.ts TS 类型收窄修复
+5. **文档 L1-L4 齐备** — 新建 SYSTEM_MAP.md（L3）/ PROJECT_MAP.md（L4）；GHOST.md 核心文档表补入；README/DATA_FLOW 同步 1138
+
+### 验证
+- 全仓 **1138 passed**：alphaid 859 / nebula 153 / gateway 32 / orchestrator 7 / net-agent 12 / DS 45 / flow 30，ruff 全绿（2026-08-05 亲自执行）
+
+### 待办不变
+- 用户轮换飞书 App Secret；启动 Docker Desktop 跑全栈 E2E；打包分发按 PACKAGING_STRATEGY.md 前置条件推进

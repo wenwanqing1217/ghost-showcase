@@ -408,4 +408,52 @@
 
 ---
 
+## Session 15 — 2026-08-05（lint 硬化 + 10+ 真实 bug 修复 + net-agent 测试 0→12）
+
+**背景:** 承接 Session 14 继续"别停下来"——把 CI 能跑落到"本地 lint 全绿 + 全仓测试 1138 连过"，并为无测试的 net-agent 补上测试套件。
+
+**工作内容:**
+
+### 1. L3/L4 文档补全（改架构必改文档）
+- 新建 [SYSTEM_MAP.md](SYSTEM_MAP.md)（L3）：服务拓扑 / 调用链速查 / 端口表 / 部署关系 / 变更记录
+- 新建 [PROJECT_MAP.md](PROJECT_MAP.md)（L4）：术语表（OrchestratorEngine/EventBus/AgentGraph/MemoryGraph/TwinBrain/ChannelAdapter/GhostDS/Gateway + 禁用别名）、端口汇总、文档层级、冲突解决记录
+- [GHOST.md](GHOST.md) 核心文档表补入 DATA_FLOW/SYSTEM_MAP/PROJECT_MAP/Makefile
+- README 验证表 1126 → **1138**（加 net-agent 行）；徽章同步 `tests-1138%20passed`；DATA_FLOW.md 验证矩阵同步
+
+### 2. ruff lint 全绿（alphaid/gateway/orchestrator/nebula/net-agent）
+- 统一 ruff 配置：新建 `ghost-main/ruff.toml`、`ghost-main/gateway/ruff.toml`、`orchestrator/ruff.toml`，改 `nebula/pyproject.toml`
+- 统一 `select = ["E","F","I","N","W","UP","RUF"]` + 中文注释豁免 RUF001/2/3（nebula 另忽略 RUF006/RUF012；gateway 另忽略 BLE001/DTZ003/S110/SIM115/UP042；ghost-main 另忽略 E402）
+
+### 3. lint 揪出的真实 bug（不止是格式）
+| Bug | 位置 | 严重度 |
+|:----|:-----|:-------|
+| `datetime` 未导入（F821） | `nebula/src/mindflow_map/api/supply.py` | 运行时必炸 |
+| `_global_supply_registry` 未定义（F821） | `nebula/src/mindflow_map/supply/base.py` | 运行时必炸 |
+| `EventType.SOCIAL_MESSAGE` 不存在（F821） | `ghost-main/gateway/routes/internal.py` | 运行时必炸 |
+| `payload_b64 += b"..." * padding`（str+=bytes TypeError） | `ghost-main/gateway/middleware/tenant.py` | JWT 未对齐即炸 |
+| `_AUTH_MASTER_KEY` 等 N806 下划线大写 | `tenant.py` | 规范 |
+| F841/E741 多处 | ecom.py/game_engine.py/feishu.py/health.py/approvals.py/openwrt.py/xiaomi.py | 清理 |
+
+### 4. net-agent 测试 0 → 12（补测套件 + 修真实 bug）
+- 新建 `net_agent_server/tests/conftest.py`：安全环境变量 + sys.path 引导（与 main.py 一致）
+- 新建 `test_auth.py`（TestCredentialCrypto 4 + TestPermission 4）+ `test_adapters.py`（TestUnknownDevices + TestOpenWrtLifecycle）
+- **vendor_registry.py 循环导入** → `_BUILTIN_VENDOR_MODULES` 映射 + `importlib.import_module` 惰性加载；恢复被误删的 `list_vendors()`（routes.py /vendors 接口在用）
+- **adapters/base.py `async with` 从未可用** — `@asynccontextmanager` 错误装饰 `__aenter__` 导致缺 `__aexit__`，重写为手写协议（测试揭出真实 bug）
+- `net_agent_server/requirements.txt` 补 `cryptography` + `python-jose[cryptography]`（运行时必需）
+- 新建 `ghost-main/requirements.txt`（CI 安装入口）
+
+### 5. 其他硬化
+- `docker-compose.yml`：MoneyPrinterTurbo → `profiles: ["media"]` 可选服务（仓库无该目录，默认 `docker compose up` 不再挂）
+- `.gitignore` 移除全局 `package.json`/`package-lock.json` 忽略（flow/gateway 清单从未入库的根因）→ 改仅忽略根目录
+- `flow/apps/api/src/routes/map.ts`：`Record<string, unknown>` 索引访问类型错误，新增 `cityOf()` 收窄
+
+### 6. 本地实测
+- alphaid 859 ✅ / nebula 153 ✅ / gateway 32 ✅ / orchestrator 7 ✅ / net-agent 12 ✅ / DS 45 ✅ / flow 30 ✅ = **1138 passed**，ruff 全绿
+
+**结果:** 完成。全仓 lint 干净、1138 测试连过；net-agent 从"测试目录为空（CI exit 5）"到 12 passed 并修出 4 个真实 bug；文档 L1-L4 齐备。
+
+**提交:** 见下方 git commit（Session 15）。
+
+---
+
 ## 待办

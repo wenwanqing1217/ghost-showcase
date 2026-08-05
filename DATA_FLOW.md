@@ -143,9 +143,10 @@ Orchestrator :19090（orchestrator/main.py）
 | nebula | `python -m pytest tests/ -q` | **153 passed** | 18s |
 | gateway | `python -m pytest tests/ -q` | **32 passed**, 20 skipped | 3s |
 | orchestrator | `python -m pytest . -q` | **7 passed** | 1.5s |
+| net-agent | `python -m pytest net_agent_server/ -q` | **12 passed**（auth + adapter） | 1s |
 | DS（Next.js） | `npm test` | **45 passed**（3 文件） | 1s |
 | flow（Monorepo） | `npm test` | **30 passed**（7 文件） | 10s |
-| **合计** | | **1126 passed** | |
+| **合计** | | **1138 passed** | |
 
 > 跳过项（118）均为需要外部依赖（真实 LLM API / 飞书 / 短信 / Docker 服务）的用例，属预期跳过。
 

@@ -254,7 +254,9 @@ services:
       start_period: 10s
 
   # ── MoneyPrinterTurbo (AI Video Generation) ──
+  # 可选服务（profile: media）：仓库不含该目录，需用户自备后 `docker compose --profile media up`
   moneyprinter:
+    profiles: ["media"]
     build:
       context: ./MoneyPrinterTurbo
       dockerfile: Dockerfile

@@ -10,6 +10,12 @@ import type { LocationPoint, MapRoute } from '@mindflow/shared'
 // ── 内存存储 ──
 const routes = new Map<string, MapRoute>()
 
+/** 类型收窄：metadata 为 Record<string, unknown>，city 可能缺失 */
+function cityOf(p: LocationPoint): string {
+  const city = p.metadata?.city
+  return typeof city === 'string' ? city : ''
+}
+
 // 示例 POI 数据
 const samplePOIs: LocationPoint[] = [
   { lat: 39.9042, lng: 116.4074, label: '北京天安门', metadata: { city: '北京' } },
@@ -31,13 +37,11 @@ export async function registerMapRoutes(app: FastifyInstance) {
         results = results.filter(
           (p) =>
             p.label?.toLowerCase().includes(q.toLowerCase()) ||
-            p.metadata?.city?.toLowerCase().includes(q.toLowerCase())
+            cityOf(p).toLowerCase().includes(q.toLowerCase())
         )
       }
       if (city) {
-        results = results.filter(
-          (p) => p.metadata?.city?.toLowerCase() === city.toLowerCase()
-        )
+        results = results.filter((p) => cityOf(p).toLowerCase() === city.toLowerCase())
       }
 
       return { success: true, data: results }

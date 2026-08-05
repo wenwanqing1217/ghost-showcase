@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="https://github.com/wenwanqing1217/ghost-showcase/actions"><img src="https://img.shields.io/github/actions/workflow/status/wenwanqing1217/ghost-showcase/ci.yml?branch=master&label=CI" alt="CI"></a>
-  <a href="https://github.com/wenwanqing1217/ghost-showcase"><img src="https://img.shields.io/badge/tests-1126%20passed-green" alt="tests"></a>
+  <a href="https://github.com/wenwanqing1217/ghost-showcase"><img src="https://img.shields.io/badge/tests-1138%20passed-green" alt="tests"></a>
   <a href="https://github.com/wenwanqing1217/ghost-showcase/blob/master/LICENSE"><img src="https://img.shields.io/github/license/wenwanqing1217/ghost-showcase" alt="license"></a>
 </p>
 
@@ -96,7 +96,7 @@ make smoke        # 一键跑全部 6 个子项目单元测试（无需 Docker�
 
 ## 验证与测试
 
-**2026-08-05 实测：1126 个测试通过**
+**2026-08-05 实测：1138 个测试通过**
 
 | 子项目 | 结果 |
 |:-------|:-----|
@@ -104,6 +104,7 @@ make smoke        # 一键跑全部 6 个子项目单元测试（无需 Docker�
 | nebula | 153 passed |
 | gateway | 32 passed |
 | orchestrator | 7 passed |
+| net-agent | 12 passed |
 | Ghost DS | 45 passed |
 | flow | 30 passed |
 
@@ -131,6 +132,8 @@ CI（GitHub Actions）覆盖：路径过滤 → 各子项目 lint + test + build
 | [GHOST.md](./GHOST.md) | L1 宪法 | 项目定位、七层架构、愿景 |
 | [ARCHITECTURE.md](./docs/architecture/ARCHITECTURE.md) | L2 架构 | 服务设计、数据流、路由表 |
 | [DATA_FLOW.md](./DATA_FLOW.md) | L2 数据流 | **数据怎么流 + 每条链路验证状态** |
+| [SYSTEM_MAP.md](./SYSTEM_MAP.md) | L3 地图 | 服务拓扑、调用链、部署图 |
+| [PROJECT_MAP.md](./PROJECT_MAP.md) | L4 术语 | 术语表、端口表、冲突解决 |
 | [DECISIONS.md](./DECISIONS.md) | L7 决策 | 技术决策记录 |
 | [PROJECT_STATUS_REPORT.md](./PROJECT_STATUS_REPORT.md) | L6 状态 | 模块健康、功能评分 |
 | [WORK_LOG.md](./WORK_LOG.md) | L8 日志 | 每日工作记录 |
