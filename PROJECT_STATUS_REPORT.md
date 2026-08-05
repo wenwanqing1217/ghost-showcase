@@ -304,3 +304,23 @@ ode scripts/e2e_test.mjs --wait）：quick-register/chat、双链记忆、A2A �
 ### 待办
 - CI 复跑确认 Registration 通过（gitlink 修复后）
 - 飞书 bot 真实收发（用户实测）
+
+## 15. Session 21 — 2026-08-06（CI 全绿冲刺：pytest-cov + prometheus-client + Event loop is closed）
+
+**背景:** 承接 Session 19/20，修复 CI run #63-65 逐一暴露的 nebula 测试链路问题，冲刺 CI 全绿。
+
+### 本轮修复（3 个 P0）
+| 问题 | 根因 | 修复 |
+|:-----|:-----|:-----|
+| run #63 nebula Test exit 4 | CI 命令带 `--cov` 但 nebula dev 依赖缺 pytest-cov | pyproject dev 补 `pytest-cov>=4.0.0` + reusable-python-ci.yml 两处安装分支统一补 |
+| run #64 MetricsRegistry AttributeError | 干净 venv 下无 prometheus_client 时 `__init__` 不初始化 `_counters/_gauges/_histograms` | 主依赖补 `prometheus-client>=0.19.0` + TestMetrics autouse skip 守卫 |
+| run #65 "Event loop is closed" ×8 | 同步 fixture 创建 EventQueue，测试循环关闭后 teardown 用 `asyncio.run()` await 已关闭循环上的 task | event_queue fixture 改 async generator，队列在测试同一循环内创建/销毁 |
+
+### 验证状态
+- **nebula 本地全量：162 passed**（含 CI 等价命令 `--cov=mindflow_map --cov-report=xml`，覆盖率 58%）
+- Docker 全栈 **17 容器 healthy**（feishu-bot WS 连接存活中）
+- 修复提交 `8e2a1fc` + 文档 `69276a6` 已推送（PUSH_OK），CI run #66 待验证
+
+### 待办
+- CI run #66 确认 3 Python 版本 Test + Registration + all-pass 全绿
+- 飞书 bot 真实收发（用户实测命令路由）
