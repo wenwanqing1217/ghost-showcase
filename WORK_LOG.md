@@ -560,3 +560,20 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 10. **双平台验证** — Windows 模拟 CI（`DATABASE_URL` 指向不存在 data/，无 .env）**169 passed**；Linux Docker 4 斜杠绝对路径 **28 passed**（map_api+wechat+db_session）；ruff 0 错误。
 
 **结果:** nebula 单测全绿（169 passed）+ ruff 0 错误；SQLite 父目录自动创建修复已就绪，待推送后 CI run #68 验证 3 Python 版本 Test + Registration + all-pass 全绿。
+
+### 会话 22：CI 全绿冲刺 — E2E DIND→原生 Docker + alphaid 懒加载路由误判澄清
+
+**工作内容:**
+1. **run #68 验证成功** — SQLite 父目录修复推送后，**nebula Test 三版本全绿**；剩余失败仅 E2E（`lookup docker on 127.0.0.53:53` DIND DNS 在 GH runner 上不可靠）。
+2. **E2E 迁移原生 Docker（P0）** — [ci.yml](file:///d:/MW/.github/workflows/ci.yml) e2e job 去掉 `services: docker:24-dind`、`DOCKER_HOST: tcp://docker:2375`、buildx；ubuntu-latest 自带 Docker（API 1.48）直接跑 `docker compose up -d --build`。
+3. **compose env_file 缺失（P0）** — 6 个 .env 全 gitignored，CI checkout 无 .env → `up` 解析 env_file 直接报错。新增 [gateway/.env.example](file:///d:/MW/ghost-main/gateway/.env.example)、[net_agent_server/.env.example](file:///d:/MW/ghost-main/net_agent_server/.env.example)、[orchestrator/.env.example](file:///d:/MW/orchestrator/.env.example)；ci.yml 加 "Prepare env files" 步骤复制 6 个 .env.example → .env。
+4. **Gateway 模块导入期 /app 写权限崩溃（P0）** — [game_engine.py](file:///d:/MW/ghost-main/gateway/services/game_engine.py) import 期 `mkdir /app/generated_games` 在容器无写权限 → PermissionError。修复：try/except OSError 回退 `tempfile.gettempdir()`。Gateway 52 passed。
+5. **DS 源码被 .gitignore 忽略（P0，webpack 构建失败根因）** — [.gitignore](file:///d:/MW/.gitignore) DS 段把 `src/components/layout/`、`marketing/`、`shared/`、`app/app/` 等核心源码忽略 → CI checkout 缺文件 → `Module not found: TopBar/AuthGuard`。重写 DS 段：仅忽略 node_modules/.next/out/prisma dev 产物，**跟踪全部源码**；扫描解锁的 16 个文件无敏感信息。本地 `tsc --noEmit` + `npm run build` 双通过。
+6. **orchestrator lint** — ruff --fix import 排序修正。
+7. **alphaid /ready /metrics contract 缺失（最后失败点）** — 补 [main.py](file:///d:/MW/alphaid/projects/src/main.py) `/ready` 就绪探针（DB 不可达返回 503）+ 盘活 [observability.py](file:///d:/MW/alphaid/projects/src/api/observability.py) `/metrics`。
+8. **include_router "静默失效" 误判澄清（关键）** — 调试发现 identity_router 12 条路由但 app.routes 无 /api/v1 → 误以为 include_router 全失效。真相：**FastAPI >= 0.140 对 include_router 采用 `_IncludedRouter` 懒加载**，`app.routes` 只含占位对象（无 `path` 属性），实际路由全部生效（TestClient 请求 `/api/v1/identity/me`→401、`/metrics`→200）。之前两次调试输出不同（24 vs 10 条）正是懒加载展开时机差异。修复 [test_contract.py](file:///d:/MW/alphaid/projects/tests/test_contract.py) `test_observability_routes_exist`：改为 TestClient 实际请求 /health /ready /metrics 断言 200。
+9. **占位 API key 清洗（P0 预防）** — [settings.py](file:///d:/MW/alphaid/projects/src/core/settings.py) field_validator 把 `your_api_key_here` 等占位 key 视为未配置 → 空串，避免 CI 带假 key 打真实 LLM 返回 500。已验证 `OPENAI_API_KEY="your_api_key_here"` 时 `settings.llm_api_key == ""`。
+10. **alphaid 全量回归** — contract 8 passed + 全量 **867 passed, 90 skipped**。
+11. **提交与推送** — alphaid 子模块 `043b782`（/ready + key 清洗 + contract 测试，已推送）；主仓库 `ce46795`（子模块指针提升 + .gitignore 加 `.venv-ci/`）；`1fd9f03`（DS 源码跟踪 + gateway /app 回退 + orchestrator lint）→ **已推送 master**。
+
+**结果:** alphaid 867 passed；本地所有已知失败清零；CI run #70 已触发（Monorepo CI queued），待验证 3 Python Test + Registration + all-pass + E2E 全绿。
