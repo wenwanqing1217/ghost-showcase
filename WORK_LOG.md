@@ -530,5 +530,8 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 1. **CI 复跑（69d5823/c33676a）Registration 仍 failure** — 本地 `ALIPAY_DEMO_MODE` 修复后 11/11 通过，但 CI 依旧 503。公共 API 确认 junit artifact 已上传（657B），下载需认证（401）无法直接查看。
 2. **根因定位（关键检查）** — `git ls-tree HEAD alphaid/projects` 显示 **gitlink = be002ab**（无 ALIPAY_DEMO_MODE 修复的旧代码），而子模块实际 HEAD = **c46c7a6**（含修复）。CI 用 `submodules: true` checkout 时拉到 be002ab → Registration 仍跑旧代码 → 503 复现。**主仓库 gitlink 未随子模块提交同步是 CI 仍失败的直接根因**。
 3. **修复** — 更新主仓库 gitlink 指向 c46c7a6 并推送，触发 CI 复跑验证。
+4. **CI run #62 checkout 失败（第二个根因）** — gitlink 更新后 Registration CI 在 checkout 步骤失败：子模块 `wip/2026-07-27` 分支**无 upstream**，c46c7a6 从未推送（远程停在 37021b6）。修复：`git push -u origin wip/2026-07-27`。
+5. **All CI Passed 判定逻辑 bug** — `registration` job 不在 all-pass 的 needs 中：registration 失败只导致 aid 被 skip（skipped 不触发 failure 判断），all-pass 仍显示 success（run #62 实测证实：Registration failure + All CI Passed success）。修复：registration 加入 all-pass needs + 检查。
+6. **飞书命令路由测试补齐** — 新增 [test_feishu_commands.py](file:///d:/MW/nebula/tests/unit/test_feishu_commands.py)（9 用例：kv 参数解析 / 帮助指令 / 前缀路由 / 异常降级 / 非指令回退闲聊），不依赖真实凭证，本地 9/9 通过。
 
-**结果:** gitlink 已更新提交；等待 CI 复跑确认 Registration 通过。
+**结果:** gitlink + 子模块远程推送 + all-pass 判定修复已提交；等待 CI run #63 全绿确认。
