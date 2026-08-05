@@ -14,7 +14,6 @@ GHOST.md 中描述的最终形态：
 > 「一人一生唯一 Alpha-ID + 双大脑架构 + 机器可读资讯生态 + MCP 技能统一适配 + Obsidian 知识闭环 + 合规双边商业生态」
 
 三层用户流：
-- **豆包** → 知识输入 → Obsidian
 - **飞书** → 自然语言调用 → Gateway → 全平台能力
 - **Ghost.html** → Web 展示、注册、聊天、浏览
 
@@ -123,14 +122,14 @@ GHOST.md 和各处代码暗示的未来功能：
 | SMS 真实通道 | 🟡 已接 SDK | P0 | 阿里云余额 |
 | 支付宝人脸认证 | 🟡 真实模式 | P1 | 已在跑 |
 | 记忆图谱可视化 | 🟢 d3.js 有 | P1 | — |
-| 豆包知识采集 | 🔴 未开发 | P1 | 浏览器插件 |
+| 知识采集浏览器插件 | 🟡 有架构 | P1 | Ghost Capture |
 | 工作台意图解析 | 🔴 空壳 | P2 | LLM 接口 |
 | Skill 路由决策 | 🔴 空壳 | P2 | AgentLoop |
 | A2A Agent 网络 | 🔴 代码有未通 | P2 | 网络层 |
 | 飞书机器人 | 🟡 有代码 | P1 | Nebula 常驻 |
 | AI 多 Provider 路由 | 🟡 代码在 Flow | P2 | Flow 迁移 |
 | Computer Use | 🟡 代码在 Flow | P3 | 浏览器自动化 |
-| Obsidian 知识库 | 🟡 Gateway 能搜索 | P2 | 豆包 |
+| Obsidian 知识库 | 🟡 Gateway 能搜索 | P2 | Obsidian 插件 |
 | 商业生态 | 🔴 0 | P4 | — |
 
 ---
@@ -187,7 +186,7 @@ GHOST.md 和各处代码暗示的未来功能：
 | 定义 MVP 用户画像 | 先知道给谁用 |
 | Ghost.html 用框架重写 | 单体 4300 行不可持续 |
 | 工作台面板 9 个面板数据全接 | 用户看到才有信心 |
-| 豆包知识采集浏览器插件 | GHOST.md 里的核心入口之一 |
+| 知识采集浏览器插件 | GHOST.md 里的核心入口之一 |
 | 飞书机器人稳定运行 | 另一个核心入口 |
 
 ---
@@ -233,7 +232,6 @@ GHOST.md 和各处代码暗示的未来功能：
 | **1** | **AgentLoop 接入 API** | 无 | 1-2天 | 在 `api/agent.py` 新建路由 → `POST /chat` 调 `AgentLoop.run()` → 返回流式结果 |
 | **2** | **TwinBrain 接入 AgentLoop** | 前置:1 | 1天 | `AgentLoop.__init__` 传入 `TwinBrain` 实例 → 状态变更时自动写入双链记忆 |
 | **3** | **A2A 协议接入 Gateway** | 前置:1 | 2天 | `a2a.py` 加 HTTP Server → Gateway 加 `/v1/a2a/*` 路由 → 本地 mock 改为真实 HTTP |
-| **4** | **豆包浏览器扩展重建** | 无 | 2天 | 重建 `ghost-capture/` 目录 → content.js 监听 doubao.com DOM → background.js POST 到 Gateway |
 | **5** | **双层网关（私有+公共）** | 无 | 3天 | 拆分当前 Gateway → 私有网关 `:18081`（仅限本地）→ 公共网关 `:18080`（外网访问） |
 | **6** | **飞书机器人稳定运行** | 前置:5 | 1天 | nebula 启动脚本 → 后台驻留 → Gateway 转发飞书消息到 AgentLoop |
 | **7** | **MCP 技能适配中心** | 无 | 1周 | 定义 MCP 技能注册协议 → 技能仓库 → Gateway 发现/调用路由 → 安全沙箱 |
@@ -260,7 +258,6 @@ Phase 1（接死代码 1周）
   ├─ 10.可观测性接入 API
   ├─ 11.故障恢复接入 Gateway
   ├─ 16.Container DI 覆盖 registration.py
-  └─ 4.豆包扩展重建
       │
 Phase 2（上生产 2周）
   ├─ 5.双层网关隔离

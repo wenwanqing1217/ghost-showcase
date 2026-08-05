@@ -33,14 +33,12 @@
 | lphaid/projects/src/fairy | NURO 桌宠人设/语音 | 旁支资产 | ❌ 先冻结 |
 | lphaid/projects/src/tools | 桌面控制/OCR/身份工具 | 旁支资产 | ❌ 先冻结 |
 | ghost-main/gateway | Gateway 统一入口 | 主资产 | ✅ Phase1 可动 |
-| ghost-main/doubao_reader | 豆包日志读取/Obsidian 写入 | 旁支资产 | ❌ 先冻结 |
 | ghost-main/net_agent_server | 路由器管理服务 | 旁支资产 | ❌ 先冻结 |
 | ghost-main/net_client | 网络巡检客户端 | 旁支资产 | ❌ 先冻结 |
 | 
 ebula | 工作流/飞书/自动化服务 | 旁支资产 | ❌ 先冻结 |
 | low | MindFlow 前端与 API | 旁支资产 | ❌ 先冻结 |
 | orchestrator | 双工具编排器 | 旁支资产 | ❌ 先冻结 |
-| ghost-capture | 豆包浏览器扩展 | 旁支资产 | ❌ 先冻结 |
 | docs | 设计/审计/路线/规划 | 决策资料 | ✅ 可读 |
 | scripts | 脚本资产 | 参考资产 | ⚠️ 仅查阅 |
 
@@ -110,7 +108,7 @@ ebula | 工作流/飞书/自动化服务 | 旁支资产 | ❌ 先冻结 |
 | MCP Server | 保留为接入壳 |
 | NURO | 冻结/归档 |
 | MindFlow | 冻结/归档 |
-| 豆包 | 冻结/归档 |
+| Ghost Capture | 冻结/归档 |
 | Net-Agent | 冻结/归档 |
 | Orchestrator | 冻结/归档 |
 | Flow | 冻结/归档 |

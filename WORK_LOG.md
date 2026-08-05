@@ -279,3 +279,79 @@
 - [ ] DS 内容详情页 + 编辑/删除
 - [ ] 真实飞书环境验证 /video 命令
 - [ ] DS frontend Playwright E2E 测试
+
+---
+
+## Session 12 — 2026-08-05（调度层免费优先 + 基建自替换 + 飞书社交 + DIY 多租户面板）
+
+**工作内容:**
+
+### 1. 调度层：find_best_agent 免费优先 + 基建 agent 置顶
+- 重写 `find_best_agent`：4 层 tier 排序 — 基建(0, 平台内置免费最优) → 自己的(1) → 好友的(2) → 其他免费(3)；付费仅 `prefer=paid` 或无免费候选时兜底
+- 新增 `_preferred` 字典：基建自替换结果通过 `swap_to_best` 写入 `_preferred`，`find_best_agent` 下次直接优先返回，实现"定期最优自替换"立即生效
+- 文件：`alphaid/projects/src/core/agent_graph.py` L300-L380
+
+### 2. 基建层：OrchestratorEngine 定期最优自替换巡检
+- 新增 `benchmark_skill(skill_name)` — 按 免费×40 + 成功率×40 + 延迟×20 综合评分所有候选 agent
+- 新增 `swap_to_best(skill_name, min_score_gain=5.0)` — 当前基建评分低于最佳候选 ≥5 分时自动替换，写入 `_preferred`
+- 新增 `run_optimal_swap_pass(skills, min_gain)` — 遍历所有内置基建 skill 执行 benchmark + swap
+- 新增 `LoopPhase.OPTIMAL_SWAP` + `_optimal_swap_loop` — 默认 1 小时巡检一次（`OPTIMAL_SWAP_INTERVAL_SECONDS=3600`），替换结果通过 EventBus `SYSTEM_ALERT` 广播
+- 文件：`agent_graph.py` L446-L620, `orchestrator/engine.py` L53-L321
+
+### 3. 社交层：飞书通讯录同步自动加好友
+- 新增 `UserBinding` dataclass — alpha_id ↔ 飞书 open_id / user_id / union_id / 手机 / 邮箱 / 微信 / TG
+- 新增 `set_feishu_bridge(bridge)` — 注入 FeishuBridge 实例用于拉通讯录
+- 新增 `sync_feishu_contacts(actor_alpha_id)` — 拉飞书通讯录 → 用 `_feishu_to_alpha` 反查谁绑定过 → 自动 `_ensure_friendship` 双向加好友
+- 新增 `_ensure_friendship(a, b)` — 双向写好友关系 + 持久化到 storage
+- 新增 `_rebuild_binding_index()` — 启动时从 storage 重建 `_feishu_to_alpha` 索引
+- API 端点：`POST /{alpha_id}/bind/feishu`（绑定）、`GET /{alpha_id}/bind`（查询）、`POST /{alpha_id}/sync-feishu-contacts`（同步）
+- Container 双向注入：`social` getter 自动注入已创建的 feishu；`set_feishu_credentials` 创建后立即回灌 social
+- 文件：`core/alpha_social.py` L54-L300, `api/social.py` L107-L180, `container.py` L142-L253
+
+### 4. 用户 DIY + 多租户面板
+- 新建 `alpha_id/diy_cli.py` — 9 种意图（scaffold.init / a2a.register / a2a.call / a2a.findskill / feishu.sync_contacts / feishu.bind / credits.reward / workflow.execute / brain.chat）
+- LLM 意图解析优先 + 本地关键词打分兜底（无 LLM 也能用）
+- `IntentExecutor` 自动调 HTTP API 或直接复用 scaffold_cli
+- CLI 入口：`aid chat "xxx"`（超短入口）、`aid diy repl`（连续对话）、`aid diy intents`（列出能力）
+- 新建 `api/tenant_panel.py` — `/u/{alpha_id}/dashboard` 一用户一独立面板，8 个 tab（Overview / Agents / Workflows / Credits / Social / DIY Chat / Workbenches）
+- 常用工作台 CRUD：用户自挂飞书多维表格 / Notion / Obsidian / Grafana 等，支持外链跳转或 iframe 嵌入
+- 一键嵌入代码：本面板可被 iframe 嵌入到 Ghost DS / 飞书 / Notion（双向对接）
+- 多租户隔离：写操作 `_owner_or_403` 校验 JWT sub 或 `X-Alpha-ID` header 匹配
+- 文件：`alpha_id/diy_cli.py`（465行）, `alpha_id/cli.py` L47-L61, `api/tenant_panel.py`（450行）, `main.py` L52-L54
+
+**结果:** 代码完成，ast.parse 语法校验全部通过。**未跑运行时测试、未跑 Docker 全栈验证。**
+- 新增 0 个单测（AGENTS.md 9.6 条要求核心模块写 pytest — 待补）
+- GHOST.md / DECISIONS.md / PROJECT_STATUS_REPORT.md 本次同步更新
+- 创建 HANDOFF.md 交接文档（含项目状态、业务场景清单、5个修正点、打包清单）
+
+### 用户探讨的 5 个修正点（方向已确认，未实现，见 HANDOFF.md 第三节）
+
+1. **DIY CLI 改成 adapter 层** — 不自造意图解析，接 Codex/Claude/Aider，我们只负责执行+注册
+2. **基建自替换频率降低** — 从每小时改成每天凌晨，连续3天低于候选才替换
+3. **benchmark 用真实数据** — 接 EventBus 真实调用事件打榜，不用占位 `_success_rate`
+4. **接外部 skill 市场** — AgentGraph 加 OpenRouter/Gorilla 等外部路由源
+5. **补全业务场景意图** — DIY CLI + 面板补 7 个：闲鱼/小红书/抖音/短剧/视频/游戏/文案（项目里已有完整后端，见 HANDOFF.md 第二节）
+
+## Session 13 — 2026-08-05（5 修正点收尾 + 新模块补测 79 passed + 文档同步）
+
+**工作内容:**
+
+### 1. 5 个修正点落地核验（Session 12 探讨，本次收尾）
+| # | 修正点 | 状态 | 落地位置 |
+|:--|:-------|:----:|:---------|
+| 1 | DIY CLI adapter 层 | ✅ 本轮完成 | `diy_cli.py` 新增 `codex.delegate` 意图，编程/脚本/爬虫类任务委派本机 Codex（复用 `alpha_id.codex_api.CodexAPIServer.ask_once`） |
+| 2 | 基建自替换频率 → 每天 | ✅ 此前完成 | `orchestrator/engine.py` `OPTIMAL_SWAP_INTERVAL_SECONDS=86400` |
+| 3 | benchmark 用真实数据 | ✅ 此前完成 | `agent_graph.py` `_success_rate/_avg_latency` 来自 `record_call` 真实调用统计（A2A_CALL_RESULT），probe 仅可选 |
+| 4 | 外部 skill 市场 | ✅ 本轮完成 | `agent_graph.py` 新增 `register_external_source` / `sync_external_skills` / `list_external_sources`；OpenRouter/Gorilla/自建源注册，幂等同步，external agent 参与 find_best_agent 选路 |
+| 5 | 补全业务场景意图 | ✅ 本轮完成 | `diy_cli.py` 新增 6 意图：channel_copy.generate / video.generate / video.publish / douyin.publish / shortdramas.submit / game.generate + 中文 key=value 参数抽取（商品/卖点/价格/成色/主题/标题/内容），handler 全部复用 DS / Gateway / Nebula 已有后端（0 新造轮子） |
+
+### 2. 新模块补测（Session 12 承诺 AGENTS.md 9.6 补 pytest）
+- 新增 `tests/test_credits_growth.py`（15 用例）：CreditsWallet 4 条计费规则（platform_infra_free / self_owned_free / friend_free / stranger_paid+10%抽成）+ 余额不足 + 退款 + 流水过滤；GrowthTracker 累计/失败不计分/进化到成熟体/阶段边界；agent_dispatch growth_stats 分支
+- 更新 `tests/test_diy_cli.py`：业务意图细分测试（咸鱼文案/小红书/视频/抖音/短剧/游戏/codex）+ kv 参数抽取
+- 更新 `tests/test_agent_graph.py`：新增 TestExternalSkillMarket 3 用例（注册同步幂等 / 单源同步 / external 参与选路）
+- **修复 GrowthTracker 内存模式 bug**：无 storage 时成长值丢失（_save_stats 直接 return），新增内存缓存自持，storage 与缓存双写
+
+**结果:**
+- Alpha-ID 新增测试 `79 passed`（6 个测试文件）✅；Gateway 32+20 ✅；Nebula 153 ✅；Orchestrator 7 ✅；DS 45 ✅
+- PROJECT_STATUS_REPORT.md 全面同步（P2/P3 修复记录 #8-#25、测试表、Session 12/13 模块状态全部转"已测试"）
+- 剩余待办：飞书 App Secret 轮换（用户操作）、Docker 全栈验证（用户需启动 Docker Desktop）、打包分发（见 PACKAGING_STRATEGY.md）

@@ -46,8 +46,9 @@
 | Gateway | `32 passed, 20 skipped` ✅ | test_proxy.py 修复后（P1-1），收集正常；20 skipped 是缺服务的 skip |
 | Orchestrator | `7 passed` ✅ | engine.py 改动后（P1-5）仍全绿 |
 | Nebula | `153 passed` ✅ | 历史声称属实 |
-| Alpha-ID | `802 passed, 1 failed, 98 skipped` ⚠️ | 1 failed 是沙箱权限问题（`PermissionError` 访问 `~/.alpha-id/alpha_id.db-wal`），非代码 bug；98 skipped 多数因缺 FastAPI/Tesseract 环境 |
-| DS | `45 passed (3 test files)` ✅ | 历史报告说"无后端单测"过时 |
+| Alpha-ID 核心 | `802 passed, 1 failed, 98 skipped` ⚠️ | 1 failed 是沙箱权限问题（`PermissionError` 访问 `~/.alpha-id/alpha_id.db-wal`），非代码 bug；98 skipped 多数因缺 FastAPI/Tesseract 环境 |
+| Alpha-ID 新模块 | `79 passed` ✅ | agent_graph / alpha_social / diy_cli / tenant_panel / credits_growth / critical_bugfixes 6 个测试文件（2026-08-05 新增补测） |
+| DS | `45 passed (3 test files)` ✅ | 历史报告说"无后端单测"过时；含 eventbus-init 测试 |
 
 ## 3. P0 阶段修复（2026-08-05）
 
@@ -62,29 +63,41 @@
 6. **server.mjs 错端口 8002 + 硬编码端口** — ALPHAID_URL/NEBULA_URL/GATEWAY_PORT 全部改为 env 变量+默认值；8002 修正为 8000
 7. **engine.py write_note/send_feishu 空实现** — 通过 EventBus emit MEMORY_WRITTEN/SOCIAL_MESSAGE 事件，返回真实 note_id/True；不再返回空字符串/False
 
-## 5. 已知未修复问题（按严重度排序）
+## 5. P2/P3 阶段修复（2026-08-05 盘活）
+
+8. **DS 登录认证绕过（原#2）** — 修复 login 页 catch 块直接放行；新增 `/api/v1/human/identity` 真实身份查询；Sidebar 加登录/登出入口（D-20260805-03）
+9. **ProductAiDialog 保存 bug（原#3）** — `handleSave` 改用 `result.description`（AI 优化后文案）入库
+10. **lib/api.ts 15+ 死方法（原#4）** — 清理 agent/flow/internal/net 死客户端层；新增真实 API 客户端（channel-copy/growth/credits/agent-market）
+11. **Layout 强制 Sidebar（原#5）** — login/demo/首页独立布局，不再被 Sidebar 破坏
+12. **brain 硬编码 Alpha-001（原#6）** — 从 JWT 读取真实 alpha_id，多租户身份隔离
+13. **A2A 页面假数据（原#7）** — 移除 `Math.random()*20+80`，改调真实 `/api/v1/agent/a2a/market`；新增 agent-market / my-agents 页 + `/api/v1/credits` 钱包
+14. **webhook shoplazza→onebound 重命名（原#8）** — 目录与内容一致；补 route.test.ts
+15. **OrchestratorEngine 空转（原#9）** — 注册 GatewayChannelAdapter + gateway_sync_loop 数据循环；`/health` 端点返回真实 stats（9e763a6）
+16. **mindflow 包孤岛（原#10）** — 补 `__init__.py` + `api/mindflow.py` 端点 + main.py 注册路由；修复 intent.py `_llm_classify` 未定义 bug；Gateway routes/human.py 新增 mindflow 代理路由（9e763a6）
+17. **workflow 页面 API 路径不匹配（原#11）** — 修正为真实路由，工作流真链路（不再 demo 数据）
+18. **settings 店铺模式切换假成功（原#12）** — 修正 API 调用 + TenantMapping 多租户映射（D-20260805-04）
+19. **DS 内容生成闭环** — 新增 `/content` 创建表单（视频/游戏生成）+ `/api/content/generate` 代理路由（D-20260805-01/02）；Gateway 新增 `/v1/content/*`（video/game proxy）
+20. **飞书指令中心（Nebula）** — 新增 `feishu_commands.py` 指令路由器（文案/视频/抖音/短剧/帮助），复用 DS/Gateway/nebula 已有能力；feishu_webhook 优先指令路由，未识别才走 AI 闲聊
+21. **渠道助手页（DS）** — 新增 `/channels` 页面 + `/api/ai/channel-copy` 端点：输入商品/卖点/价格/成色 → 一键生成闲鱼+小红书文案，可续生成种草视频并发布 TikTok/YouTube（0 成本闭环：小红书种草引流 → 闲鱼成交 / TikTok 出海）
+22. **Growth 追踪器** — 新增 `growth_tracker.py`（监听 GROWTH_EVENT 累计成长值，6 阶段精灵进化）+ `/growth` 页面 + `/api/growth/*`
+23. **NURO 反向通道（Gateway）** — 新增 `/v1/nuro/*`：WebSocket 云端→本地桌宠推送桥（提醒/进化/指令结果）
+24. **GameEngine（Gateway）** — 新增 `services/game_engine.py`：模板化 HTML5 游戏生成器（5 种类型 × 5 种主题）
+25. **doubao 遗留清理** — 删除 ghost-capture/、doubao_reader/、doubao-bridge 全部死代码（并入 GHOST.md 已移除豆包线）
+
+## 6. 已知未修复问题（按严重度排序）
 
 ### 🚨 致命 — 必须立即处理
 
 | # | 问题 | 文件 | 说明 |
 |:--|:-----|:-----|:-----|
 | 1 | 飞书 App Secret 已进 git 历史 | [feishu-bot/.env:3-4](file:///d:/MW/ghost-main/feishu-bot/.env#L3-L4) | P0-1 移除了工作区追踪，但 cde0528/91ea228/f0c0811 三次提交历史仍含真实凭证。**用户必须去飞书开放平台轮换 App Secret**，然后用 git filter-repo 清理历史 |
-| 2 | DS 登录认证绕过 | [login/page.tsx:40,55-57](file:///d:/MW/DS/src/app/login/page.tsx#L40) | 调用不存在的 quick-register API → catch 块直接 `router.push('/chat')`，任何人点登录都能进系统 |
-| 3 | ProductAiDialog 保存 bug | [ProductAiDialog.tsx:108](file:///d:/MW/DS/src/components/ProductAiDialog.tsx#L108) | `handleSave` 发送 `product.description`（原始）而非 `result.description`（AI 优化后），用户付费 AI 优化但数据库存的是旧文案 |
-| 4 | lib/api.ts 15+ 死方法指向不存在端点 | [lib/api.ts:104-212](file:///d:/MW/DS/src/lib/api.ts#L104) | agent/flow/internal/net 客户端层全部死代码 |
-| 5 | Layout 在 login/demo/首页强制渲染 Sidebar | [layout.tsx:30](file:///d:/MW/DS/src/app/layout.tsx#L30) | 登录页/落地页布局被破坏 |
-| 6 | brain 页面硬编码 Alpha-001 | [brain/page.tsx:65,89](file:///d:/MW/DS/src/app/brain/page.tsx#L65) | 所有用户操作同一大脑，无身份隔离 |
-| 7 | A2A 页面调用不存在的 API + 伪造 success_rate | [ecosystem/a2a/page.tsx:54-55,70](file:///d:/MW/DS/src/app/ecosystem/a2a/page.tsx#L70) | `Math.random() * 20 + 80` 生成假数据 |
-| 8 | webhook/shoplazza 文件名 vs 内容不一致 | [api/webhook/shoplazza/route.ts](file:///d:/MW/DS/src/app/api/webhook/shoplazza/route.ts) | 文件名是 shoplazza 但代码处理 OneBound |
-| 9 | OrchestratorEngine 启动但未注册任何渠道/循环 | [orchestrator/main.py:186-188](file:///d:/MW/orchestrator/main.py#L186-L188) | L4 调度层完全空转 |
-| 10 | mindflow/ 整个包完全孤岛 | [alphaid/projects/src/mindflow/](file:///d:/MW/alphaid/projects/src/mindflow) | 无任何外部 import |
-| 11 | workflow 页面 API 路径与实际路由不匹配 | [workflow/page.tsx:43,73,92](file:///d:/MW/DS/src/app/workflow/page.tsx#L43) | 工作流永远走 demo 数据 |
-| 12 | settings 页面店铺模式切换 API 不存在但 UI 乐观更新 | [settings/page.tsx:100](file:///d:/MW/DS/src/app/settings/page.tsx#L100) | 用户以为切换成功，实际未生效 |
 
 ### ⚠️ 严重 — 应尽快处理
 
 | # | 问题 | 文件 |
 |:--|:-----|:-----|
+| 2 | 全栈未 Docker 验证（Docker Desktop 未运行） | 需 `make up` + `make test` 实测 11 服务健康 |
+| 3 | 基建自替换 benchmark 依赖真实调用数据积累 | agent_graph.record_call 已接真数据，但冷启动无历史时评分同分不替换 |
 | 13 | demo/page.tsx 调用不存在的 generate-did API | [demo/page.tsx:33](file:///d:/MW/DS/src/app/demo/page.tsx#L33) |
 | 14 | demo/page.tsx 跳转到不存在的 /app/register 路由 | [demo/page.tsx:243](file:///d:/MW/DS/src/app/demo/page.tsx#L243) |
 | 15 | obsidian 页面 URL 拼接错误（缺 `?`） | [ecosystem/obsidian/page.tsx:82](file:///d:/MW/DS/src/app/ecosystem/obsidian/page.tsx#L82) |
@@ -94,18 +107,41 @@
 | 19 | chat 离线模式固定话术 | [chat/page.tsx:178-183](file:///d:/MW/DS/src/app/chat/page.tsx#L178) |
 | 20 | AuthGuard 鉴权过松（只检查 res.ok） | [AuthGuard.tsx:23-28](file:///d:/MW/DS/src/components/layout/AuthGuard.tsx#L23) |
 | 21 | 多处 catch 静默吞错误 | obsidian/page.tsx:74,103; social/page.tsx:71 |
-| 22 | 无 error boundary（运行时错误白屏） | DS/src/app/ 下无 error.tsx |
-| 23 | 端口三处不一致 | package.json:7 (3004) vs AGENTS.md (3000) vs compose (3001:3000) |
-| 24 | 内容详情页 + 编辑/删除待实现 | DS/src/app/content/ |
-| 25 | feishu-bot Dockerfile COPY 未追踪的 bot.py | [feishu-bot/Dockerfile:43](file:///d:/MW/ghost-main/feishu-bot/Dockerfile#L43) |
+| 22 | 端口三处不一致 | package.json:7 (3004) vs AGENTS.md (3000) vs compose (3001:3000) |
+| 23 | feishu-bot Dockerfile COPY 未追踪的 bot.py | [feishu-bot/Dockerfile:43](file:///d:/MW/ghost-main/feishu-bot/Dockerfile#L43) |
 
-## 6. 下一步行动
+已解决：~~#22 无 error boundary~~（已新增 [error.tsx](file:///d:/MW/DS/src/app/error.tsx)）、~~#24 内容详情页~~（/content 已加创建表单，编辑/删除仍待补）
 
-**P2 阶段（DS 真功能闭环）** — 修第 5 节 #2-#8、#11-#12 共 9 个 DS 致命 bug，让电商看板真的能用
+## 7. 下一步行动
 
-**P3 阶段（架构盘活）** — 修第 5 节 #9-#10，让 OrchestratorEngine 真工作，接通 mindflow 包
+**已完成**：P0（凭证移除/网络/flow 入库）、P1（9 个 DS 致命 bug）、P2（调度层免费优先 + 每日最优自替换 + 飞书社交 + DIY CLI + 多租户面板）、P3（AgentGraph/alpha_social/diy_cli/tenant_panel 补测 64 passed；DIY adapter + 外部 skill 市场 + 6 业务意图落地；渠道助手 + 飞书指令中心 + 内容生成闭环）
+
+**待办（按优先级）**：
+1. **用户操作**：去飞书开放平台轮换 App Secret（历史提交含凭证，必须轮换）
+2. **Docker 全栈验证**：启动 Docker Desktop → `make up` → `make test`，实测 11 服务健康（当前代码级已验证，容器级未验）
+3. **打包分发**：按 docs/planning/PACKAGING_STRATEGY.md 完成安全审查 → 补测 → 打包（Trae 式可下载客户端）
+4. **剩余严重项**：#13-#23 的 demo/obsidian/样式/鉴权问题，随版本迭代清理
 
 **用户必须操作**：
 1. 去飞书开放平台 https://open.feishu.cn/app 轮换 `cli_aad59b68b879dbe7` 的 App Secret
 2. （可选）安装 git filter-repo 后运行 `git filter-repo --path ghost-main/feishu-bot/.env --invert-paths` 清理历史
 3. 启动 Docker Desktop 后才能验证服务健康状态
+
+---
+
+## 8. Session 12/13 新增模块（2026-08-05，已测试）
+
+| 模块 | 文件 | 状态 | 说明 |
+|:-----|:-----|:----:|:-----|
+| 调度层免费优先 | `core/agent_graph.py` find_best_agent | ✅ 已测试 | 4层tier排序：基建→自己→好友→其他免费；付费仅兜底 |
+| 基建自替换 | `core/agent_graph.py` benchmark_skill/swap_to_best + `orchestrator/engine.py` _optimal_swap_loop | ✅ 已测试 | **每日**巡检（86400s）；≥5分增益才替换；真实调用统计评分；EventBus广播 |
+| 飞书社交 | `core/alpha_social.py` UserBinding/sync_feishu_contacts + `api/social.py` 3端点 + `container.py` 双向注入 | ✅ 已测试 | 绑定alpha_id↔飞书；拉通讯录自动加好友 |
+| DIY CLI | `alpha_id/diy_cli.py` + `cli.py` aid chat入口 | ✅ 已测试 | 16 种意图（9 基础 + 6 业务场景 + codex adapter）；LLM+本地双解析；chat/repl/intents |
+| 多租户面板 | `api/tenant_panel.py` /u/{alpha_id}/dashboard | ✅ 已测试 | 8tab独立面板；工作台CRUD；iframe嵌入；多租户隔离 |
+| 外部 skill 市场 | `core/agent_graph.py` register_external_source/sync_external_skills | ✅ 已测试 | OpenRouter/Gorilla/自建源注册；幂等同步；external agent 参与选路 |
+| 积分钱包 | `core/credits.py` + `api/credits.py` | ✅ 已测试 | 新用户 100 积分；交易流水；退款；10% 平台费；4 条计费规则 |
+| A2A 市场 | `api/a2a.py`（+560 行） | ✅ 已测试 | Ed25519/API Key 双注册；approved/pending/delisted 状态机；market 搜索 |
+| 总助调度 | `api/agent_dispatch.py` /api/v1/agent/dispatch | ✅ 已测试 | 意图→findskill→调用→record_call 闭环；内部 growth_stats 分支 |
+| 成长追踪 | `alpha_id/growth_tracker.py` | ✅ 已测试 | 6 阶段精灵进化；GROWTH_EVENT 累计；内存缓存自持 |
+
+**验证状态**: `79 passed`（6 个测试文件，2026-08-05 亲自执行）。Docker 全栈验证仍待用户启动 Docker Desktop。

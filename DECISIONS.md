@@ -284,7 +284,7 @@
 **状态:** Accepted  
 **背景:** Python 3.12 移除了 `ParseResult.origin` 属性，`routes/internal.py` 中 `urlparse(config.ALPHAID_URL).origin` 报 AttributeError  
 **决定:** 手拼 `f"{scheme}://{netloc}"` 替代 `.origin`  
-**后果:** Gateway 在 Python 3.12 下正常运行，doubao/capture 端点不再报错
+**后果:** Gateway 在 Python 3.12 下正常运行，capture 端点不再报错
 
 ---
 
@@ -493,4 +493,145 @@
 
 ---
 
-*最后更新: 2026-08-04
+---
+
+### D-20260805-01: DS 内容库 Web UI 添加生成表单
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** 内容生成能力仅在飞书 Bot 中可用（/video /game 命令），DS Web 平台的内容页是只读查看器。外部用户访问平台无法生成任何内容。
+**决定:** 在 `/content` 页面添加「创建内容」模态框，包含视频/游戏生成表单，通过 DS API 路由 proxy 到 Gateway
+**后果:** 所有访问 DS 平台的用户都可以直接生成 AI 视频和游戏，不再依赖飞书 Bot
+
+---
+
+### D-20260805-02: DS API 路由代理内容生成请求
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** DS 前端无法直接调用 Gateway（CORS 限制 + URL 暴露），需要中间层代理
+**决定:** 新建 `/api/content/generate` (POST) 和 `/api/content/generate/status/{task_id}` (GET) 路由，使用 proxyToGateway 工具函数转发到 Gateway
+**后果:** 前端通过 DS API 路由间接调用 Gateway，保持 Gateway URL 隐藏，CORS 通过同源策略解决
+
+---
+
+### D-20260805-03: DS 登录页面 + 登出按钮
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** 平台没有显式登录页面，依赖 AuthGuard 自动 quick-register。用户无法主动登录或登出。
+**决定:** 
+1. 新建 `/login` 页面，调用 quick-register 获取 JWT
+2. Sidebar 底部添加「退出登录」按钮，调用 `/api/v1/human/logout`
+3. 未连接状态显示「登录」按钮（链接到 /login）
+**后果:** 用户有明确的登录/登出入口，体验更完整
+
+---
+
+### D-20260805-04: 多租户 TenantMapping 模型
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** 所有 DS 记录的 tenantId 默认为 "default"，没有用户与租户的映射关系。多用户场景下数据无法隔离。
+**决定:**
+1. 新建 `TenantMapping` 模型（alphaId → tenantId 映射）
+2. Gateway TenantMiddleware 从 JWT 提取 alpha_id 作为 tenant_id
+3. DS 提供 `getOrCreateTenantId(alphaId)` 工具函数
+**后果:** 每个 Alpha-ID 用户自动获得独立 tenant namespace，数据隔离生效
+
+---
+
+### D-20260805-05: Gateway MoneyPrinterTurbo 探测路径修正
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** Recovery logic 使用 `/download/{task_id}/final-1.mp4` 探测，但 MoneyPrinterTurbo 实际下载端点为 `/api/v1/download/{task_id}/final-1.mp4`
+**决定:** 修正探测路径为 `/api/v1/download/{task_id}/final-1.mp4`，与 MoneyPrinterTurbo API 一致
+**后果:** Recovery logic 能正确检测已完成但状态未更新的任务
+
+---
+
+### D-20260805-06: 调度层免费优先策略（find_best_agent tier 排序）
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** 平台初期刚起步就收费不利于用户增长；需优先使用免费 agent（平台基建、自己、好友的），付费 agent 仅作兜底  
+**选项:**
+1. 按评分排序不区分免费/付费
+2. 免费优先 + 付费兜底
+3. 完全免费不接入付费 agent
+
+**决定:** 方案 2 — `find_best_agent` 采用 4 层 tier 排序：基建(0) → 自己(1) → 好友(2) → 其他免费(3)，付费仅 `prefer=paid` 或无免费候选时兜底  
+**理由:** 免费优先降低用户使用门槛；基建置顶确保平台内置最优 agent 默认可用；付费兜底保留商业可能性  
+**后果:** 新用户无需充值即可使用平台；基建自替换结果通过 `_preferred` 立即生效
+
+---
+
+### D-20260805-07: 基建层定期最优自替换（OrchestratorEngine + benchmark_skill）
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** 平台基建 agent 应根据现有功能内置最优，省去用户一直找最优工具；需定期自替换  
+**选项:**
+1. 手动评估后手动替换
+2. 基于调用日志自动评分 + 定期巡检替换
+3. 用户投票决定最优
+
+**决定:** 方案 2 — `benchmark_skill` 按 免费×40+成功率×40+延迟×20 评分；`swap_to_best` ≥5 分增益才替换（防抖）；`_optimal_swap_loop` 1 小时巡检一次，结果走 EventBus `SYSTEM_ALERT`  
+**理由:** 全自动免维护；5 分阈值防止频繁抖动；1 小时频率兼顾响应性和稳定性  
+**后果:** 平台基建始终用当前最优免费 agent；替换结果通过 `_preferred` 字典立即生效
+
+---
+
+### D-20260805-08: 飞书通讯录同步自动加好友
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** 社交关系可直接通过飞书通讯录，用户绑飞书后通讯录里也绑了飞书的同事自动互认为平台好友  
+**选项:**
+1. 手动加好友（输入 alpha_id）
+2. 飞书通讯录同步自动匹配
+3. 手机号匹配
+
+**决定:** 方案 2 为主 + 方案 3 辅助 — `UserBinding` 支持 alpha_id↔飞书 open_id/user_id/union_id/手机/邮箱；`sync_feishu_contacts` 拉通讯录 → `_feishu_to_alpha` 反查 → `_ensure_friendship` 双向加好友  
+**理由:** 飞书是主要办公通讯工具，通讯录同步最自然；用户零操作自动建社交网络  
+**后果:** 绑飞书的用户之间自动建好友关系；Container 双向注入确保 FeishuBridge 可用
+
+---
+
+### D-20260805-09: 用户 DIY 对话即实现 + 多租户面板
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** 用户想 DIY 自己的工作台 — 和自己的 Alpha-ID 对话就能实现功能，像自动化编程工具一样接 CLI，一个用户一个平台面板，想干嘛干嘛  
+**选项:**
+1. 只做 CLI，用户记命令
+2. CLI + Web 多租户面板，自然语言对话即实现
+3. 只做 Web 面板
+
+**决定:** 方案 2 — `diy_cli.py` 9 种意图 LLM+本地双解析，`aid chat`/`aid diy repl` CLI 入口；`tenant_panel.py` `/u/{alpha_id}/dashboard` 一用户一面板（8 tab + 工作台 CRUD + iframe 嵌入）  
+**理由:** CLI 和 Web 双入口覆盖不同场景；LLM 解析优先但无 LLM 也能用（本地关键词兜底）；多租户隔离安全  
+**后果:** 用户用自然语言即可 DIY 功能；常用工作台可双向对接（挂进来 / 嵌出去）
+
+---
+
+### D-20260805-10: Session 12 五个修正点收尾（adapter + 外部市场 + 业务意图）
+
+**日期:** 2026-08-05  
+**状态:** Accepted  
+**背景:** HANDOFF.md 记录 5 个修正点（DIY adapter / 巡检频率 / 真实 benchmark / 外部 skill 市场 / 业务意图），其中巡检频率与真实 benchmark 此前已实现，剩余 3 项本次收尾  
+**选项:**
+1. 不实现，仅在文档标注
+2. 全部落地 + 补测试
+
+**决定:** 方案 2 —
+- DIY CLI 不再自造轮子解析复杂任务：新增 `codex.delegate` 意图，编程/脚本/爬虫类任务委派本机 Codex（复用 `alpha_id.codex_api`）
+- AgentGraph 新增外部 skill 市场：`register_external_source` / `sync_external_skills`（幂等） / `list_external_sources`，OpenRouter/Gorilla/自建源注册，external agent 以 `agent_type="external"` 参与 `find_best_agent` 选路（免费 tier）
+- 业务场景意图补 6 个：channel_copy.generate / video.generate / video.publish / douyin.publish / shortdramas.submit / game.generate；handler 全部复用 DS / Gateway / Nebula 已有 HTTP 端点，中文 key=value 参数抽取（商品/卖点/价格/成色/主题/标题/内容）
+- GrowthTracker 修复：无 storage 时成长值丢失（内存模式 bug），新增内存缓存自持，storage 与缓存双写  
+**理由:** 复用 > 造轮子（项目价值观）；外部市场为未来 Skill 经济留扩展位；意图细分让自然语言直达业务后端  
+**后果:** 新增 6 个测试文件场景，Alpha-ID 新增模块测试 79 passed；冷启动无外部源时 external agent 为空，不影响现有选路
+
+---
+
+*最后更新: 2026-08-05

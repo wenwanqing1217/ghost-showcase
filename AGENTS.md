@@ -163,7 +163,7 @@ docs: update ARCHITECTURE.md with 7-layer architecture
 ## 8. 七层架构速查
 
 ```
-L1 感知层 — 输入来源（飞书/Web/微信/Telegram/Doubao/NURO）
+L1 感知层 — 输入来源（飞书/Web/微信/Telegram/NURO）
 L2 身份层 — DID + 身份验证（Alpha-ID :8000）
 L3 工作流层 — 流程编排（Nebula :2002）
 L4 调度层 — 任务调度（Orchestrator :19090）

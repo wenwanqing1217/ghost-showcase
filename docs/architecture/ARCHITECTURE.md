@@ -24,7 +24,7 @@ ghost-main/
 ├── flow/apps/api/        ← AI 路由 + Computer Use（:3001）
 ├── net-agent/            ← 路由器管理（:18180）
 ├── orchestrator/         ← 任务调度（:19090）
-├── doubao_reader/        ← 豆包桌面日志扫描器
+├── orchestrator/         ← 任务调度（:19090）
 └── docs/                 ← 本文档所在
 ```
 
@@ -59,7 +59,7 @@ gateway/
 ├── routes/
 │   ├── human.py        ← /v1/human/*（身份/聊天/记忆/注册/仪表盘）
 │   ├── agent.py        ← /v1/agent/*（拓扑/订阅）
-│   ├── internal.py     ← /v1/internal/*（豆包/编排/Obsidian）
+│   ├── internal.py     ← /v1/internal/*（编排/Obsidian）
 │   └── net.py          ← /v1/net/*（Net-Agent 代理）
 └── tests/
     ├── conftest.py     ← 测试 fixtures + mock
@@ -116,13 +116,6 @@ async def lifespan(app: FastAPI):
 
 算法：滑动窗口，键 = `功能:客户端IP`
 
-### 2.7 Doubao 扫描器
-
-后台守护线程，每 2 分钟扫描一次豆包桌面 App LevelDB：
-1. 读取所有会话（最多处理 5 个）
-2. POST 到 `/v1/internal/doubao/capture` 存储
-3. 触发 Obsidian 整理 + 批量关联
-
 ---
 
 ## 三、服务依赖地图
@@ -152,11 +145,6 @@ async def lifespan(app: FastAPI):
     │  Nebula  │    │ Net-Agent│    │Orchestrat│
     │  :2002   │    │  :18180  │    │  :19090  │
     └──────────┘    └──────────┘    └──────────┘
-
-┌─────────────┐     ┌─────────────┐
-│ Doubao 扫描器│────→│  Gateway    │  (自调用 /v1/internal/doubao/capture)
-│ (后台线程)   │     │  :18080     │
-└─────────────┘     └─────────────┘
 ```
 
 ### 3.3 数据流
@@ -165,13 +153,6 @@ async def lifespan(app: FastAPI):
 1. 前端 → Gateway（带 X-Request-ID 可选）
 2. Gateway → 路由匹配 → 代理到后端
 3. 后端响应 → 信封封装 → 返回前端
-
-**豆包采集流程：**
-1. 扫描器读 LevelDB → 提取会话
-2. POST → Gateway → `/v1/internal/doubao/capture`
-3. 存储到 Alpha-ID `/memory/store`
-4. 写入 Obsidian vault
-5. 触发整理 + 关联
 
 ---
 
@@ -269,7 +250,7 @@ Phase 3（待开始）：前端重构
 
 Phase 4（持续）：内容填充
   ⏳ 行业资讯采集上量
-  ⏳ 飞书/豆包入口稳定
+  ⏳ 飞书/Web/微信入口稳定
   ⏳ 商业生态 UI
 ```
 
@@ -287,5 +268,4 @@ Phase 4（持续）：内容填充
 | 双层网关 | 私有网关（个人隐私）+ 公共网关（外网通信） |
 | 星点积分 | 平台合规计费介质，1:1 锚定人民币 |
 | 联邦学习 | Agent 技能互通且不泄露原始隐私数据 |
-| Doubao | 豆包桌面 App，扫描其 LevelDB 获取对话 |
 | Obsidian | 本地 Markdown 知识库，双向同步 |

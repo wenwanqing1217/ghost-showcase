@@ -110,7 +110,7 @@
 | `aid_daemon.py` | 守护进程入口 | ✅ 已使用（NURO Ghost 启动） |
 | `main.py` | 另一个入口点 | 待评估 |
 | `collectors/` (8 文件) | 浏览器/ChatGPT/Claude 采集器 | 实验性功能 |
-| `enrichment/` (5 文件) | Doubao 采集 + LLM 丰富 | 实验性功能 |
+| `enrichment/` (5 文件) | LLM 丰富（Doubao 采集已移除） | 实验性功能 |
 | `mining/` (3 文件) | 数据挖掘 | 实验性功能 |
 | `skills/` (3 文件) | 百度 AI 地图等 | 实验性功能 |
 | `profile_schema.py` | 档案 schema | 待评估 |

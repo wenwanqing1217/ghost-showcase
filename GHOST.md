@@ -29,7 +29,6 @@ flowchart TB
         A1[飞书 Bot WS]
         A2[Web/DS :3001]
         A3[NURO 桌宠]
-        A4[Doubao 阅读器]
         A5[CLI]
     end
     
@@ -74,7 +73,7 @@ flowchart TB
 
 | 层级 | 核心服务 | 关键技术 | 职责 | 验证状态 |
 |:----:|:--------|:--------|:-----|:--------:|
-| L1 | 飞书 Bot / Web / NURO / Doubao | WebSocket, HTTP, CLI | 多渠道输入接入 | ✅ 代码已读 |
+| L1 | 飞书 Bot / Web / NURO | WebSocket, HTTP, CLI | 多渠道输入接入 | ✅ 代码已读 |
 | L2 | Alpha-ID (:8000) | FastAPI, TwinBrain, DualChain, A2A | DID 身份、双链记忆、AgentLoop | ⚠️ 35% 有效代码 |
 | L3 | Nebula (:2002) | FastAPI, 10+ route groups | 工作流引擎、飞书WS、微信验证 | ⚠️ 需 Docker 验证 |
 | L4 | Orchestrator (:19090) | OrchestratorEngine, ThreadPool | ToolA/ToolB 串行/并行调度 | ⚠️ 30% 有效代码 |
@@ -100,8 +99,7 @@ flowchart TB
 │              │   /v1/net/*         │              │
 └──────────────┘                     └──────────────┘
        │
-       ├── /v1/internal/doubao ──► Alpha-ID
-       └── /v1/internal/orchestrator ──► Orchestrator :19090
+       ├── /v1/internal/orchestrator ──► Orchestrator :19090
 ```
 
 ---
@@ -146,7 +144,7 @@ flowchart TB
 | 目录 | 核心内容 | 状态 |
 |:-----|:---------|:-----|
 | `app/` | 8 页面 (home, orders, products, settings, chat, memory, workflow, ecosystem) | ✅ 全部可访问 |
-| `app/api/` | 9 路由 (products, orders, stats, sync, shop, health, webhook/shoplazza, fulfill, doubao/chat) | ✅ 已激活 |
+| `app/api/` | 8 路由 (products, orders, stats, sync, shop, health, webhook/onebound, fulfill) | ✅ 已激活 |
 | `components/` | FulfillModal, ProductAiDialog | ✅ 运行中 |
 | `lib/` | gateway-client, eventbus-init, ai, onebound | ✅ Redis Streams + Gateway 代理 |
 | `prisma/` | Shop, Product, Order, SyncLog (tenantId + storeMode) | ✅ PostgreSQL ds schema |
@@ -198,6 +196,9 @@ flowchart TB
 | `GhostDS` | Next.js 电商看板（端口 3001） | DS | `DS/` |
 | `Gateway` | 统一 API 网关（端口 18080） | 网关 | `ghost-main/gateway/` |
 | `Container` | 依赖注入容器（替代模块级全局变量） | globals | `alpha_id/container.py` |
+| `DIY CLI` | 对话即实现（自然语言→意图→自动执行） | chatbot | `alpha_id/diy_cli.py` |
+| `TenantPanel` | 多租户面板（一用户一独立工作台） | dashboard | `api/tenant_panel.py` |
+| `UserBinding` | 用户标识绑定（alpha_id↔飞书/微信/手机等） | binding | `core/alpha_social.py` |
 
 **代码注释规范**：在关键类/函数定义处加 `# TERM:` 注释。
 ```python
@@ -209,15 +210,6 @@ class EventBus:
 ---
 
 ## 6. 三条主线（已验证链路）
-
-### 豆包知识输入线
-```
-Doubao Reader（桌面日志解析）
-  → Gateway /v1/internal/doubao/capture (IP 白名单保护)
-  → Alpha-ID dual-chain/save（记忆存储）
-  → Obsidian vault（本地笔记）
-```
-**状态**: ⚠️ 框架已建，Doubao Reader 需手动触发扫描；Gateway → Alpha-ID 链路代码已验证
 
 ### 飞书助理线
 ```
@@ -282,14 +274,15 @@ OneBound/Shoplazza（货源/店铺）
 | 优先级 | 问题 | 影响 | 建议方案 |
 |:------:|:-----|:-----|:---------|
 | P0 | Docker Desktop 未运行 | 全栈无法验证 | 启动 Docker 后运行 `make up` + `make test` |
-| P1 | Orchestrator ToolA/ToolB 为 stub | 代码调度不可用 | 接入真实生成/优化服务 |
+| P0 | 飞书 App Secret 已进 git 历史 | 安全风险 | 用户去飞书开放平台轮换 + git filter-repo 清理 |
 | P1 | DS 无种子数据 | 看板为空 | 添加 demo seed script |
-| P1 | 测试覆盖率 ~10% | 重构风险高 | 核心模块写 pytest（Gateway 已 53 个） |
+| P1 | 测试覆盖率 ~10% | 重构风险高 | 核心模块写 pytest（Gateway 已 53 个，Alpha-ID 新模块 79 个） |
 | P2 | Feishu bot unhealthy | 容器健康检查失败 | 添加 WebSocket 心跳检测 |
 | P2 | Feishu consumer unhealthy | 容器健康检查超时 | 添加 events:ping 心跳 |
 | P2 | Alpha-ID 35% 有效代码 | 新模块未全部接入 | 逐步接入 AgentFeed → TwinBrain |
 | P3 | Nebula wechat 模块未验证 | 微信 webhook 可能断链 | 运行 wechat 验证脚本 |
 | P3 | DS EventBus 仅在 health 触发 | consumer 不自动启动 | 在 layout 或 middleware 中 import |
+| P3 | 打包分发完全未开始 | 无法下载即用 | 见 docs/planning/PACKAGING_STRATEGY.md |
 
 ---
 

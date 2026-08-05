@@ -216,7 +216,6 @@ install_deskpet.bat                # 一键安装
 | **项目宪法** | [GHOST.md](./GHOST.md) | 完整框架、六层架构、P0/P1/P2任务、启动指南 |
 | **NURO 桌宠** | [alphaid/projects/docs/nuro-desktop-pet.md](./alphaid/projects/docs/nuro-desktop-pet.md) | 桌面精灵架构、14步启动、语音链路、VRAM预算 |
 | **Ghost.html 前端** | [alphaid/projects/docs/ghost-frontend.md](./alphaid/projects/docs/ghost-frontend.md) | 两视图架构、API调用、注册流程 |
-| **豆包阅读器** | [ghost-main/docs/doubao-reader.md](./ghost-main/docs/doubao-reader.md) | LevelDB解析、知识精炼、Obsidian写入 |
 | **端口速查** | [PORTS.md](./PORTS.md) | 所有服务端口、启动命令、Gateway 路由结构 |
 | **旧档归档** | [archive/md_old/](./archive/md_old/) | 历史文档（不再更新） |
 
@@ -225,11 +224,10 @@ install_deskpet.bat                # 一键安装
 ## 四条使用主线
 
 ```
-主线A（知识进）: 豆包聊天 → LevelDB扫描 → 豆包阅读器 → Gateway → Obsidian
-主线B（能力用）: 对话飞书 → Gateway → Alpha-ID/Nebula/Flow
-主线C（统一看）: 打开Ghost.html → Gateway → 后端
-主线D（桌面伴）: NURO桌宠 → 本地Ollama + 双链记忆 + MCP
-主线E（自进化）: Orchestrator → Feed + Capture + Evolution → 持续学习
+主线A（能力用）: 对话飞书 → Gateway → Alpha-ID/Nebula/Flow
+主线B（统一看）: 打开Ghost.html → Gateway → 后端
+主线C（桌面伴）: NURO桌宠 → 本地Ollama + 双链记忆 + MCP
+主线D（自进化）: Orchestrator → Memory + Evolution → 持续学习
 ```
 
 ---
@@ -237,7 +235,6 @@ install_deskpet.bat                # 一键安装
 ## 已确认决策
 
 - 唯一官网 = Ghost.html
-- 豆包 = 知识输入主入口（LevelDB扫描方案）
 - 飞书 = 总对话助理（走Gateway）
 - NURO = 纯本地AI（不依赖Gateway）
 - 不用微信、不用Claude Code
@@ -250,7 +247,7 @@ install_deskpet.bat                # 一键安装
 | 日期 | 版本 | 变更 |
 |:-----|:----|:------|
 | 2026-07-27 | 4.2 | 新增 ToolOrchestrator/CodexAPI/BaiduMap 3个模块，集成飞书代码模式，MCP 工具增至24个 |
-| 2026-07-27 | 4.0 | 全面大修：修正行数、P0标记DONE、新增NURO/豆包板块 |
+| 2026-07-27 | 4.0 | 全面大修：修正行数、P0标记DONE、新增NURO板块 |
 | 2026-07-25 | 3.0 | 全面审计：修正全部行数/路径/状态标记 |
 | 2026-07-25 | 2.0 | 完整重写：整合5份旧文档+全部审计 |
 | 2026-07-25 | 1.0 | 初始整合版 |

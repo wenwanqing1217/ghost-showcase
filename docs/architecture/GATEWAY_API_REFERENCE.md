@@ -191,7 +191,7 @@
 ```json
 {
   "nodes": [
-    {"id": "abc123", "label": "内容摘要", "category": "doubao_chat", "color": "#38bdf8"}
+    {"id": "abc123", "label": "内容摘要", "category": "chat", "color": "#38bdf8"}
   ],
   "edges": [
     {"from": "abc123", "to": "def456", "label": "标签"}
@@ -400,33 +400,6 @@
 ## /v1/internal/* — 内部运营接口
 
 > ⚠️ 这些接口仅限平台内部使用，部分有 IP 白名单限制。
-
-#### `GET /v1/internal/doubao`
-
-返回豆包工作区 HTML 页面。
-
-#### `POST /v1/internal/doubao/capture`
-
-接受豆包会话数据。**仅限本地请求**（IP 白名单：127.0.0.1, ::1, localhost）。
-
-**请求体：**
-```json
-{
-  "session_id": "sess_abc",
-  "bot_id": "bot_123",
-  "messages": [
-    {"role": "user", "content": "你好"},
-    {"role": "assistant", "content": "你好！"}
-  ],
-  "metadata": {"captured_at": 1721890000}
-}
-```
-
-**处理流程：**
-1. 去重、过滤噪声、自动标签
-2. 存储到 Alpha-ID `/memory/store`
-3. 写入 Obsidian vault
-4. 触发 Obsidian 整理
 
 #### `POST /v1/internal/orchestrator/task/submit`
 
