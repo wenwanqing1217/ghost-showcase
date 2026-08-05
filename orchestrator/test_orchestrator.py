@@ -2,9 +2,11 @@
 Tests for OrchestratorEngine tool retry and status endpoints.
 """
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from main import app, _call_tool_with_retry, TOOL_A, TOOL_B, TOOL_A_TIMEOUT, TOOL_B_TIMEOUT, TOOL_MAX_RETRIES
+
+from main import _call_tool_with_retry, app
 
 
 @pytest.fixture
@@ -16,7 +18,7 @@ def anyio_backend():
 async def test_tools_status_when_not_configured():
     """GET /v1/tools/status returns not_configured when Gateway tool URLs are unset."""
     with patch("main.TOOL_A_GATEWAY", ""), patch("main.TOOL_B_GATEWAY", ""):
-        from httpx import AsyncClient, ASGITransport
+        from httpx import ASGITransport, AsyncClient
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
             response = await ac.get("/v1/tools/status")
@@ -31,7 +33,7 @@ async def test_tools_status_when_not_configured():
 @pytest.mark.anyio
 async def test_health_endpoint():
     """GET /health returns ok with task count."""
-    from httpx import AsyncClient, ASGITransport
+    from httpx import ASGITransport, AsyncClient
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         response = await ac.get("/health")
@@ -48,7 +50,6 @@ class TestCallToolWithRetry:
 
     def test_success_on_first_attempt(self):
         """Returns data dict when tool responds 200 on first try."""
-        import httpx
         client = MagicMock()
         resp = MagicMock()
         resp.status_code = 200

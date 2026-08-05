@@ -38,7 +38,15 @@ GAME_STORAGE_DIR = os.getenv("GAME_STORAGE_DIR", "/app/generated_games")
 GAME_PUBLIC_URL = os.getenv("GAME_PUBLIC_URL", "http://localhost:18080/games")
 
 # Ensure storage directory exists
-Path(GAME_STORAGE_DIR).mkdir(parents=True, exist_ok=True)
+# 容器内 /app/generated_games 由 Dockerfile+volume 保证可写；
+# 非容器环境（CI/本地）无法创建根路径目录时回退到系统临时目录，避免导入即崩
+try:
+    Path(GAME_STORAGE_DIR).mkdir(parents=True, exist_ok=True)
+except OSError:
+    import tempfile
+
+    GAME_STORAGE_DIR = str(Path(tempfile.gettempdir()) / "ghost_games")
+    Path(GAME_STORAGE_DIR).mkdir(parents=True, exist_ok=True)
 
 
 # ── Theme Definitions ────────────────────────────────────────────────────────
