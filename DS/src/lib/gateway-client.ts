@@ -2,7 +2,7 @@
  * Gateway API Client — routes ecommerce requests through Gateway
  * 
  * In production (Docker): browser → Gateway (:18080/v1/ecom/*) → DS API
- * In development: browser → DS API routes directly (localhost:3004/api/*)
+ * In development: browser → DS API routes directly (localhost:3000/api/*)
  * 
  * The Gateway provides:
  * - Tenant injection (X-Tenant-ID header)

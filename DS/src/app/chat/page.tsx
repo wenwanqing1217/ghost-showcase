@@ -175,10 +175,11 @@ export default function ChatPage() {
       if (demoMode) {
         // 离线模式：本地演示回复（更快）
         await new Promise(r => setTimeout(r, 500 + Math.random() * 300));
+        const q = input.trim().slice(0, 40);
         const replies = [
-          `收到你的消息了。当前处于离线演示模式，Gateway 未连接。\n\n消息已记录到本地会话，待 Gateway 恢复后可同步。`,
-          `你好！当前为离线模式。你的消息已保存。\n\n如需完整功能，请检查 Gateway 服务状态。`,
-          `离线模式运行中。你的输入已接收。\n\n连接恢复后将自动同步记忆链。`,
+          `离线演示模式收到：「${q}」\n\n消息已记录到本地会话，待 Gateway 恢复后可同步。`,
+          `你好！当前为离线模式，已保存「${q}」。\n\n如需完整功能，请检查 Gateway 服务状态。`,
+          `离线模式运行中，已接收「${q}」。\n\n连接恢复后将自动同步记忆链。`,
         ];
         const reply = replies[Math.floor(Math.random() * replies.length)];
         const assistantMsg: ChatMessage = {

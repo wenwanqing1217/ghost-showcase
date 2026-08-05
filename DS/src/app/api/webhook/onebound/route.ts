@@ -14,50 +14,13 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import crypto from 'crypto';
-import { ensureEventBusReady, getEventBusInstance } from '@/lib/eventbus-init';
+import { ensureEventBusReady } from '@/lib/eventbus-init';
+import { verifySignature, publishEvent } from '@/lib/onebound-webhook';
 
 // Lazy EventBus initialization using shared module
 // (Next.js doesn't have a server startup hook, so we lazy-init on first request)
 
 export const dynamic = 'force-dynamic';
-
-// Webhook 签名验证密钥（必须配置，否则拒绝所有请求）
-const WEBHOOK_SECRET = process.env.ONEBOUND_WEBHOOK_SECRET || '';
-
-/**
- * 验证 OneBound Webhook 签名
- */
-export function verifySignature(body: string, signature: string | null): boolean {
-  if (!WEBHOOK_SECRET) {
-    console.error('[Webhook] ONEBOUND_WEBHOOK_SECRET 未配置，拒绝请求');
-    return false;
-  }
-  if (!signature) return false;
-
-  const expected = crypto
-    .createHmac('sha256', WEBHOOK_SECRET)
-    .update(body)
-    .digest('hex');
-
-  const sigBuf = Buffer.from(signature);
-  const expBuf = Buffer.from(expected);
-  if (sigBuf.length !== expBuf.length) return false;
-
-  return crypto.timingSafeEqual(sigBuf, expBuf);
-}
-
-/**
- * 发布事件到 Event Bus
- */
-export async function publishEvent(type: string, data: Record<string, unknown>, tenantId: string): Promise<void> {
-  try {
-    const bus = getEventBusInstance();
-    await bus.publish(type as any, data, { tenantId, source: 'onebound-webhook' });
-  } catch (e) {
-    console.error(`[Webhook] Failed to publish event ${type}:`, e);
-  }
-}
 
 export async function POST(req: NextRequest) {
   // Ensure EventBus is initialized (shared init)
@@ -234,7 +197,7 @@ export async function GET() {
       'order.fulfilled',
       'product.updated',
     ],
-    configured: !!WEBHOOK_SECRET,
+    configured: !!process.env.ONEBOUND_WEBHOOK_SECRET,
     note: 'OneBound 为供应链 API，主要交互方式为定时拉取同步。Webhook 为可选增强。',
   });
 }

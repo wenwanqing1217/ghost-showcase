@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getTenantId, tenantWhere } from '@/lib/tenant';
-import { withMetrics } from '@/app/api/metrics/route';
+import { withMetrics } from '@/lib/metrics';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,7 +90,7 @@ async function handler(req: NextRequest): Promise<NextResponse> {
         gameType,
         theme,
         tags: Array.isArray(tags) ? JSON.stringify(tags) : tags,
-        metadata: metadata ? JSON.stringify(metadata) : null,
+        metadata: metadata ? JSON.stringify(metadata) : undefined,
         tenantId,
       },
     });

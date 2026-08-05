@@ -101,7 +101,7 @@ export default function RevenueChart({ data, currency = 'USD' }: RevenueChartPro
                   <text
                     x={x + barWidth / 2}
                     y={y - 4}
-                    fill="var(--text)"
+                    fill="var(--text-primary)"
                     fontSize={10}
                     textAnchor="middle"
                     fontWeight={500}

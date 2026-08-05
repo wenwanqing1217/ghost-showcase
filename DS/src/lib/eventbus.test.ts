@@ -54,7 +54,7 @@ describe('EventBus', () => {
       await bus.publish(EventType.ORDER_PAID, { amount: 100 }, { tenantId: 't1' });
 
       expect(mockFetch).toHaveBeenCalledTimes(1);
-      const [url, options] = mockFetch.mock.calls[0];
+      const [url, options] = mockFetch.mock.calls[0] as unknown as [string, { method: string; body: string }];
       expect(url).toBe('/api/v1/internal/events/emit');
       expect(options.method).toBe('POST');
       expect(JSON.parse(options.body)).toMatchObject({
@@ -72,12 +72,12 @@ describe('EventBus', () => {
       );
       global.fetch = mockFetch;
 
-      await bus.publish(EventType.SUPPLY_PRICE_CHANGED, { price: 50 }, {
+      await bus.publish(EventType.SUPPLY_INVENTORY_UPDATED, { price: 50 }, {
         tenantId: 't1',
         source: 'webhook',
       });
 
-      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      const body = JSON.parse((mockFetch.mock.calls[0] as unknown as [unknown, { body: string }])[1].body);
       expect(body.source).toBe('webhook');
     });
 

@@ -66,15 +66,18 @@ async function main() {
   const now = new Date();
   for (let i = 0; i < FAKE_ORDERS.length; i++) {
     const o = FAKE_ORDERS[i];
+    // 订单创建时间分散到过去 7 天，让看板趋势图有起伏
+    const created = new Date(now.getTime() - (i % 7 + 1) * 86400000);
     await prisma.order.create({
       data: {
         ...o,
         shopId: shop.id,
         tenantId: shop.tenantId,
         currency: 'USD',
-        paidAt: o.status !== 'pending' ? new Date(now.getTime() - i * 86400000) : null,
-        fulfilledAt: o.status === 'fulfilled' ? new Date(now.getTime() - i * 43200000) : null,
-        refundedAt: o.status === 'refunded' ? new Date(now.getTime() - i * 21600000) : null,
+        createdAt: created,
+        paidAt: o.status !== 'pending' ? new Date(created.getTime() + 3600000) : null,
+        fulfilledAt: o.status === 'fulfilled' ? new Date(created.getTime() + 7200000) : null,
+        refundedAt: o.status === 'refunded' ? new Date(created.getTime() + 14400000) : null,
       },
     });
   }

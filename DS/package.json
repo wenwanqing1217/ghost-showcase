@@ -4,7 +4,7 @@
   "private": true,
   "description": "Ghost × Shoplazza 电商运营看板",
   "scripts": {
-    "dev": "next dev -p 3004",
+    "dev": "next dev -p 3000",
     "dev:setup": "node scripts/setup-local.js",
     "build": "next build",
     "start": "next start -p 3000",

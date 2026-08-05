@@ -217,10 +217,13 @@ core/
 # 支付宝密钥源文件（公钥已提取到 .pem）
 alipayPublicKey_RSA2*.txt
 
-# 飞书机器人残留（保留 README + 核心代码 + 测试）
+# 飞书机器人残留（保留 README + 核心代码 + 测试 + Docker 构建所需文件）
 ghost-main/feishu-bot/
 !ghost-main/feishu-bot/README.md
 !ghost-main/feishu-bot/feishu_consumer.py
+!ghost-main/feishu-bot/bot.py
+!ghost-main/feishu-bot/requirements.txt
+!ghost-main/feishu-bot/feishu_service.py
 !ghost-main/feishu-bot/tests/
 
 # 阿里云密钥备份

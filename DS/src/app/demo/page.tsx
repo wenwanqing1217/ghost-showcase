@@ -28,24 +28,9 @@ export default function DemoPage() {
     setError('');
     setStep(2);
 
+    // 演示页定位：纯前端模拟 DID 生成过程（不调用真实注册 API，
+    // 避免 404 噪音请求；真实注册请走 /register 页）
     try {
-      // 调用真实 DID 生成 API
-      const res = await fetch('/api/v1/register/generate-did', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const data = await res.json();
-      if (data.id || data.did) {
-        setDid(data.id || data.did || '');
-        setPubkey(data.public_key || data.pubkey || '');
-        setMethod(data.method || 'Ed25519');
-        setStep(3);
-      } else {
-        throw new Error(data.error || data.message || '生成失败');
-      }
-    } catch (err: any) {
-      // API 不可用时降级为模拟
-      console.warn('DID API fallback:', err.message);
       await new Promise(r => setTimeout(r, 1500));
       const mockDid = 'did:aid:' + Array.from({ length: 36 }, () =>
         'abcdefghijklmnopqrstuvwxyz0123456789'[Math.floor(Math.random() * 36)]

@@ -1,0 +1,6 @@
+# 飞书 Bot → Codex CLI 桥接
+websockets>=15.0
+httpx>=0.28
+python-dotenv>=1.0
+lark-oapi>=1.7
+redis>=5.0

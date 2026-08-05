@@ -54,11 +54,11 @@ export async function POST(
     if (order.shop.platform === 'onebound' && order.shop.accessToken) {
       try {
         // 从 order.rawData 解析商品信息
-        const rawData = order.rawData ? JSON.parse(order.rawData) : null;
+        const rawData: any = order.rawData ? JSON.parse(order.rawData as string) : null;
         const items = rawData?.items?.map((li: any) => ({
-          productId: li.product_id || li.sku || '',
-          sku: li.sku,
-          quantity: li.quantity || 1,
+          productId: String(li.product_id || li.sku || ''),
+          sku: li.sku ? String(li.sku) : undefined,
+          quantity: Number(li.quantity) || 1,
         })) || [];
 
         if (items.length > 0) {

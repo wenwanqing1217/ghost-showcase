@@ -16,6 +16,8 @@ interface BrainStatus {
 
 interface BrainChatResponse {
   success: boolean;
+  error?: string;
+  detail?: string;
   data?: {
     alpha_id: string;
     reply: string;

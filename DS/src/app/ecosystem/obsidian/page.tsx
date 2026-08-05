@@ -11,6 +11,7 @@ interface Card {
   content: string;
   tags?: string[];
   created_at?: string;
+  updated_at?: string;
   source?: string;
   file_path?: string;
 }
@@ -78,8 +79,8 @@ export default function ObsidianPage() {
     setLoading(true);
     setError('');
     try {
-      const base = filter === 'all' ? '' : `?type=${filter}`;
-      const res = await fetch(`/api/v1/obsidian/cards${base}&limit=50`);
+      const base = filter === 'all' ? '?limit=50' : `?type=${filter}&limit=50`;
+      const res = await fetch(`/api/v1/obsidian/cards${base}`);
       if (res.ok) {
         const data = await res.json();
         setCards(data.data?.cards || data.data || []);

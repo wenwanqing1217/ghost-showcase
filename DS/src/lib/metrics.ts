@@ -3,6 +3,7 @@
  */
 
 import { Counter, Histogram, Gauge, register } from "prom-client";
+import type { NextRequest, NextResponse } from "next/server";
 
 // ── Metrics Registry ──
 export const registry = register;
@@ -54,4 +55,33 @@ export const activeTenants = new Gauge({
 // ── Helper: get metrics content ──
 export async function getMetrics(): Promise<string> {
   return registry.metrics();
+}
+
+// ── Metrics Middleware ──
+// 放在 lib（非路由文件），遵守 Next.js 路由文件只允许导出 HTTP 方法的规定
+
+export function withMetrics<T extends unknown[]>(
+  handler: (req: NextRequest, ...args: T) => Promise<NextResponse>,
+  routePattern: string,
+) {
+  return async (req: NextRequest, ...args: T): Promise<NextResponse> => {
+    const start = Date.now();
+    const method = req.method;
+
+    try {
+      const response = await handler(req, ...args);
+      const duration = (Date.now() - start) / 1000;
+      const status = response.status;
+
+      httpRequestsTotal.labels(method, routePattern, String(status)).inc();
+      httpRequestDurationSeconds.labels(method, routePattern).observe(duration);
+
+      return response;
+    } catch (error) {
+      const duration = (Date.now() - start) / 1000;
+      httpRequestsTotal.labels(method, routePattern, "500").inc();
+      httpRequestDurationSeconds.labels(method, routePattern).observe(duration);
+      throw error;
+    }
+  };
 }

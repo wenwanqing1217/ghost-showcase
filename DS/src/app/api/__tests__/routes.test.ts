@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 // ══════════════════════════════════════════════════════════════════════
 // vi.fn() references (module-top, hoisted, shared across tests)
@@ -38,30 +38,30 @@ const mockShopFindFirst = vi.fn();
 const mockSyncLogCreate = vi.fn();
 const mockSyncLogUpdate = vi.fn();
 
-const MockPrismaClient = vi.fn().mockImplementation(
-  class MockedPrismaClient {
-    order = {
+const MockPrismaClient = vi.fn(function (this: unknown) {
+  return {
+    order: {
       findMany: mockOrderFindMany,
       count: mockOrderCount,
       groupBy: mockOrderGroupBy,
       findFirst: mockOrderFindFirst,
       update: mockOrderUpdate,
       upsert: mockOrderUpsert,
-    };
-    product = {
+    },
+    product: {
       findMany: mockProductFindMany,
       count: mockProductCount,
       upsert: mockProductUpsert,
-    };
-    shop = {
+    },
+    shop: {
       findFirst: mockShopFindFirst,
-    };
-    syncLog = {
+    },
+    syncLog: {
       create: mockSyncLogCreate,
       update: mockSyncLogUpdate,
-    };
-  }
-);
+    },
+  };
+}) as unknown as new () => any;
 
 // ══════════════════════════════════════════════════════════════════════
 // @/lib/onebound — spy on real prototype methods instead of mocking
@@ -76,7 +76,7 @@ async function setupOneBoundSpies() {
   const { OneBoundClient, OneBoundError } = await import('@/lib/onebound');
   spyListAllProducts = vi.spyOn(OneBoundClient.prototype, 'listAllProducts').mockResolvedValue([]);
   spyListAllOrders = vi.spyOn(OneBoundClient.prototype, 'listAllOrders').mockResolvedValue([]);
-  spyCreateFulfillment = vi.spyOn(OneBoundClient.prototype, 'createFulfillmentOrder').mockResolvedValue({});
+  spyCreateFulfillment = vi.spyOn(OneBoundClient.prototype, 'createFulfillmentOrder').mockResolvedValue({} as any);
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -96,10 +96,7 @@ vi.mock('@/lib/metrics', () => ({
   productsTotal: { labels: vi.fn().mockReturnValue({ inc: vi.fn() }) },
   syncOperationsTotal: { labels: vi.fn().mockReturnValue({ inc: vi.fn() }) },
   activeTenants: { set: vi.fn() },
-}));
-
-// withMetrics is identity — don't wrap handler with real metrics logic
-vi.mock('@/app/api/metrics/route', () => ({
+  // withMetrics is identity — don't wrap handler with real metrics logic
   withMetrics: (handler: any) => handler,
 }));
 
@@ -141,10 +138,10 @@ function clearMocks() {
 // Handler references (populated by dynamic import in beforeEach)
 // ══════════════════════════════════════════════════════════════════════
 
-let getOrders: (req: NextRequest) => Promise<ReturnType<typeof NextResponse>>;
-let getProducts: (req: NextRequest) => Promise<ReturnType<typeof NextResponse>>;
-let fulfillOrder: (req: NextRequest, params: { id: string }) => Promise<ReturnType<typeof NextResponse>>;
-let syncData: (req: NextRequest) => Promise<ReturnType<typeof NextResponse>>;
+let getOrders: (req: NextRequest) => Promise<NextResponse>;
+let getProducts: (req: NextRequest) => Promise<NextResponse>;
+let fulfillOrder: (req: NextRequest, args: { params: { id: string } }) => Promise<NextResponse>;
+let syncData: (req: NextRequest) => Promise<NextResponse>;
 
 // ══════════════════════════════════════════════════════════════════════
 // beforeEach — fresh mocks + reinit prisma + import handlers

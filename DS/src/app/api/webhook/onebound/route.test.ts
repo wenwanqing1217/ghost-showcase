@@ -34,17 +34,17 @@ describe('OneBound Webhook', () => {
 
   describe('verifySignature', () => {
     it('should reject when WEBHOOK_SECRET is empty', async () => {
-      const { verifySignature } = await import('./route');
+      const { verifySignature } = await import('@/lib/onebound-webhook');
       expect(verifySignature('body', 'sig')).toBe(false);
     });
 
     it('should reject when signature is null', async () => {
-      const { verifySignature } = await import('./route');
+      const { verifySignature } = await import('@/lib/onebound-webhook');
       expect(verifySignature('body', null)).toBe(false);
     });
 
     it('should reject mismatched signatures', async () => {
-      const { verifySignature } = await import('./route');
+      const { verifySignature } = await import('@/lib/onebound-webhook');
       // Set a secret via env
       const original = process.env.ONEBOUND_WEBHOOK_SECRET;
       process.env.ONEBOUND_WEBHOOK_SECRET = 'secret123';
@@ -62,7 +62,7 @@ describe('OneBound Webhook', () => {
 
   describe('publishEvent', () => {
     it('should call EventBus.publish with correct args', async () => {
-      const { publishEvent } = await import('./route');
+      const { publishEvent } = await import('@/lib/onebound-webhook');
 
       // Should not throw — mock handles the actual publish
       await expect(publishEvent('order:created', { orderId: '123' }, 'tenant-1'))

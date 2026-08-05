@@ -25,6 +25,7 @@ interface ContentItem {
 
 interface GeneratingItem {
   taskId: string;
+  id?: string;
   type: 'video' | 'game';
   status: string;
   progress?: number;
@@ -33,7 +34,26 @@ interface GeneratingItem {
   aspectRatio?: string;
   gameType?: string;
   theme?: string;
+  contentType?: string;
+  videoUrl?: string;
+  tags?: string[];
+  createdAt?: string;
   startedAt: string;
+}
+
+type AnyContent = ContentItem | GeneratingItem;
+
+function displayTime(item: AnyContent): string {
+  const iso = (item as { createdAt?: string; startedAt?: string });
+  const t = iso.createdAt || iso.startedAt;
+  return t
+    ? new Date(t).toLocaleString('zh-CN', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—';
 }
 
 export default function ContentPage() {
@@ -63,7 +83,7 @@ export default function ContentPage() {
   const pollingIntervals = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   // ── 发布状态 ──
-  const [publishModal, setPublishModal] = useState<{ item: ContentItem } | null>(null);
+  const [publishModal, setPublishModal] = useState<{ item: ContentItem | GeneratingItem } | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [publishPlatforms, setPublishPlatforms] = useState<string[]>(['tiktok']);
   const [publishTitle, setPublishTitle] = useState('');
@@ -124,7 +144,7 @@ export default function ContentPage() {
   };
 
   // ── 打开发布弹窗 ──
-  const openPublishModal = (item: ContentItem) => {
+  const openPublishModal = (item: ContentItem | GeneratingItem) => {
     setPublishModal({ item });
     setPublishTitle(item.title);
     setPublishPlatforms(['tiktok']);
@@ -640,10 +660,7 @@ export default function ContentPage() {
 
                       {/* Timestamp */}
                       <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8, fontFamily: "'JetBrains Mono', monospace" }}>
-                        {new Date(item.createdAt).toLocaleString('zh-CN', {
-                          month: 'short', day: 'numeric',
-                          hour: '2-digit', minute: '2-digit'
-                        })}
+                        {displayTime(item)}
                       </div>
 
                       {/* 发布按钮：仅视频且已完成时显示 */}
