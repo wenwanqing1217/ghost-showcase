@@ -27,6 +27,7 @@ from contextlib import asynccontextmanager
 from api.routes import router as net_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 
 from net_agent_common.config.settings import (
     GATEWAY_URL,
@@ -82,6 +83,26 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     return {"service": "net-agent", "status": "ok"}
+
+
+@app.get("/metrics")
+async def metrics():
+    """Prometheus 指标（纯文本格式）— 供 gateway 聚合与 Prometheus 抓取。"""
+    import os
+    import time
+
+    uptime = time.time() - os.environ.get("NETAGENT_START_TIME", time.time())
+    return PlainTextResponse(
+        content=(
+            "# HELP netagent_up Net-Agent service up\n"
+            "# TYPE netagent_up gauge\n"
+            f"netagent_up 1.0\n"
+            "# HELP netagent_uptime_seconds Net-Agent uptime\n"
+            "# TYPE netagent_uptime_seconds gauge\n"
+            f"netagent_uptime_seconds {max(0.0, uptime)}\n"
+        ),
+        media_type="text/plain",
+    )
 
 
 app.include_router(net_router)

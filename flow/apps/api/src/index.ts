@@ -16,7 +16,7 @@
 
 import Fastify from 'fastify'
 import cors from '@fastify/cors'
-import { registerHealthRoutes } from './routes/health'
+import { registerHealthRoutes, registerMetricsRoutes } from './routes/health'
 import { registerWorkflowRoutes } from './routes/workflow'
 import { registerAidRoutes } from './routes/aid'
 import { registerMapRoutes } from './routes/map'
@@ -53,8 +53,8 @@ async function build() {
     app.log.warn('API_KEY 未设置 — 所有端点公开访问。生产环境请设置 API_KEY 环境变量。')
   } else {
     app.addHook('onRequest', async (request, reply) => {
-      // 健康检查端点免认证
-      if (request.url.startsWith('/health')) return
+      // 健康检查 / 指标端点免认证
+      if (request.url.startsWith('/health') || request.url === '/metrics') return
       const provided = request.headers['x-api-key']
       if (!provided || provided !== API_KEY) {
         reply.status(401).send({ success: false, error: '未授权：缺少或无效的 x-api-key' })
@@ -81,6 +81,7 @@ async function build() {
 
   // 注册路由
   await app.register(registerHealthRoutes, { prefix: '/health' })
+  await app.register(registerMetricsRoutes) // 根路径 /metrics（Prometheus 抓取）
   await app.register(registerWorkflowRoutes, { prefix: '/workflow' })
   await app.register(registerAidRoutes, { prefix: '/aid' })
   await app.register(registerMapRoutes, { prefix: '/map' })

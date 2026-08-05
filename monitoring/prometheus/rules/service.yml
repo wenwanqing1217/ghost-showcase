@@ -1,0 +1,49 @@
+# Ghost Platform 告警规则
+# 企业级告警：服务宕机 / Engine 停止 / 任务失败 / 内存压力
+
+groups:
+  - name: ghost-platform
+    rules:
+      # ── 服务宕机（up==0 持续 1 分钟） ──
+      - alert: ServiceDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "服务 {{ $labels.job }} 宕机"
+          description: "{{ $labels.job }} ({{ $labels.instance }}) 已超过 1 分钟不可达。"
+
+      # ── OrchestratorEngine 停止 ──
+      - alert: EngineStopped
+        expr: orchestrator_engine_running == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OrchestratorEngine 已停止"
+          description: "调度引擎 (alpha_id={{ $labels.alpha_id }}) 已停止超过 2 分钟。"
+
+      # ── 任务失败率异常（累计失败 ≥ 5 且成功率 < 60%） ──
+      - alert: HighTaskFailureRate
+        expr: |
+          sum(rate(orchestrator_tasks_failed_total[5m]))
+            / clamp_min(sum(rate(orchestrator_tasks_total[5m])), 0.001)
+            > 0.4
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "任务失败率过高"
+          description: "调度任务失败率超过 40%（5 分钟窗口）。"
+
+      # ── 内存压力（已用 > 85%） ──
+      - alert: HighMemoryUsage
+        expr: |
+          process_resident_memory_bytes / 1024 / 1024 > 1024
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.job }} 内存超过 1GB"
+          description: "{{ $labels.job }} 常驻内存超过 1024 MB（5 分钟窗口）。"

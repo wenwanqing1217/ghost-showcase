@@ -44,8 +44,7 @@ async def monitoring_metrics(request: Request):
     """
     import time
 
-    # Use the shared httpx client from proxy module
-    from services.proxy import _proxy_request
+    import httpx
 
     services = {
         "gateway": f"http://localhost:{config.GATEWAY_PORT}/metrics",
@@ -61,32 +60,27 @@ async def monitoring_metrics(request: Request):
     health = {}
 
     async def _fetch(name: str, url: str) -> tuple[str, dict]:
+        # /metrics 返回 Prometheus 纯文本，不能用 JSON 解析器（_proxy_request），
+        # 必须直接 httpx 抓取文本。
         try:
             start = time.perf_counter()
-            # Use the shared client (connection pool)
-            data = await _proxy_request("GET", url, "")
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                resp = await client.get(url)
             duration = time.perf_counter() - start
 
-            if isinstance(data, dict) and data.get("_error"):
+            if resp.status_code != 200:
                 return name, {
-                    "status": 0,
+                    "status": resp.status_code,
                     "ok": False,
-                    "error": data["_error"],
+                    "error": f"HTTP {resp.status_code}",
                     "duration_ms": round(duration * 1000, 1),
                 }
-
-            # Convert to text for display
-            if isinstance(data, dict):
-                text = "\n".join(f"{k} {v}" for k, v in data.items())
-            else:
-                text = str(data)
-
             return name, {
                 "status": 200,
                 "ok": True,
                 "duration_ms": round(duration * 1000, 1),
-                "size_bytes": len(text),
-                "metrics": text[:5000],
+                "size_bytes": len(resp.text),
+                "metrics": resp.text[:5000],
             }
         except Exception as e:
             return name, {

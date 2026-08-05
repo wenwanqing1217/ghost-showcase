@@ -2,6 +2,11 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# ── 告警规则 ──
+# 独立规则文件（compose 挂载 monitoring/prometheus/rules → /etc/prometheus/rules）
+rule_files:
+  - rules/*.yml
+
 scrape_configs:
   - job_name: "prometheus"
     static_configs:
@@ -18,3 +23,17 @@ scrape_configs:
   - job_name: "orchestrator"
     static_configs:
       - targets: ["orchestrator:19090"]
+  - job_name: "flow"
+    static_configs:
+      - targets: ["flow:3036"]
+  - job_name: "netagent"
+    static_configs:
+      - targets: ["netagent:18180"]
+  - job_name: "ghost-ds"
+    metrics_path: /api/metrics
+    static_configs:
+      - targets: ["ghost-ds:3000"]
+
+# ── 企业级告警：服务宕机 / Engine 停止 / 任务失败 / 内存压力 ──
+# 规则已迁移至独立文件 rules/service.yml（Prometheus 不支持配置内联 rules）
+
