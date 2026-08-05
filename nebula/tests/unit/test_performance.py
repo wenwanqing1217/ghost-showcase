@@ -110,6 +110,12 @@ class TestCacheBackends:
 class TestMetrics:
     """指标注册表测试。"""
 
+    @pytest.fixture(autouse=True)
+    def _require_prometheus(self):
+        from mindflow_map.core.metrics import _PROMETHEUS_AVAILABLE
+        if not _PROMETHEUS_AVAILABLE:
+            pytest.skip("prometheus_client 未安装，跳过指标测试")
+
     def test_increment(self, metrics: MetricsRegistry) -> None:
         metrics.increment("requests_total", labels={"method": "GET"})
         rendered = metrics.render()
