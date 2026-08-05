@@ -189,29 +189,27 @@ jobs:
       DB_USER: ghost
       DB_PASSWORD: ghost-ci-password
       DB_NAME: ghost
-      DOCKER_HOST: tcp://docker:2375
-    services:
-      docker:
-        image: docker:24-dind
-        options: >-
-          --privileged
-          --health-cmd "docker info"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: true
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: "20"
+      - name: Prepare env files
+        run: |
+          # docker compose 解析 env_file 时文件缺失会直接报错（.env 均在 .gitignore 中）
+          cp nebula/.env.example nebula/.env
+          cp alphaid/projects/.env.example alphaid/projects/.env
+          cp ghost-main/gateway/.env.example ghost-main/gateway/.env
+          cp ghost-main/net_agent_server/.env.example ghost-main/net_agent_server/.env
+          cp orchestrator/.env.example orchestrator/.env
+          cp DS/.env.example DS/.env
       - name: Start Docker Compose stack
         run: |
           # 显式列出服务：跳过 MoneyPrinterTurbo（仓库不含该目录）
+          # 使用 runner 原生 Docker（ubuntu-latest 预装），不再依赖 DIND 服务容器
           docker compose up -d --build db redis nebula alphaid flow gateway netagent orchestrator tool-a tool-b ghost-ds
           # Wait for all services to be healthy (max 5 min)
           for i in $(seq 1 60); do
