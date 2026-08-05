@@ -5,12 +5,20 @@ from __future__ import annotations
 import hashlib
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
 
 from mindflow_map.main import app
 from mindflow_map.workflows.engine import WorkflowEngine
 
 client = TestClient(app)
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _close_module_client():
+    """模块测试结束后关闭 TestClient，避免泄漏 portal 线程/事件循环。"""
+    yield
+    client.close()
 
 
 # ---------------------------------------------------------------------------

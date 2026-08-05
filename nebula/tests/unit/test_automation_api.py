@@ -9,7 +9,9 @@ def client():
     from fastapi.testclient import TestClient
 
     from mindflow_map.main import app
-    return TestClient(app)
+    c = TestClient(app)
+    yield c
+    c.close()
 
 
 class TestDouyinAPI:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -12,9 +13,11 @@ from mindflow_map.main import app as _app
 
 
 @pytest.fixture()
-def client() -> TestClient:
-    """同步测试客户端。"""
-    return TestClient(_app)
+def client() -> Iterator[TestClient]:
+    """同步测试客户端（用完即关，避免泄漏 portal 线程/事件循环）。"""
+    c = TestClient(_app)
+    yield c
+    c.close()
 
 
 class TestApiResponseConsistency:

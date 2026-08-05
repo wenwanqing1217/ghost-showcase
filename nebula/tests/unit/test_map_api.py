@@ -15,7 +15,9 @@ from mindflow_map.tools.baidu_map import BaiduMapTool
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    c = TestClient(app)
+    yield c
+    c.close()
 
 
 def _post_json(client: TestClient, path: str, payload: dict):
