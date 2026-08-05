@@ -1,4 +1,4 @@
-"""LLM 客户端，支持多 Provider 自动回退（DeepSeek / 豆包 / Moonshot 等 OpenAI 兼容接口）"""
+"""LLM 客户端，支持多 Provider 自动回退（DeepSeek / Moonshot 等 OpenAI 兼容接口）"""
 
 from __future__ import annotations
 

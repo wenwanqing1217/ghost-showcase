@@ -24,6 +24,9 @@ type 和 action 是两个独立的字段，不要合并成斜杠格式。
 - type="douyin"     + action="publish"  \u2192 发布短剧，如"帮我发一个短剧《xxx》"
 - type="shopify"    + action="optimize" \u2192 店铺优化，如"优化我的 Shopify 店铺"
 - type="shortdramas" + action="precheck" \u2192 内容预审，如"预审一下《xxx》能不能发"
+- type="channel_copy" + action="generate" \u2192 生成闲鱼/小红书文案，如"帮我写个闲鱼文案卖香薰""帮我写小红书种草笔记"
+- type="video_generate" + action="create" \u2192 生成视频，如"帮我做个视频""生成一个香薰种草视频"
+- type="video_publish" + action="upload" \u2192 发布视频到平台，如"把视频发到 TikTok""发布视频 abc123"
 - type="chat"       + action="reply"    \u2192 普通对话，以上都不是
 
 严格返回 JSON，不要额外文字：
@@ -35,7 +38,12 @@ type 和 action 是两个独立的字段，不要合并成斜杠格式。
   "entities": {
     "query": "地点搜索词（map/search 需要）",
     "destination": "目的地（map/navigate 需要）",
-    "title": "短剧标题（douyin/publish 或 shortdramas/precheck 需要）"
+    "title": "标题（douyin/shortdramas/channel_copy/video_generate 需要）",
+    "description": "卖点描述（channel_copy 可选）",
+    "price": "价格（channel_copy 可选）",
+    "condition": "成色（channel_copy 可选）",
+    "task_id": "视频任务 ID（video_publish 需要）",
+    "platforms": "发布平台，逗号分隔（video_publish 可选，默认 tiktok）"
   }
 }
 """

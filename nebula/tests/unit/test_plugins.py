@@ -119,7 +119,16 @@ class TestWorkflowEnginePluginIntegration:
 
     def test_builtin_tools_loaded_by_default(self) -> None:
         engine = WorkflowEngine()
-        assert set(engine.tools) == {"map", "douyin", "shopify", "shortdramas", "chat"}
+        assert set(engine.tools) == {
+            "map",
+            "douyin",
+            "shopify",
+            "shortdramas",
+            "channel_copy",
+            "video_generate",
+            "video_publish",
+            "chat",
+        }
 
     def test_plugin_tools_loaded_from_registry(self) -> None:
         @tool(name="plugin-tool")

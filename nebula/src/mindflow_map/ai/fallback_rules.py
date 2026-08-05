@@ -67,13 +67,86 @@ def parse_by_rules(text: str) -> Dict[str, Any]:
         }
 
     # 电商优化意图
-    shopify_keywords = ["店铺", "电商", "Shopify", "商品", "产品", "文案"]
+    shopify_keywords = ["店铺", "电商", "Shopify", "商品", "产品"]
     if any(kw in text for kw in shopify_keywords):
         return {
             "type": "shopify",
             "action": "optimize",
             "description": "优化店铺",
             "confidence": 0.75,
+        }
+
+    # 渠道文案意图（闲鱼/小红书种草文案）
+    copy_keywords = ["闲鱼文案", "小红书文案", "种草笔记", "写个文案", "帮我写文案", "挂单文案"]
+    if any(kw in text for kw in copy_keywords):
+        # 尝试提取商品名
+        import re as _re
+        product = ""
+        # "卖XX" 或 "XX的文案"
+        m = _re.search(r"卖(.+?)(?:的|文案|$)", text)
+        if m:
+            product = m.group(1).strip()
+        else:
+            m = _re.search(r"(.+?)(?:种草|文案|笔记)", text)
+            if m:
+                product = m.group(1).strip()
+        if not product:
+            product = text.replace("帮我写", "").replace("文案", "").strip()
+
+        return {
+            "type": "channel_copy",
+            "action": "generate",
+            "title": product,
+            "product": product,
+            "description": f"生成{product}文案",
+            "confidence": 0.85,
+        }
+
+    # 视频生成意图
+    video_keywords = ["做个视频", "生成视频", "做个种草视频", "帮我做视频", "生成一个视频"]
+    if any(kw in text for kw in video_keywords):
+        import re as _re
+        subject = ""
+        m = _re.search(r"(?:视频|种草视频)(?:[:：])?\s*(.+)", text)
+        if m:
+            subject = m.group(1).strip()
+        if not subject:
+            m = _re.search(r"(.+?)(?:的)?(?:种草)?视频", text)
+            if m:
+                subject = m.group(1).strip()
+        if not subject:
+            subject = text.replace("帮我做", "").replace("生成", "").replace("视频", "").strip()
+
+        return {
+            "type": "video_generate",
+            "action": "create",
+            "title": subject,
+            "subject": subject,
+            "description": f"生成视频：{subject}",
+            "confidence": 0.85,
+        }
+
+    # 视频发布意图
+    publish_keywords = ["发布视频", "发到tiktok", "发到TikTok", "上传视频", "发到抖音"]
+    if any(kw in text for kw in publish_keywords):
+        import re as _re
+        task_id = ""
+        m = _re.search(r"([a-f0-9]{8,})", text, _re.IGNORECASE)
+        if m:
+            task_id = m.group(1)
+        platforms = "tiktok"
+        if "youtube" in text.lower():
+            platforms = "youtube"
+        elif "instagram" in text.lower():
+            platforms = "instagram"
+
+        return {
+            "type": "video_publish",
+            "action": "upload",
+            "task_id": task_id,
+            "platforms": platforms,
+            "description": f"发布视频到 {platforms}",
+            "confidence": 0.8,
         }
 
     # 默认：对话

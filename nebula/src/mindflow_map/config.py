@@ -82,6 +82,9 @@ class Settings(BaseSettings):
     # Gateway 配置（飞书/微信等第三方回调统一走 Gateway 路由）
     gateway_url: str = "http://localhost:18080"
 
+    # Ghost DS 前端 URL（飞书指令路由调用 DS 的 AI 文案等能力）
+    ds_url: str = "http://localhost:3000"
+
     # 数据库配置（路径固定到项目 data/ 目录，避免从不同目录启动时散落）
     database_url: str = f"sqlite+aiosqlite:///{BASE_DIR / 'data' / 'mindflow_map.db'}"
 

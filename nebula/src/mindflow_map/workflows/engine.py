@@ -232,6 +232,152 @@ class ChatTool(Tool):
             return {"type": "chat", "data": {"reply": "抱歉，我卡壳了，稍后再试试？"}}
 
 
+class ChannelCopyTool(Tool):
+    """渠道文案工具 — 生成闲鱼+小红书两套文案（复用 DS /api/ai/channel-copy）"""
+
+    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        import httpx
+        from mindflow_map.config import settings
+
+        product = params.get("product") or params.get("title") or params.get("text", "")
+        if not product:
+            return {"type": "channel_copy", "data": {"success": False, "error": "缺少商品名"}}
+
+        ds_url = settings.ds_url.rstrip("/")
+        description = params.get("description", "")
+        price = params.get("price", "")
+        condition = params.get("condition", "全新未拆")
+
+        import asyncio
+        async with httpx.AsyncClient(timeout=30) as client:
+            tasks = [
+                client.post(
+                    f"{ds_url}/api/ai/channel-copy",
+                    json={
+                        "platform": platform,
+                        "product": product,
+                        "description": description or None,
+                        "price": price or None,
+                        "condition": condition or None,
+                        "tone": "casual",
+                    },
+                )
+                for platform in ("xianyu", "xiaohongshu")
+            ]
+            responses = await asyncio.gather(*tasks, return_exceptions=True)
+
+        sections = []
+        names = {"xianyu": "🐟 闲鱼", "xiaohongshu": "📕 小红书"}
+        for platform, resp in zip(("xianyu", "xiaohongshu"), responses):
+            name = names[platform]
+            if isinstance(resp, Exception):
+                sections.append(f"{name}\n❌ 生成失败：{resp}")
+                continue
+            try:
+                data = resp.json()
+                if not resp.is_success:
+                    sections.append(f"{name}\n❌ {data.get('error', '未知错误')}")
+                    continue
+                r = data.get("result", {})
+                title = r.get("title", "")
+                body = r.get("body", "")
+                tags = " ".join(r.get("tags", []))
+                sections.append(f"{name}\n【标题】{title}\n【正文】\n{body}\n【标签】{tags}")
+            except Exception as e:
+                sections.append(f"{name}\n❌ 解析失败：{e}")
+
+        reply = "\n\n──────────\n\n".join(sections)
+        return {
+            "type": "channel_copy",
+            "data": {"success": True, "reply": reply, "product": product},
+        }
+
+
+class VideoGenerateTool(Tool):
+    """视频生成工具 — 复用 Gateway /v1/content/video/generate（MoneyPrinterTurbo）"""
+
+    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        import httpx
+        from mindflow_map.config import settings
+
+        subject = params.get("subject") or params.get("title") or params.get("text", "")
+        if not subject:
+            return {"type": "video_generate", "data": {"success": False, "error": "缺少视频主题"}}
+
+        gateway_url = settings.gateway_url.rstrip("/")
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                f"{gateway_url}/v1/content/video/generate",
+                json={
+                    "video_subject": subject,
+                    "video_aspect": "9:16",
+                    "video_language": "zh",
+                    "video_concat_mode": "random",
+                    "paragraph_number": 2,
+                    "n_threads": 2,
+                },
+            )
+            data = resp.json()
+
+        if not resp.is_success:
+            err = data.get("error") or data.get("detail") or f"HTTP {resp.status_code}"
+            return {"type": "video_generate", "data": {"success": False, "error": err}}
+
+        task_id = (
+            data.get("data", {}).get("task_id")
+            if isinstance(data.get("data"), dict)
+            else data.get("task_id")
+        )
+        return {
+            "type": "video_generate",
+            "data": {
+                "success": True,
+                "task_id": task_id,
+                "subject": subject,
+                "reply": f"✅ 视频生成已提交\n主题：{subject}\n任务 ID：{task_id}\n比例：9:16（竖屏）\n\n💡 5-10 分钟后可以查询进度",
+            },
+        }
+
+
+class VideoPublishTool(Tool):
+    """视频发布工具 — 复用 Gateway /v1/content/video/publish（Upload-Post 跨平台）"""
+
+    async def execute(self, params: Dict[str, Any]) -> Dict[str, Any]:
+        import httpx
+        from mindflow_map.config import settings
+
+        task_id = params.get("task_id", "")
+        title = params.get("title") or "AI 生成视频"
+        platforms_raw = params.get("platforms") or "tiktok"
+        platforms = [p.strip() for p in str(platforms_raw).split(",") if p.strip()]
+
+        if not task_id:
+            return {"type": "video_publish", "data": {"success": False, "error": "缺少任务 ID"}}
+
+        gateway_url = settings.gateway_url.rstrip("/")
+        async with httpx.AsyncClient(timeout=300) as client:
+            resp = await client.post(
+                f"{gateway_url}/v1/content/video/publish",
+                json={"task_id": task_id, "title": title, "platforms": platforms},
+            )
+            data = resp.json()
+
+        if not resp.is_success:
+            err = data.get("error") or data.get("detail") or f"HTTP {resp.status_code}"
+            return {"type": "video_publish", "data": {"success": False, "error": err}}
+
+        d = data.get("data", {}) if isinstance(data.get("data"), dict) else data
+        return {
+            "type": "video_publish",
+            "data": {
+                "success": bool(d.get("published")),
+                "request_id": d.get("request_id", ""),
+                "platforms": platforms,
+                "reply": f"✅ 发布已提交\n任务：{task_id}\n标题：{title}\n平台：{', '.join(platforms)}\nRequest ID：{d.get('request_id', '')}",
+            },
+        }
+
+
 class WorkflowEngine:
     """MindFlow 工作流引擎"""
 
@@ -241,6 +387,9 @@ class WorkflowEngine:
             "douyin": DouyinPublishTool(),
             "shopify": ShopifyOptimizeTool(),
             "shortdramas": ShortDramasPrecheckTool(),
+            "channel_copy": ChannelCopyTool(),
+            "video_generate": VideoGenerateTool(),
+            "video_publish": VideoPublishTool(),
             "chat": ChatTool(),
         }
         self._plugin_registry = plugin_registry
@@ -313,11 +462,117 @@ class WorkflowEngine:
         # 后台保存记忆，不阻塞回复
         self._executor.submit(self._save_memory_sync, user_id, text, result)
 
+        # 后台沉淀到 Obsidian（operation:log 卡片），不阻塞回复
+        result_type = result.get("type", "chat")
+        if result_type != "chat":  # 闲聊不沉淀，避免噪音
+            asyncio.create_task(
+                self._sediment_to_obsidian(user_id, text, result, intent)
+            )
+            # 同时发布成长事件到 Alpha-ID（任务成功 → 成长值累计）
+            asyncio.create_task(
+                self._emit_growth_event(user_id, result, intent)
+            )
+
         return {
             "text": reply,
             "intent": intent,
             "result": result,
         }
+
+    async def _sediment_to_obsidian(
+        self, user_id: str, text: str, result: Dict[str, Any], intent: Dict[str, Any]
+    ) -> None:
+        """将任务执行结果沉淀到 Obsidian 知识库（operation:log 卡片）
+
+        通过 Gateway /v1/obsidian/cards 写入，不阻塞用户回复。
+        失败静默（不影响主流程）。
+        """
+        try:
+            import httpx
+            from mindflow_map.config import settings
+
+            result_type = result.get("type", "unknown")
+            description = intent.get("description", "")
+            data = result.get("data", {})
+            success = data.get("success", True)
+
+            # 构建 Markdown 内容
+            content_lines = [
+                f"## 任务执行记录",
+                "",
+                f"**用户**：{user_id}",
+                f"**时间**：{__import__('datetime').datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                f"**意图**：{description}",
+                f"**工具**：{result_type}",
+                f"**状态**：{'成功' if success else '失败'}",
+                f"**原始指令**：{text}",
+                "",
+                f"### 执行结果",
+                "",
+                "```json",
+                __import__("json").dumps(data, ensure_ascii=False, indent=2)[:2000],
+                "```",
+            ]
+            content = "\n".join(content_lines)
+
+            gateway_url = settings.gateway_url.rstrip("/")
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    f"{gateway_url}/v1/obsidian/cards",
+                    json={
+                        "type": "operation:log",
+                        "title": f"[{result_type}] {description or text[:30]}",
+                        "content": content,
+                        "tags": ["feishu", result_type, "operation_log"],
+                        "source_id": f"feishu:{user_id}",
+                        "metadata": {
+                            "user_id": user_id,
+                            "tool": result_type,
+                            "success": success,
+                            "intent": description,
+                        },
+                    },
+                )
+            if resp.is_success:
+                logger.info("Obsidian 沉淀成功: %s/%s", user_id, result_type)
+            else:
+                logger.debug("Obsidian 沉淀失败: HTTP %s", resp.status_code)
+        except Exception as exc:
+            logger.debug("Obsidian 沉淀异常: %s", exc)
+
+    async def _emit_growth_event(
+        self, user_id: str, result: Dict[str, Any], intent: Dict[str, Any]
+    ) -> None:
+        """发布成长事件到 Alpha-ID（任务成功 → 成长值累计 → 精灵进化）
+
+        通过 Alpha-ID /growth/event 端点发布，失败静默。
+        """
+        try:
+            import httpx
+            from mindflow_map.config import settings
+
+            result_type = result.get("type", "unknown")
+            data = result.get("data", {})
+            success = data.get("success", True)
+
+            alpha_id_url = settings.alpha_id_api_url.rstrip("/")
+            async with httpx.AsyncClient(timeout=5) as client:
+                resp = await client.post(
+                    f"{alpha_id_url}/growth/event",
+                    json={
+                        "alpha_id": user_id,
+                        "tool": result_type,
+                        "success": success,
+                        "description": intent.get("description", ""),
+                        "source": "feishu",
+                    },
+                )
+            if resp.is_success:
+                logger.debug("成长事件已发布: %s/%s", user_id, result_type)
+            else:
+                logger.debug("成长事件发布失败: HTTP %s", resp.status_code)
+        except Exception as exc:
+            logger.debug("成长事件异常: %s", exc)
 
     async def execute_parallel(
         self, requests: List[Dict[str, Any]], user_id: str = "default"
@@ -521,6 +776,12 @@ class WorkflowEngine:
             data = result.get("data", {})
             return data.get("reply", "嗯？")
 
+        elif result_type in ("channel_copy", "video_generate", "video_publish"):
+            data = result.get("data", {})
+            if not data.get("success", True):
+                return f"❌ {data.get('error', '操作失败')}"
+            return data.get("reply", "✅ 操作完成")
+
         return "我已收到你的消息，正在处理中。"
 
     def _save_memory_sync(self, user_id: str, text: str, result: Dict[str, Any]):
@@ -613,8 +874,8 @@ class WorkflowEngine:
                 "confidence": 0.8,
             }
 
-        # 电商优化意图
-        shopify_keywords = ["店铺", "电商", "Shopify", "商品", "产品", "文案"]
+        # 电商优化意图（注意："文案"已移到 channel_copy 意图，避免误判）
+        shopify_keywords = ["店铺", "电商", "Shopify", "商品", "产品"]
         if any(kw in text for kw in shopify_keywords):
             return {
                 "type": "shopify",
