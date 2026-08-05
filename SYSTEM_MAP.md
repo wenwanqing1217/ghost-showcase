@@ -59,13 +59,15 @@
 | tool-a | 8081 | 8081 | `/health` |
 | tool-b | 8082 | 8082 | `/health` |
 | MoneyPrinterTurbo | 8080 | 8080 | `/api/v1/tasks`（**可选 profile: media**） |
+| Feishu-Bot | 内网 | 无 | `pgrep python bot.py`（Lark WS 长连接） |
+| Feishu-Consumer | 内网 | 无 | 进程存活（EventBus 通知推送） |
 | Redis | 6379 | 6379 | `redis-cli ping` |
 | PostgreSQL | 5432 | 5432 | `pg_isready` |
 
 ## 4. 部署关系
 
 ```
-docker compose up -d            # 默认栈：10 服务（不含 moneyprinter）
+docker compose up -d            # 默认栈：12 服务（含 feishu-bot/consumer，不含 moneyprinter）
 docker compose --profile media up -d   # 启用视频生成（需自备 MoneyPrinterTurbo 目录）
 docker compose -f docker-compose.caddy.yml up   # Caddy 反代（生产）
 docker compose -f docker-compose.override.yml up # 监控（Prometheus :9090 / Grafana :3005）

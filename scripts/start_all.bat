@@ -1,41 +1,61 @@
 @echo off
 chcp 65001 >nul 2>&1
+title Ghost Platform — 一键启动
 echo ========================================
-echo   Ghost Workspace - Start All Services
-echo ========================================
-echo.
-
-:: 1. ?? AlphaID (? demo ????? Ghost.html + ??/??/?? API)
-echo [1/3] Starting AlphaID (Identity Layer :8000, demo mode)...
-set PYTHONPATH=D:\MW\alphaid\projects\src
-start "AlphaID" cmd /k "cd /d D:\MW\alphaid\projects\src && D:\MW\alphaid\projects\.venv\Scripts\python -m entrypoints.api --port 8000 --demo"
-
-timeout /t 4 /nobreak >nul
-
-:: 2. ?? Nebula (Workflow Engine)
-echo [2/3] Starting Nebula (Workflow Engine :2002)...
-cd /d D:\MW\nebula
-start "Nebula" cmd /k "python -m uvicorn mindflow_map.main:app --host 0.0.0.0 --port 2002"
-
-timeout /t 4 /nobreak >nul
-
-:: 3. ?? Gateway (Unified API Gateway)
-echo [3/3] Starting Gateway (Unified API :18080)...
-cd /d D:\MW\ghost-main\gateway
-start "Gateway" cmd /k "D:\MW\ghost-main\gateway\.venv\Scripts\python -m uvicorn app:app --host 0.0.0.0 --port 18080"
-
-echo.
-echo ========================================
-echo   All services started!
-echo ========================================
-echo   Gateway: http://localhost:18080
-echo   AlphaID: http://localhost:8000
-echo   Nebula:  http://localhost:2002
-echo   Ghost.html: http://localhost:8000/
+echo   Ghost Platform — 一键启动（Docker 全栈）
 echo ========================================
 echo.
-echo Press any key to run Health Check...
-pause >nul
 
-python D:\MW\scripts\health_check.py
+:: 1. 检查 Docker Desktop 是否运行
+docker info >nul 2>&1
+if errorlevel 1 (
+    echo [错误] Docker Desktop 未运行，请先启动 Docker Desktop。
+    pause
+    exit /b 1
+)
+echo [1/4] Docker 已就绪
+
+:: 2. 检查 .env 是否存在
+if not exist ".env" (
+    echo [错误] 缺少 .env 文件。请先执行: copy .env.example .env
+    pause
+    exit /b 1
+)
+echo [2/4] .env 配置已加载
+
+:: 3. 启动全栈（14 个服务）
+echo [3/4] 正在启动全栈服务（首次需构建镜像，请耐心等待）...
+docker compose up -d --build
+if errorlevel 1 (
+    echo [错误] 服务启动失败，请查看上方日志。
+    pause
+    exit /b 1
+)
+
+:: 4. 等待健康检查
+echo [4/4] 等待服务健康检查（约 30 秒）...
+timeout /t 30 /nobreak >nul
+
+echo.
+echo ========================================
+echo   服务状态
+echo ========================================
+docker compose ps
+echo.
+echo ========================================
+echo   访问入口
+echo ========================================
+echo   Ghost DS 看板:  http://localhost:3001
+echo   服务健康页:     http://localhost:3001/health
+echo   Gateway API:    http://localhost:18080
+echo   Alpha-ID:       http://localhost:8000
+echo   Prometheus:     http://localhost:9090
+echo   Grafana:        http://localhost:3000
+echo ========================================
+echo.
+echo 飞书：给机器人发消息即可下达运营命令（文案/视频/发布）
+echo 停止全部服务: docker compose down
+echo 查看实时日志: docker compose logs -f
+echo.
+start http://localhost:3001/health
 pause

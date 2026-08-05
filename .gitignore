@@ -38,6 +38,10 @@ temp*.py
 *.db-shm
 *.sqlite.backup
 
+# ── PostgreSQL 备份文件（不入库）──
+backups/
+*.dump
+
 # 残留空目录/第三方包（开发过程中生成的占位目录）
 echo/
 mkdir/
@@ -331,7 +335,9 @@ resume_v7.py
 # 临时SQL和脚本
 _check_eval.py
 
-scripts/
+scripts/*
+!scripts/backup.ps1
+!scripts/restore.ps1
 
 # DS scripts 例外（必须在根 scripts/ 之后声明）
 !DS/scripts/

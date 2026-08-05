@@ -264,3 +264,23 @@ ode scripts/e2e_test.mjs --wait）：quick-register/chat、双链记忆、A2A �
 ### 待办
 - 飞书 bot 真实收发闭环（需用户在飞书发消息实测命令路由）
 - Lv4-7：数据层（PostgreSQL 备份/迁移策略）/交付（打包 CD）/体验美学
+
+## 13. Session 18 — 2026-08-05（项目落地：飞书恢复 + 数据备份 + 一键交付）
+
+**背景:** 承接 Lv1-Lv3 的阶级升级，本轮以"项目落地"为纲，修复飞书 bot 脱离生命周期管理的漏洞，补齐数据层备份与一键交付。
+
+### 完成项
+1. **飞书 bot 并入主 compose（漏洞修复）** — feishu-bot/feishu-consumer 原定义于独立 [docker-compose.feishu.yml](file:///d:/MW/docker-compose.yml)（已删除），默认 `docker compose up` 不加载 → 容器退出 10 小时无人管理。合并进主 compose，凭证改 `${FEISHU_APP_ID:-}` 非强制，全栈统一管理 + `restart: unless-stopped`。
+2. **凭证修复** — 主 .env 的 FEISHU_APP_SECRET 为旧值（`app_id or app_secret is invalid`），更新为新轮换值。**飞书 WebSocket 已重新连接**（App ID cli_aad59b68b879dbe7）。
+3. **bot.py 健壮性** — 无凭证时休眠等待而非退出（避免 restart 无限重启循环）。
+4. **Lv4 数据层** — [backup.ps1](file:///d:/MW/scripts/backup.ps1)：全库 pg_dump（ghost/nebula/alpha_id/gateway）到 backups/，保留最近 7 份，**实测 4 库全备份成功（0.5MB）**；[restore.ps1](file:///d:/MW/scripts/restore.ps1)：恢复带双确认；Makefile `make backup`/`make restore`；.gitignore 忽略 backups/。
+5. **Lv5 交付** — [start_all.bat](file:///d:/MW/scripts/start_all.bat) 重写为 Docker 一键启动（Docker/.env 检查 → up -d --build → 健康等待 → 自动打开健康页）；.env.example 补 FEISHU 可选项。
+
+### 验证
+- 飞书 WS 已连（心跳持续）；feishu-consumer EventBus 监听正常
+- 备份实测：4 库 dump 成功
+- 14 容器 healthy；E2E 10/10 ALL GREEN（复跑确认）
+
+### 待办
+- GitHub 推送（网络恢复后重试，本地 4 个提交待推）
+- 飞书 bot 真实收发（用户实测命令路由）

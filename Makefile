@@ -10,7 +10,7 @@
 #   make clean         — clean caches and temp files
 # ════════════════════════════════════════════════════════════════════
 
-.PHONY: help up down restart logs ps clean test test-py test-ts lint lint-py lint-ts fmt fmt-py fmt-ts check-all smoke db-migrate db-rollback
+.PHONY: help up down restart logs ps clean test test-py test-ts lint lint-py lint-ts fmt fmt-py fmt-ts check-all smoke db-migrate db-rollback backup restore
 
 help:
 	@echo "Ghost Platform — available targets:"
@@ -19,6 +19,8 @@ help:
 	@echo "  make restart       Restart all services"
 	@echo "  make logs          Tail all service logs"
 	@echo "  make ps            List running services"
+	@echo "  make backup        Backup all PostgreSQL databases (scripts/backup.ps1)"
+	@echo "  make restore DB=x FILE=y  Restore a database from backup"
 	@echo "  make smoke         Run ALL unit tests (no Docker required)"
 	@echo "  make test          Run all tests (Python + Node)"
 	@echo "  make test-py       Run Python tests only"
@@ -136,6 +138,16 @@ db-migrate:
 
 db-rollback:
 	cd alphaid/projects && alembic downgrade -1
+
+# 备份全部 PostgreSQL 库（保留最近 7 份）
+backup:
+	powershell -ExecutionPolicy Bypass -File scripts/backup.ps1
+
+# 恢复指定库: make restore DB=ghost FILE=backups/ghost-xxx.dump
+restore:
+	@test -n "$(DB)" || (echo "Usage: make restore DB=<db> FILE=<backup.dump>" && exit 1)
+	@test -n "$(FILE)" || (echo "Usage: make restore DB=<db> FILE=<backup.dump>" && exit 1)
+	powershell -ExecutionPolicy Bypass -File scripts/restore.ps1 -db $(DB) -file $(FILE)
 
 # ── Cleanup ──
 

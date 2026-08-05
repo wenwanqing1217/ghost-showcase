@@ -1290,9 +1290,16 @@ async def main():
    或者创建 .env 文件:
    FEISHU_APP_ID=cli_xxxxx
    FEISHU_APP_SECRET=xxxxx
+
+   容器内无凭证时进入休眠等待配置（避免 restart: unless-stopped 无限重启）。
 """
         )
-        sys.exit(1)
+        try:
+            while True:
+                await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            pass
+        return
 
     app = BotApp()
     await app.start()

@@ -500,3 +500,17 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 5. **监控路由路径修正（bug）** — `api/internal/monitoring/route.ts` 声明 `/metrics` 路径但实际挂载于 `/monitoring`（404）→ 迁移至 `monitoring/metrics/route.ts`，与 gateway 路径镜像。
 
 **结果:** DS `/health` 页 HTTP 200（含"服务健康"）；`/api/internal/monitoring/metrics` success=True overall=ok 7/7；TS 编译通过；镜像重建后容器 healthy。
+
+### 会话 18：项目落地 — 飞书恢复 + 数据备份 + 一键交付
+
+**工作内容:**
+1. **飞书 bot 恢复（漏洞：脱离 compose 生命周期）** — feishu-bot 定义在独立 `docker-compose.feishu.yml`，默认 `docker compose up` 不加载 → 容器退出 10 小时无人管理。**合并 feishu-bot + feishu-consumer 进主 docker-compose.yml**（凭证改非强制 `:-`，删除独立文件），全栈统一管理。
+2. **凭证修复** — 主 .env 的 FEISHU_APP_SECRET 是旧值（invalid），feishu-bot/.env 是新值但已不生效 → 主 .env 更新为新轮换值。**飞书 WebSocket 重新连接成功**。
+3. **bot.py 健壮性** — 无凭证时休眠等待而非 `sys.exit(1)`（避免 `restart: unless-stopped` 无限重启循环）。
+4. **Lv4 数据层备份** — 新增 [backup.ps1](file:///d:/MW/scripts/backup.ps1)（全库 pg_dump 到 backups/，保留最近 7 份，实测 4 库全备份成功）+ [restore.ps1](file:///d:/MW/scripts/restore.ps1)（危险操作双确认）；Makefile 加 `make backup` / `make restore`；.gitignore 忽略 backups/ + `*.dump`，解禁 scripts/* 下的交付脚本。
+5. **Lv5 一键交付** — [start_all.bat](file:///d:/MW/scripts/start_all.bat) 重写为 Docker 一键启动（检查 Docker/.env → up -d → 健康检查 → 打开健康页）；.env.example 补 KNOWN_CHAT_IDS/DEFAULT_BACKEND。
+6. **文档同步** — SYSTEM_MAP.md 端口表补 Feishu-Bot/Consumer，部署关系更新为 12 服务。
+
+**结果:** 飞书 WS 已连；备份实测 OK；14 容器 healthy；E2E 10/10 仍 ALL GREEN。
+
+**待办:** GitHub 推送（网络恢复后重试）；飞书 bot 真实收发（需用户在飞书发消息实测命令路由）。

@@ -322,6 +322,60 @@ services:
       retries: 3
       start_period: 15s
 
+  # ── Feishu Bot (Lark 命令中心 — WS 长连接 + 命令路由) ──
+  # 凭证从主 .env 读取；未配置时容器休眠等待，不阻塞全栈启动
+  feishu-bot:
+    build:
+      context: ./ghost-main/feishu-bot
+      dockerfile: Dockerfile
+    environment:
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      KNOWN_CHAT_IDS: ${KNOWN_CHAT_IDS:-}
+      DEFAULT_BACKEND: ${DEFAULT_BACKEND:-echo}
+      CODE_RUNNER_DIR: ${CODE_RUNNER_DIR:-/app/workspace}
+      CODEX_MAX_CONCURRENT: ${CODEX_MAX_CONCURRENT:-3}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-20}
+      GATEWAY_URL: http://gateway:18080
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pgrep -f 'python bot.py' || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  # ── Feishu Consumer (EventBus 通知推送) ──
+  feishu-consumer:
+    build:
+      context: ./ghost-main/feishu-bot
+      dockerfile: Dockerfile
+    environment:
+      FEISHU_APP_ID: ${FEISHU_APP_ID:-}
+      FEISHU_APP_SECRET: ${FEISHU_APP_SECRET:-}
+      REDIS_URL: redis://redis:6379
+      EVENT_STREAM_PREFIX: alphaid:ecom
+      FEISHU_CONSUMER_GROUP: feishu-notifiers
+      FEISHU_CONSUMER_NAME: feishu-consumer-1
+      FEISHU_BLOCK_TIMEOUT: ${FEISHU_BLOCK_TIMEOUT:-5000}
+      FEISHU_BATCH_SIZE: ${FEISHU_BATCH_SIZE:-10}
+    depends_on:
+      redis:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    command: python feishu_consumer.py
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import sys; print('consumer running')\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
 volumes:
   pgdata:
   redisdata:
