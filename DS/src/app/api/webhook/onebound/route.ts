@@ -15,27 +15,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import crypto from 'crypto';
-import { getEventBus, initEventBus } from '@/lib/eventbus';
-import { Redis } from 'ioredis';
+import { ensureEventBusReady, getEventBusInstance } from '@/lib/eventbus-init';
 
-// Lazy EventBus initialization (Next.js doesn't have a server startup hook)
-let eventBusInitialized = false;
-
-async function ensureEventBus() {
-  if (eventBusInitialized) return;
-  try {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    const redis = new Redis(redisUrl, {
-      retryStrategy: (times) => Math.min(times * 200, 2000),
-      maxRetriesPerRequest: 3,
-    });
-    initEventBus(redis);
-    eventBusInitialized = true;
-    console.log('[Webhook] EventBus initialized');
-  } catch (e) {
-    console.error('[Webhook] EventBus init failed:', e);
-  }
-}
+// Lazy EventBus initialization using shared module
+// (Next.js doesn't have a server startup hook, so we lazy-init on first request)
 
 export const dynamic = 'force-dynamic';
 
@@ -45,7 +28,7 @@ const WEBHOOK_SECRET = process.env.ONEBOUND_WEBHOOK_SECRET || '';
 /**
  * 验证 OneBound Webhook 签名
  */
-function verifySignature(body: string, signature: string | null): boolean {
+export function verifySignature(body: string, signature: string | null): boolean {
   if (!WEBHOOK_SECRET) {
     console.error('[Webhook] ONEBOUND_WEBHOOK_SECRET 未配置，拒绝请求');
     return false;
@@ -67,9 +50,9 @@ function verifySignature(body: string, signature: string | null): boolean {
 /**
  * 发布事件到 Event Bus
  */
-async function publishEvent(type: string, data: Record<string, unknown>, tenantId: string): Promise<void> {
+export async function publishEvent(type: string, data: Record<string, unknown>, tenantId: string): Promise<void> {
   try {
-    const bus = getEventBus();
+    const bus = getEventBusInstance();
     await bus.publish(type as any, data, { tenantId, source: 'onebound-webhook' });
   } catch (e) {
     console.error(`[Webhook] Failed to publish event ${type}:`, e);
@@ -77,8 +60,8 @@ async function publishEvent(type: string, data: Record<string, unknown>, tenantI
 }
 
 export async function POST(req: NextRequest) {
-  // Ensure EventBus is initialized
-  await ensureEventBus();
+  // Ensure EventBus is initialized (shared init)
+  ensureEventBusReady();
 
   const rawBody = await req.text();
   const signature = req.headers.get('x-onebound-signature');
@@ -255,4 +238,3 @@ export async function GET() {
     note: 'OneBound 为供应链 API，主要交互方式为定时拉取同步。Webhook 为可选增强。',
   });
 }
-

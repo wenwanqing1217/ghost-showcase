@@ -105,7 +105,7 @@ export default function ProductAiDialog({
         body: JSON.stringify({
           productId: product.id,
           title: result.title,
-          description: product.description,
+          description: result.description,
           tone,
           lang,
           save: true,

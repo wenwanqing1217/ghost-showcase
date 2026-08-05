@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import TopBar from '@/components/layout/TopBar';
 import AuthGuard from '@/components/layout/AuthGuard';
+import { humanApi } from '@/lib/api';
 
 interface BrainStatus {
   ok: boolean;
@@ -30,6 +31,20 @@ export default function BrainPage() {
   const [reply, setReply] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [error, setError] = useState('');
+  const [alphaId, setAlphaId] = useState<string>('');
+
+  // 获取真实身份（替代硬编码 'Alpha-001'，实现用户身份隔离）
+  useEffect(() => {
+    humanApi
+      .getIdentity()
+      .then((data: unknown) => {
+        const d = (data as { data?: { alpha_id?: string }; alpha_id?: string })?.data || (data as { alpha_id?: string });
+        if (d?.alpha_id) setAlphaId(d.alpha_id);
+      })
+      .catch(() => {
+        // AuthGuard 会处理未登录重定向，这里静默
+      });
+  }, []);
 
   useEffect(() => {
     loadStatus();
@@ -56,13 +71,17 @@ export default function BrainPage() {
   }
 
   async function awakeBrain() {
+    if (!alphaId) {
+      setError('未获取到身份信息，请先登录');
+      return;
+    }
     setAwaking(true);
     setError('');
     try {
       const res = await fetch('/api/v1/human/brain/awake', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ alpha_id: 'Alpha-001' }),
+        body: JSON.stringify({ alpha_id: alphaId }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -79,6 +98,10 @@ export default function BrainPage() {
 
   async function sendBrainChat() {
     if (!message.trim()) return;
+    if (!alphaId) {
+      setError('未获取到身份信息，请先登录');
+      return;
+    }
     setChatLoading(true);
     setError('');
     setReply('');
@@ -86,7 +109,7 @@ export default function BrainPage() {
       const res = await fetch('/api/v1/human/brain/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: message.trim(), alpha_id: 'Alpha-001' }),
+        body: JSON.stringify({ message: message.trim(), alpha_id: alphaId }),
       });
       const data: BrainChatResponse = await res.json();
       if (res.ok && data.data) {

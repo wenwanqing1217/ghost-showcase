@@ -22,6 +22,7 @@ const NAV_GROUPS = [
       { href: '/memory', label: '记忆图谱', icon: 'memory' as const },
       { href: '/workflow', label: '工作流', icon: 'workflow' as const },
       { href: '/dashboard', label: '运营看板', icon: 'dashboard' as const },
+      { href: '/content', label: '内容库', icon: 'content' as const },
     ],
   },
   {
@@ -96,6 +97,12 @@ export default function Sidebar() {
     }
   };
 
+  // 在登录页等沉浸式页面隐藏 Sidebar（layout.tsx 是 Server Component 不能用 hooks，
+  // 所以由 Sidebar 这个 Client Component 自行判断；pathname 已在组件顶部声明）
+  if (pathname === '/login') {
+    return null;
+  }
+
   return (
     <aside className="sidebar">
       {/* 品牌 */}
@@ -152,9 +159,34 @@ export default function Sidebar() {
               </div>
             </div>
           </div>
+          {identity.connected && (
+            <button
+              onClick={async () => {
+                try {
+                  await fetch('/api/v1/human/logout', {
+                    method: 'POST',
+                    credentials: 'include',
+                  });
+                } catch {
+                  // Ignore logout errors
+                }
+                setIdentity({ connected: false, env: 'development' });
+                router.push('/');
+              }}
+              className="w-full mt-2 py-1.5 rounded-lg text-xs font-medium transition-all"
+              style={{
+                background: 'rgba(255,255,255,0.03)',
+                color: 'var(--text-secondary)',
+                border: '1px solid var(--border-color)',
+                cursor: 'pointer',
+              }}
+            >
+              退出登录
+            </button>
+          )}
           {!identity.connected && (
             <Link
-              href="/register"
+              href="/login"
               className="block w-full text-center py-1.5 rounded-lg text-xs font-medium transition-all"
               style={{
                 background: 'rgba(139,92,246,0.1)',
@@ -162,7 +194,7 @@ export default function Sidebar() {
                 border: '1px solid rgba(139,92,246,0.15)',
               }}
             >
-              获取 Alpha-ID
+              登录
             </Link>
           )}
         </div>
