@@ -244,3 +244,23 @@ ode scripts/e2e_test.mjs --wait）：quick-register/chat、双链记忆、A2A �
 - 飞书 bot 真实收发闭环（WS 已连，需用户在飞书给 bot 发消息实测命令路由）
 - Lv3 剩余：DS 服务健康页 + 告警规则
 - Lv4-7：数据层/交付/CD/体验美学
+
+## 12. Session 17 — 2026-08-05（Lv3 可观测性收尾：聚合端点 + 告警规则 + DS 服务健康页）
+
+**背景:** 承接 Session 16 的 5 个架构漏洞修复，本轮完成 Lv3 可观测性的最后三块拼图：gateway 聚合端点（含 2 个真实 bug 修复）、Prometheus 告警规则、DS 前端服务健康页。
+
+### 完成项
+1. **gateway 聚合端点修复** — [internal.py](file:///d:/MW/ghost-main/gateway/routes/internal.py) `monitoring_metrics` 弃用 `_proxy_request`（JSON 解析器无法解析 Prometheus 纯文本 → "Expecting value"）→ `httpx.AsyncClient` 直抓 + `asyncio.gather` 并发。**7/7 服务全 ok（overall=ok）**。
+2. **全服务 /metrics 补齐** — 三个服务原本 404/缺依赖：flow（[health.ts](file:///d:/MW/flow/apps/api/src/routes/health.ts) registerMetricsRoutes + [index.ts](file:///d:/MW/flow/apps/api/src/index.ts) 认证豁免 /metrics）、netagent（[main.py](file:///d:/MW/ghost-main/net_agent_server/main.py) PlainTextResponse）、nebula（[requirements.txt](file:///d:/MW/nebula/requirements.txt) 补 prometheus-client 重建）。Prometheus **8 target 全 up**。
+3. **告警规则** — [service.yml](file:///d:/MW/monitoring/prometheus/rules/service.yml) 4 条规则：ServiceDown（critical）、EngineStopped（critical，engine 运行态监控）、HighTaskFailureRate（warning）、HighMemoryUsage（warning）。Prometheus 顶层不支持内联 rules → `rule_files: [rules/*.yml]` + [override](file:///d:/MW/docker-compose.override.yml) 挂载 rules 目录。4 规则已加载（inactive 正常）。
+4. **DS 服务健康页** — [Sidebar.tsx](file:///d:/MW/DS/src/components/layout/Sidebar.tsx) 新增"服务健康"入口（平台分组）；[NavIcon.tsx](file:///d:/MW/DS/src/components/shared/NavIcon.tsx) 新增 health 心跳线图标（IconType 22→23）；新建 [health/page.tsx](file:///d:/MW/DS/src/app/health/page.tsx)：总览 Hero（呼吸光斑 + 状态脉冲）、7 服务卡片（延迟/负载/运行时长，Prometheus 文本解析 uptime）、错误降级展示、原始指标折叠面板、5s 自动刷新 + 手动刷新。
+5. **监控路由路径修正（bug）** — [monitoring/route.ts](file:///d:/MW/DS/src/app/api/internal/monitoring/metrics/route.ts) 由 `/api/internal/monitoring` 迁移至 `/metrics` 子路径（原文件声明 `/metrics` 但挂载于 `/monitoring` → 404），与 gateway `/v1/internal/monitoring/metrics` 路径镜像。
+
+### 验证
+- DS `/health` HTTP 200（含"服务健康"）；`/api/internal/monitoring/metrics` success=True overall=ok（gateway/alphaid/nebula/flow/orchestrator/netagent/ghost-ds 全 ok）
+- TS 编译通过（tsc --noEmit）；ghost-ds 镜像重建 + 容器 healthy
+- Prometheus：8 target up、4 规则 loaded（inactive）
+
+### 待办
+- 飞书 bot 真实收发闭环（需用户在飞书发消息实测命令路由）
+- Lv4-7：数据层（PostgreSQL 备份/迁移策略）/交付（打包 CD）/体验美学

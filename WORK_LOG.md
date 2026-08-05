@@ -489,3 +489,14 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 - E2E 10/10；Alpha-ID 回归 42 passed；视频真实产出 mp4；Prometheus 5 target up
 
 **待办:** 飞书 bot 真实收发（需用户实测）；DS 服务健康页 + 告警规则（Lv3）；Lv4-7 数据层/交付/CD/体验美学
+
+### 会话 17：Lv3 可观测性完成 — 聚合链路 + 告警规则 + DS 服务健康页
+
+**工作内容:**
+1. **gateway 聚合端点修复** — [internal.py](file:///d:/MW/ghost-main/gateway/routes/internal.py) monitoring_metrics 弃用 `_proxy_request`（JSON 解析器无法处理 Prometheus 纯文本）→ httpx 直抓 + 并发 gather。**7/7 服务全 ok（overall=ok）**。
+2. **全服务 /metrics 补齐** — flow（health.ts registerMetricsRoutes + index.ts 认证豁免）、netagent（/metrics PlainTextResponse）、nebula（requirements 补 prometheus-client 重建）。
+3. **Prometheus 告警规则** — [service.yml](file:///d:/MW/monitoring/prometheus/rules/service.yml) 4 条（ServiceDown/EngineStopped/HighTaskFailureRate/HighMemoryUsage），rule_files 引用 + compose 挂载 rules 目录。**8 target 全 up，4 规则已加载**。
+4. **DS 服务健康页** — [Sidebar.tsx](file:///d:/MW/DS/src/components/layout/Sidebar.tsx) "平台"分组加入口；[NavIcon.tsx](file:///d:/MW/DS/src/components/shared/NavIcon.tsx) 新增 health 心跳图标；新建 [health/page.tsx](file:///d:/MW/DS/src/app/health/page.tsx)（总览 Hero + 7 服务卡片 + 延迟/负载/运行时长 + Prometheus 原始指标折叠 + 5s 自动刷新）。
+5. **监控路由路径修正（bug）** — `api/internal/monitoring/route.ts` 声明 `/metrics` 路径但实际挂载于 `/monitoring`（404）→ 迁移至 `monitoring/metrics/route.ts`，与 gateway 路径镜像。
+
+**结果:** DS `/health` 页 HTTP 200（含"服务健康"）；`/api/internal/monitoring/metrics` success=True overall=ok 7/7；TS 编译通过；镜像重建后容器 healthy。

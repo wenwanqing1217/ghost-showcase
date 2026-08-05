@@ -26,6 +26,7 @@ type IconType =
   | 'content'
   | 'channels'
   | 'growth'
+  | 'health'
   | 'my-agents'
   | 'agent-market';
 
@@ -198,6 +199,12 @@ export default function NavIcon({ type, active = false, size = 18 }: NavIconProp
         <path d="M9 16c0-4 0-7 3-10" />
         <circle cx="9" cy="16" r="0.5" fill={color} />
         <path d="M6 6c0-1.5 1.5-3 3-3s3 1.5 3 3-1.5 3-3 3" />
+      </svg>
+    ),
+    health: (
+      <svg width={size} height={size} viewBox="0 0 18 18" fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 8h3l2-4 3 9 2-5h4" />
+        <path d="M9 16h6" />
       </svg>
     ),
     'my-agents': (

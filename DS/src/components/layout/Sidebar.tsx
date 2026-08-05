@@ -13,6 +13,7 @@ const NAV_GROUPS = [
     label: '平台',
     items: [
       { href: '/', label: '总览', icon: 'overview' as const },
+      { href: '/health', label: '服务健康', icon: 'health' as const },
     ],
   },
   {
