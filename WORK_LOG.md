@@ -544,5 +544,16 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 1. **nebula CI Test exit 4 残留修复（P0）** — run #63/64 修复 pytest-cov 后，run #64 暴露新失败：干净 venv 下 `MetricsRegistry` 无 `_counters/_gauges/_histograms`（仅装有 prometheus_client 时 `__init__` 才初始化）→ 指标测试 AttributeError。修复：nebula 主依赖补 `prometheus-client>=0.19.0` + [test_performance.py](file:///d:/MW/nebula/tests/unit/test_performance.py) TestMetrics 加 autouse skip 守卫。干净 venv 验证 **162 passed**。
 2. **run #65 暴露 "Event loop is closed" ×8（P0，最后一个失败点）** — 根因：`event_queue` 是**同步 fixture**，在同步上下文创建 `EventQueue`；测试内 `await queue.stop()` 创建的 consumer task 绑定测试事件循环，pytest-asyncio 在 Linux 严格模式下**测试结束后关闭循环**，而同步 fixture 的 teardown 此时用 `asyncio.run()` 去 await 已关闭循环上的 task → "Event loop is closed"（Windows 循环管理宽松，本地无法复现）。修复：fixture 改为 **async generator fixture**，队列在测试同一循环内创建/销毁（teardown `await queue.stop()` 幂等兜底）。本地全量 **162 passed** 无回归。
 3. **推送受阻（GFW）** — github.com:443 间歇不可达，提交 `8e2a1fc` 安全在本地，待网络恢复后推送（`http.postBuffer` 已配，重试循环 5 次 × 10s 暂未成功）。
+4. **run #66 仍报 "Event loop is closed" ×4（P0）** — 修复 event_queue fixture 后 run #66 在 3 个 Python 版本各 4 个错误。Docker Linux（python:3.11-slim + 清华镜像）跑 CI 完全等价命令 **165 passed**，代码本身健康。比对后锁定根因：**4 个测试文件用模块级 `TestClient(app)`（test_events/test_approvals/test_health_and_middleware/test_wechat）泄漏 portal 线程 + 事件循环不关闭**，pytest-asyncio 严格模式收集器 teardown 时爆 "Event loop is closed"；Windows 循环管理宽松故本地不现。
+5. **TestClient 生命周期系统修复（P0）** — 7 个测试文件全部补 teardown 关闭：
+   - 模块级 client：新增 `@pytest.fixture(scope="module", autouse=True)` `_close_module_client`（yield 后 `client.close()`）
+   - fixture 返回 client：改为 yield + `c.close()`
+   - 本地 ruff 0 错误 + **162 passed** 无回归。
+6. **复活 feishu_commands.py 死代码（P2）** — 运营指令路由（文案/视频/抖音/短剧/帮助）此前无活跃调用，仅测试引用。按 AGENTS.md「死代码盘活不删除」接入真实链路：
+   - nebula 新增 `POST /api/v1/webhook/feishu/route` 端点（复用 `route_command`），限流/CSRF 豁免同步加入
+   - [bot.py](file:///d:/MW/ghost-main/feishu-bot/bot.py) 新增 `_try_operation_command`，普通消息处理前先试运营指令，命中则回复、未命中回退编程后端
+   - docker-compose feishu-bot 补 `NEBULA_URL: http://nebula:2002`
+   - 新增 3 个端点测试（非指令 handled:false / 帮助指令 handled:true / 无效 JSON 400）
+7. **提交记录** — `58fcb98`（TestClient close 修复 ×7 文件）+ `5722231`（飞书指令路由接通 ×5 文件）。
 
-**结果:** nebula 单测全绿（162 passed）；等待推送后 CI run #66 验证 3 Python 版本 Test + Registration + all-pass 全绿。
+**结果:** nebula 单测全绿（162 passed）+ ruff 0 错误；TestClient 泄漏已修，待推送后 CI run #67 验证 3 Python 版本 Test + Registration + all-pass 全绿。
