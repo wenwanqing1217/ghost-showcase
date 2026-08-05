@@ -97,9 +97,9 @@ export default function Sidebar() {
     }
   };
 
-  // 在登录页等沉浸式页面隐藏 Sidebar（layout.tsx 是 Server Component 不能用 hooks，
+  // 在登录页、C 端店铺等沉浸式页面隐藏 Sidebar（layout.tsx 是 Server Component 不能用 hooks，
   // 所以由 Sidebar 这个 Client Component 自行判断；pathname 已在组件顶部声明）
-  if (pathname === '/login') {
+  if (pathname === '/login' || pathname.startsWith('/shop')) {
     return null;
   }
 
