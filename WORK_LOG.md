@@ -533,5 +533,7 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 4. **CI run #62 checkout 失败（第二个根因）** — gitlink 更新后 Registration CI 在 checkout 步骤失败：子模块 `wip/2026-07-27` 分支**无 upstream**，c46c7a6 从未推送（远程停在 37021b6）。修复：`git push -u origin wip/2026-07-27`。
 5. **All CI Passed 判定逻辑 bug** — `registration` job 不在 all-pass 的 needs 中：registration 失败只导致 aid 被 skip（skipped 不触发 failure 判断），all-pass 仍显示 success（run #62 实测证实：Registration failure + All CI Passed success）。修复：registration 加入 all-pass needs + 检查。
 6. **飞书命令路由测试补齐** — 新增 [test_feishu_commands.py](file:///d:/MW/nebula/tests/unit/test_feishu_commands.py)（9 用例：kv 参数解析 / 帮助指令 / 前缀路由 / 异常降级 / 非指令回退闲聊），不依赖真实凭证，本地 9/9 通过。
+7. **nebula CI Test exit 4（潜伏 bug 暴露）** — run #63 nebula Test 在 3 个 Python 版本全失败（exit 4 = pytest usage error）：CI 命令带 `--cov` 但 nebula dev 依赖缺 pytest-cov。本地因手工装过 cov 插件未暴露；nebula CI 此前从未被 changes filter 触发。修复：pyproject dev 依赖补 `pytest-cov>=4.0.0`。同步排查：AID 已有 pytest-cov ✅；**gateway 走 requirements 分支同样缺** → reusable-python-ci.yml 两处安装分支统一补 pytest-cov。
+8. **run #63 成果确认** — Registration CI **success**（gitlink + 子模块远程推送修复生效）；All CI Passed 判定逻辑正确工作（nebula 失败时如实标红）。
 
 **结果:** gitlink + 子模块远程推送 + all-pass 判定修复已提交；等待 CI run #63 全绿确认。

@@ -45,7 +45,7 @@ jobs:
             pip install -e ".[dev]" || pip install -e .
           else
             pip install -r requirements.txt
-            pip install pytest pytest-asyncio httpx ruff
+            pip install pytest pytest-asyncio httpx ruff pytest-cov
           fi
 
       - name: Run linter
@@ -82,7 +82,7 @@ jobs:
             pip install -e ".[dev]" || pip install -e .
           else
             pip install -r requirements.txt
-            pip install pytest pytest-asyncio httpx ruff
+            pip install pytest pytest-asyncio httpx ruff pytest-cov
           fi
 
       - name: Run tests
