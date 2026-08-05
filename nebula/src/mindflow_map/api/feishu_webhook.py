@@ -68,11 +68,38 @@ async def feishu_webhook(request: Request):
     return {"code": 0, "message": "ok"}
 
 
+@router.post("/webhook/feishu/route")
+async def feishu_route_command(request: Request):
+    """运营指令路由 — 供 feishu-bot 等上游调用（复用 feishu_commands.py）
+
+    请求体：{"text": "文案 商品=香薰 价格=59"}
+    返回：
+      非指令 → {"handled": false}
+      指令   → {"handled": true, "reply": "..."}
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(400, "invalid JSON")
+
+    text = (body or {}).get("text", "")
+    try:
+        from mindflow_map.api.feishu_commands import route_command
+        reply = await route_command(text)
+    except Exception as e:
+        logger.error("指令路由失败: %s", e, exc_info=True)
+        return {"handled": False}
+
+    if reply is None:
+        return {"handled": False}
+    return {"handled": True, "reply": reply}
+
+
 async def _handle_im_message(event: Dict[str, Any]):
     """处理 im.message.receive_v1 事件
 
     路由逻辑：
-      1. "帮助" 指令 → 显示能力列表
+      1. 运营指令（文案/视频/抖音/短剧/帮助）→ feishu_commands.route_command
       2. 其他消息 → 走 WorkflowEngine 自然语言意图识别
          - LLM/规则识别意图（文案/视频/抖音/短剧/地图/闲聊等）
          - 命中工具则执行，否则走 ChatTool 闲聊
@@ -101,12 +128,19 @@ async def _handle_im_message(event: Dict[str, Any]):
 
     logger.info("飞书消息 from=%s: %s", user_id, text)
 
-    # ── 1. 帮助指令 ──
-    if text.strip() in ("帮助", "help", "?", "？", "指令"):
-        reply = _help_text()
+    # ── 1. 运营指令路由（文案/视频/抖音/短剧/帮助） ──
+    # 复用 feishu_commands.py；非指令返回 None 再走 WorkflowEngine 闲聊
+    try:
+        from mindflow_map.api.feishu_commands import route_command
+        cmd_reply = await route_command(text)
+    except Exception as e:
+        logger.error("指令路由异常，回退 WorkflowEngine: %s", e)
+        cmd_reply = None
+
+    if cmd_reply is not None:
         if user_id:
             try:
-                await _sender.send_text(user_id, reply)
+                await _sender.send_text(user_id, cmd_reply)
             except Exception as e:
                 logger.error("回复飞书消息失败: %s", e)
         return
@@ -141,34 +175,4 @@ def _get_workflow_engine() -> "WorkflowEngine":
         _workflow_engine = WorkflowEngine()
         logger.info("WorkflowEngine 单例已创建")
     return _workflow_engine
-
-
-def _help_text() -> str:
-    """帮助文本 — 展示自然语言能力，不要求硬指令格式"""
-    return """🎬 Ghost 总助 · 自然语言助手
-
-我是你的数字总助，直接用自然语言告诉我想做什么：
-
-【内容生成】
-"帮我写个闲鱼文案卖香薰蜡烛"
-"写个小红书种草笔记 关于北欧风围巾"
-"做个香薰种草视频"
-
-【视频发布】
-"把视频 abc123 发到 TikTok"
-"发布视频到 YouTube"
-
-【渠道分发】
-"发个短剧《霸总爱上我》"
-"预审一下《xxx》能不能发"
-
-【其他】
-"查一下附近的咖啡厅"
-"怎么去天安门"
-"你好"（闲聊）
-
-💡 不需要记指令格式，想说什么就说什么，我理解你的意思。
-💡 国内闭环：小红书种草 → 闲鱼成交
-💡 出海闭环：视频生成 → TikTok/YouTube 发布
-"""
 

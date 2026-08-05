@@ -337,6 +337,7 @@ services:
       CODEX_MAX_CONCURRENT: ${CODEX_MAX_CONCURRENT:-3}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-20}
       GATEWAY_URL: http://gateway:18080
+      NEBULA_URL: http://nebula:2002
     depends_on:
       gateway:
         condition: service_healthy

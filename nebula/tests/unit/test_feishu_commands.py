@@ -62,3 +62,40 @@ class TestRouteCommand:
         # 清空注册表，避免真实 handler 触发网络调用
         monkeypatch.setattr(fc, "_COMMAND_PREFIXES", {})
         assert await fc.route_command("今天天气怎么样") is None
+
+
+class TestRouteEndpoint:
+    """/api/v1/webhook/feishu/route HTTP 端点 — feishu-bot 调用入口"""
+
+    def test_non_command_returns_handled_false(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        from mindflow_map.main import app
+
+        monkeypatch.setattr(fc, "_COMMAND_PREFIXES", {})
+        with TestClient(app) as client:
+            resp = client.post("/api/v1/webhook/feishu/route", json={"text": "今天天气怎么样"})
+        assert resp.status_code == 200
+        assert resp.json() == {"handled": False}
+
+    def test_help_command_returns_reply(self, monkeypatch):
+        from fastapi.testclient import TestClient
+
+        from mindflow_map.main import app
+
+        monkeypatch.setattr(fc, "_COMMAND_PREFIXES", {})
+        with TestClient(app) as client:
+            resp = client.post("/api/v1/webhook/feishu/route", json={"text": "帮助"})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["handled"] is True
+        assert "渠道助手" in body["reply"]
+
+    def test_invalid_json_returns_400(self):
+        from fastapi.testclient import TestClient
+
+        from mindflow_map.main import app
+
+        with TestClient(app) as client:
+            resp = client.post("/api/v1/webhook/feishu/route", content=b"not-json")
+        assert resp.status_code == 400

@@ -146,6 +146,7 @@ _rate_limit_exempt = {
     "/health",
     "/api/v1/wechat",
     "/api/v1/webhook/feishu",
+    "/api/v1/webhook/feishu/route",
     "/api/v1/webhook/wechat",
     "/v1/internal/webhook/feishu",
     "/v1/internal/webhook/wechat",
@@ -163,6 +164,7 @@ _csrf_origins = {
 }
 _csrf_exempt = {
     "/api/v1/webhook/feishu",
+    "/api/v1/webhook/feishu/route",
     "/api/v1/webhook/wechat",
     "/v1/internal/webhook/feishu",
     "/v1/internal/webhook/wechat",

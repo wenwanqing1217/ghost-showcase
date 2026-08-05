@@ -564,6 +564,12 @@ class FeishuBotHandler:
                 await self._reply_text(chat_id, msg_id, reply)
             return
 
+        # ---- 运营指令路由（渠道助手：文案/视频/抖音/短剧，非斜杠指令） ----
+        op_reply = await self._try_operation_command(text)
+        if op_reply:
+            await self._reply_text(chat_id, msg_id, op_reply)
+            return
+
         # ---- 处理正常消息 ----
         backend_name = self.runner.get_backend(chat_id)
         logger.info(
@@ -702,6 +708,29 @@ class FeishuBotHandler:
                 return f"待办任务: {len(pending)} 个"
 
         return None
+
+    async def _try_operation_command(self, text: str) -> Optional[str]:
+        """尝试运营指令路由（渠道助手：文案/视频/抖音/短剧）
+
+        复用 nebula feishu_commands.py 指令路由器（HTTP 调用），
+        非指令返回 None，由调用方回退到编程后端。
+        """
+        nebula_url = os.environ.get("NEBULA_URL", "http://localhost:2002").rstrip("/")
+        try:
+            resp = await self._http_client.post(
+                f"{nebula_url}/api/v1/webhook/feishu/route",
+                json={"text": text},
+                timeout=90,  # 文案/视频指令涉及下游服务调用，可能较慢
+            )
+            if resp.status_code != 200:
+                return None
+            data = resp.json()
+            if not data.get("handled"):
+                return None
+            return data.get("reply") or ""
+        except Exception as e:
+            logger.warning("运营指令路由失败，回退编程后端: %s", e)
+            return None
 
     async def _handle_video_command(self, text: str, chat_id: str, msg_id: str):
         """Handle /video command — trigger AI video generation via Gateway.
