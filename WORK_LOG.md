@@ -514,3 +514,12 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 **结果:** 飞书 WS 已连；备份实测 OK；14 容器 healthy；E2E 10/10 仍 ALL GREEN。
 
 **待办:** GitHub 推送（网络恢复后重试）；飞书 bot 真实收发（需用户在飞书发消息实测命令路由）。
+
+### 会话 19：CI 全红修复（P0）— workflow 加载失败 + Registration 503 + Grafana 激活
+
+**工作内容:**
+1. **CI 0 jobs 全红根因（P0）** — ci.yml e2e job 的 `services.docker` 用了 `privileged: true`，GitHub Actions job services **不支持该键**（合法键仅 credentials/env/image/options/ports/volumes）→ 整个 workflow 解析失败 → **所有 CI run（08/03 至今 12+ 次）全部 0 jobs 秒级 failure**。用 actionlint 1.7.7 定位；修复：`privileged` 移入 `options: --privileged`，并补 `DOCKER_HOST: tcp://docker:2375`（dind 必需）。
+2. **Registration CI 失败根因（503）** — `test_face_verify`/`test_full_flow` 无支付宝密钥时 503：settings 默认 `alipay_demo_mode="false"`（安全设计防认证绕过），测试期望"无密钥走演示模式"却未开启 demo。修复：测试显式 `os.environ.setdefault("ALIPAY_DEMO_MODE", "true")`（不动应用默认值）。本地复现 **11/11 通过**；alphaid 全量 **859 passed, 98 skipped**。
+3. **Grafana 激活** — monitoring/grafana/provisioning 原本空目录（容器在跑但无数据源/看板）。激活 [datasource.yml](file:///d:/MW/monitoring/grafana/provisioning/datasources/datasource.yml)（Prometheus，固定 uid=prometheus 匹配 dashboard 引用）+ dashboard.yml + 复用 archive 的 Ghost-Overview/gateway-dashboard 看板。验证：**datasource Prometheus 已连，2 看板加载**（localhost:3005）。
+
+**结果:** CI 修复已推送（f199af8）；Grafana 落地；等待 CI 复跑验证。

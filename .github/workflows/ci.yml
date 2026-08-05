@@ -79,7 +79,15 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - run: pip install pytest httpx
-      - run: python -m pytest tests/test_registration.py -v --noconftest
+      - run: |
+          python -m pytest tests/test_registration.py -v --noconftest --junitxml=/tmp/registration.xml
+      - name: Upload failure logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: registration-test-logs
+          path: /tmp/registration.xml
+          if-no-files-found: ignore
 
   # ---------------------------------------------------------
   # 4. AID (Python — Alpha-ID Identity)
