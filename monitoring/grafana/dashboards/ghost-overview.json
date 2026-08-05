@@ -1,0 +1,176 @@
+{
+  "apiVersion": 1,
+  "datasource": "Prometheus",
+  "title": "Ghost Platform Overview",
+  "description": "End-to-end observability for the Ghost platform (7-layer architecture)",
+  "tags": ["ghost", "alphaid", "nebula", "flow", "orchestrator"],
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "query",
+        "datasource": "Prometheus",
+        "query": "label_values(up{job=~\"gateway|alphaid|nebula|flow|orchestrator|netagent|ghost-ds|redis|postgres\"}, job)",
+        "includeAll": false,
+        "multi": false,
+        "refresh": 1,
+        "options": [{ "text": "All", "value": "$__all" }]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Service Health (UP/DOWN)",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 24, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "up{job=~\"gateway|alphaid|nebula|flow|orchestrator|netagent|ghost-ds|redis|postgres\"}",
+          "legendFormat": "{{job}}",
+          "instant": true
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "value": "0", "text": "DOWN", "color": "red" },
+            { "type": "value", "value": "1", "text": "UP", "color": "green" }
+          ]
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "value_and_name"
+      }
+    },
+    {
+      "id": 2,
+      "title": "HTTP Request Rate (req/s)",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=~\"gateway|ghost-ds\"}[5m]))",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        { "format": "reqps", "label": "Requests/s" },
+        { "format": "short" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "HTTP Latency (p50 / p95 / p99)",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=~\"gateway|ghost-ds\"}[5m])) by (le))",
+          "legendFormat": "p50 - {{job}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=~\"gateway|ghost-ds\"}[5m])) by (le))",
+          "legendFormat": "p95 - {{job}}",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=~\"gateway|ghost-ds\"}[5m])) by (le))",
+          "legendFormat": "p99 - {{job}}",
+          "refId": "C"
+        }
+      ],
+      "yaxes": [
+        { "format": "s", "label": "Seconds" },
+        { "format": "short" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "HTTP Errors (4xx / 5xx)",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=~\"gateway|ghost-ds\",status=~\"4..\"}[5m]))",
+          "legendFormat": "4xx - {{job}}",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{job=~\"gateway|ghost-ds\",status=~\"5..\"}[5m]))",
+          "legendFormat": "5xx - {{job}}",
+          "refId": "B"
+        }
+      ],
+      "yaxes": [
+        { "format": "reqps", "label": "Errors/s" },
+        { "format": "short" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Redis Memory & Connected Clients",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "targets": [
+        {
+          "expr": "redis_memory_used_bytes{job=\"redis\"}",
+          "legendFormat": "Memory Used",
+          "refId": "A"
+        },
+        {
+          "expr": "redis_connected_clients{job=\"redis\"}",
+          "legendFormat": "Connected Clients",
+          "refId": "B"
+        }
+      ],
+      "yaxes": [
+        { "format": "bytes", "label": "Memory" },
+        { "format": "short", "label": "Clients" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Event Bus: Stream Length by Prefix",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "targets": [
+        {
+          "expr": "sum(rate(event_stream_length[5m]))",
+          "legendFormat": "{{stream}}",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        { "format": "short", "label": "Events/s" },
+        { "format": "short" }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "E-commerce: Order Events per Minute",
+      "type": "graph",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "targets": [
+        {
+          "expr": "sum(rate(event_stream_length{stream=~\"alphaid:ecom:order:*\"}[1m])) by (stream) * 60",
+          "legendFormat": "{{stream}}",
+          "refId": "A"
+        }
+      ],
+      "yaxes": [
+        { "format": "short", "label": "Orders/min" },
+        { "format": "short" }
+      ]
+    }
+  ]
+}

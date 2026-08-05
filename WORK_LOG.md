@@ -523,3 +523,12 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 3. **Grafana 激活** — monitoring/grafana/provisioning 原本空目录（容器在跑但无数据源/看板）。激活 [datasource.yml](file:///d:/MW/monitoring/grafana/provisioning/datasources/datasource.yml)（Prometheus，固定 uid=prometheus 匹配 dashboard 引用）+ dashboard.yml + 复用 archive 的 Ghost-Overview/gateway-dashboard 看板。验证：**datasource Prometheus 已连，2 看板加载**（localhost:3005）。
 
 **结果:** CI 修复已推送（f199af8）；Grafana 落地；等待 CI 复跑验证。
+
+### 会话 20：CI 复跑定位 Registration 仍失败根因 + gitlink 修复
+
+**工作内容:**
+1. **CI 复跑（69d5823/c33676a）Registration 仍 failure** — 本地 `ALIPAY_DEMO_MODE` 修复后 11/11 通过，但 CI 依旧 503。公共 API 确认 junit artifact 已上传（657B），下载需认证（401）无法直接查看。
+2. **根因定位（关键检查）** — `git ls-tree HEAD alphaid/projects` 显示 **gitlink = be002ab**（无 ALIPAY_DEMO_MODE 修复的旧代码），而子模块实际 HEAD = **c46c7a6**（含修复）。CI 用 `submodules: true` checkout 时拉到 be002ab → Registration 仍跑旧代码 → 503 复现。**主仓库 gitlink 未随子模块提交同步是 CI 仍失败的直接根因**。
+3. **修复** — 更新主仓库 gitlink 指向 c46c7a6 并推送，触发 CI 复跑验证。
+
+**结果:** gitlink 已更新提交；等待 CI 复跑确认 Registration 通过。

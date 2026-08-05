@@ -284,3 +284,23 @@ ode scripts/e2e_test.mjs --wait）：quick-register/chat、双链记忆、A2A �
 ### 待办
 - GitHub 推送（网络恢复后重试，本地 4 个提交待推）
 - 飞书 bot 真实收发（用户实测命令路由）
+
+## 14. Session 19/20 — 2026-08-05（CI 全红修复 + Grafana 激活 + gitlink 修复）
+
+**背景:** 承接 Session 18，把"CI 能跑"推进到"CI 全绿"。发现 GitHub Actions **自 08/03 起所有 run 全部 0 jobs 秒级失败**，逐一修复。
+
+### CI 0 jobs 全红根因（P0）
+- [ci.yml](.github/workflows/ci.yml) e2e job 的 `services.docker` 使用 `privileged: true` — **GitHub Actions job services 不支持该键**（合法键仅 credentials/env/image/options/ports/volumes），整个 workflow 解析失败。用 actionlint 1.7.7 定位。
+- 修复：`privileged` 移入 `options: --privileged` + `DOCKER_HOST: tcp://docker:2375`（dind 必需）。修复后 Registration job 正常实例化。
+
+### Registration 503 修复 + gitlink 根因
+- 本地根因：settings 默认 `alipay_demo_mode="false"`（防认证绕过的安全设计），测试期望"无密钥走演示模式"却未显式开启 → 503。修复：测试 `os.environ.setdefault("ALIPAY_DEMO_MODE", "true")`（不动应用默认值）。本地 11/11 通过、alphaid 全量 859 passed。
+- **CI 仍失败根因：主仓库子模块 gitlink = be002ab（旧），子模块实际 HEAD = c46c7a6（含修复）** — CI checkout 到旧代码。修复：更新 gitlink 推送。
+- pytest 加 `--junitxml` + failure 时上传 artifact 供调试。
+
+### Grafana 激活
+- monitoring/grafana/provisioning 原为空目录（容器在跑但无数据源/看板）。激活 [datasource.yml](monitoring/grafana/provisioning/datasources/datasource.yml)（Prometheus，uid=prometheus 固定匹配 dashboard）+ dashboard.yml + Ghost-Overview/gateway-dashboard 看板。验证：datasource 已连、2 看板加载（localhost:3005）。
+
+### 待办
+- CI 复跑确认 Registration 通过（gitlink 修复后）
+- 飞书 bot 真实收发（用户实测）

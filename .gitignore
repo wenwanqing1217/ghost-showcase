@@ -255,6 +255,9 @@ monitoring/
 !monitoring/README.md
 !monitoring/prometheus/
 !monitoring/prometheus/prometheus.yml
+!monitoring/prometheus/rules/
+!monitoring/grafana/
+monitoring/archive/
 
 # 临时文档
 docs/architecture/ARCHITECTURE_DESIGN.md
