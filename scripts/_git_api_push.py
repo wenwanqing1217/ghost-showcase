@@ -54,6 +54,9 @@ def main() -> None:
     REPO, BRANCH, TOKEN = repo_arg, branch, token
     if len(sys.argv) > 5:
         GIT_DIR = sys.argv[5]
+    # diff 基准：默认远程 commit，但 Git Data API 创建的 commit 可能不在本地对象库，
+    # 此时传一个本地存在的祖先 commit 作为第 6 参数
+    diff_base = sys.argv[6] if len(sys.argv) > 6 else None
 
     # 1. 远程当前状态
     ref_info = api("GET", f"/git/refs/heads/{branch}")
@@ -67,7 +70,7 @@ def main() -> None:
     author = git("log", "-1", "--format=%an <%ae>").decode().strip()
     name, email = author.split(" <")[0], author.split(" <")[1][:-1]
     changed = (
-        git("diff", "--name-status", remote_commit, local_commit)
+        git("diff", "--name-status", diff_base or remote_commit, local_commit)
         .decode()
         .strip()
         .splitlines()
@@ -90,6 +93,18 @@ def main() -> None:
         blob_cache[path] = sha
         print(f"  blob {path}: {sha}")
         return sha
+
+    def entry_for_path(p: str) -> dict:
+        """返回 local_commit 中 p 对应的条目（兼容 blob / gitlink 子模块）。"""
+        line = git("ls-tree", local_commit, "--", p).decode().strip()
+        if not line:
+            raise SystemExit(f"路径不存在于 local_commit: {p}")
+        parts = line.split()
+        mode, t, sha = parts[0], parts[1], parts[2]
+        rel = p.rsplit("/", 1)[-1]
+        if t == "commit":  # gitlink 子模块指针
+            return {"mode": "160000", "path": rel, "sha": sha, "type": "commit"}
+        return {"mode": mode, "path": rel, "sha": upload_blob(p), "type": t}
 
     # 4. 递归重建 tree，保持与 local_commit 一致
     def rebuild_tree(tree_sha: str, prefix: str) -> str:
@@ -129,13 +144,11 @@ def main() -> None:
                 continue  # 深层文件由子树递归处理
             # 该层直接子文件：检查是否已被子树递归处理过（不可能），直接替换
             if not any(e["path"] == rel for e in new_entries):
-                new_entries.append(
-                    {"mode": "100644", "path": rel, "sha": upload_blob(p), "type": "blob"}
-                )
+                new_entries.append(entry_for_path(p))
             else:
                 for i, e in enumerate(new_entries):
                     if e["path"] == rel:
-                        new_entries[i] = {"mode": e["mode"], "path": rel, "sha": upload_blob(p), "type": e["type"]}
+                        new_entries[i] = entry_for_path(p)
         payload = {"base_tree": tree_sha, "tree": new_entries}
         new_sha = api("POST", "/git/trees", payload)["sha"]
         print(f"  tree {prefix or '(root)'}: {new_sha}")
