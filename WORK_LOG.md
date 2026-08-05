@@ -588,5 +588,11 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 5. **Python 脚本重推（[scripts/_push_ci_via_api.py](file:///d:/MW/scripts/_push_ci_via_api.py)）** — subprocess 捕获 `git cat-file blob ceb6d67`（本地 fc2c766 的 ci.yml）原始字节 → base64 → blob → 三层 tree → commit → ref。新 blob sha = **ceb6d67（与本地完全一致，字节级无损）**。master → ebcf60c。
 6. **全量验证触发成功** — ci.yml 修复后 push run 正常解析（Registration + 其他 skip）；`gh workflow run "Monorepo CI"` **422 消除**，run 31033478781（workflow_dispatch）已 queued——3 Python Test + Registration + all-pass + E2E 全量验证进行中。
 7. **本地/远程 master 分歧待处理** — 远程 master = ebcf60c（Git Data API 创建，tree 内容 = fc2c766），本地 master = fc2c766（不同 commit sha）。网络恢复后需 fetch + reset 对齐。
+8. **全量 run 首轮暴露 3 个新失败（workflow_dispatch 首次全量）**：
+   - **Flow CI / Lint（P0）** — `npx eslint apps/api/src --ext .ts` 在 flow 无 eslint 依赖/配置时自动下载 eslint@10.8.0（只认 `eslint.config.js`），无 config 直接崩。flow 无任何 eslint 配置 → 改 lint-command 为 `npm run build -w apps/api`（`tsc --noEmit` 类型门禁，flow 根 tsconfig 是空 composite 无 include，不能直接 `npx tsc --noEmit`）。
+   - **AID CI / Lint Install dependencies（P0）** — lint job 硬编码 Python 3.11，而 alphaid 的包 `alpha-id-zix` `requires-python = ">=3.12"` → pip install -e ".[dev]" 直接失败（此前 lint 从没被 paths-filter 触发过，第一次全量才暴露）。修复：reusable-python-ci.yml 新增 `lint-python-version` input（默认 3.11），ci.yml 的 alphaid 传 "3.12"。
+   - **Gateway CI / Test artifact 上传（P0）** — 测试本身 32 passed 20 skipped，但 `upload-artifact` name = `ghost-main/gateway-coverage-py3.12` **含斜杠 `/`**（project-dir 拼接）→ 上传失败 → job 判失败。GitHub Actions 表达式**无 `replace()` 函数**（首版用 `replace(inputs.project-dir,'/','-')` 直接 workflow 解析失败）→ 改 run step `tr '/' '-'` 计算 artifact name 写入 GITHUB_OUTPUT。
+9. **网络恢复 + master 对齐** — 8b5038f/590fc26/51e1b47 连续 push 成功（网络恢复）；远程 master 现在是 Git Data API 与本地 push 混合历史，fetch 后 `reset --soft origin/master` 对齐（本地独有增量恰好 = flow lint + WORK_LOG）。
+10. **全量重跑** — run 31034476985（workflow_dispatch，master=51e1b47）已启动，3 Python Test + Registration + all-pass + E2E 全量验证中。
 
 **结果:** ci.yml workflow_dispatch 全量 run 31033478781 已启动；待验证全绿。
