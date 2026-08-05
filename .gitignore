@@ -148,8 +148,10 @@ obsidian-plugin/
 profile-readme/
 Ghost.html
 Ghost*.html
-package.json
-package-lock.json
+
+# 根目录遗留 npm 包（无代码使用，保持忽略）
+/package.json
+/package-lock.json
 
 # ── 临时/内部文档 ──
 *.tmp.md

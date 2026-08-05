@@ -10,7 +10,7 @@
 #   make clean         — clean caches and temp files
 # ════════════════════════════════════════════════════════════════════
 
-.PHONY: help up down restart logs ps clean test lint lint-py lint-ts fmt fmt-py fmt-ts check-all db-migrate db-rollback
+.PHONY: help up down restart logs ps clean test test-py test-ts lint lint-py lint-ts fmt fmt-py fmt-ts check-all smoke db-migrate db-rollback
 
 help:
 	@echo "Ghost Platform — available targets:"
@@ -19,6 +19,7 @@ help:
 	@echo "  make restart       Restart all services"
 	@echo "  make logs          Tail all service logs"
 	@echo "  make ps            List running services"
+	@echo "  make smoke         Run ALL unit tests (no Docker required)"
 	@echo "  make test          Run all tests (Python + Node)"
 	@echo "  make test-py       Run Python tests only"
 	@echo "  make test-ts       Run Node.js tests only"
@@ -52,23 +53,40 @@ ps:
 
 # ── Testing ──
 
-test: test-py test-ts
+test: smoke
+
+# 一键全量单元测试（无需 Docker），CI 与本地共用同一套命令
+smoke:
+	@echo "=== [1/6] alphaid/projects (Python) ==="
+	cd alphaid/projects && python -m pytest tests/ -q --tb=short -p no:cacheprovider
+	@echo "=== [2/6] nebula (Python) ==="
+	cd nebula && python -m pytest tests/ -q --tb=short
+	@echo "=== [3/6] gateway (Python) ==="
+	cd ghost-main/gateway && python -m pytest tests/ -q --tb=short
+	@echo "=== [4/6] orchestrator (Python) ==="
+	cd orchestrator && python -m pytest . -q --tb=short
+	@echo "=== [5/6] DS (Next.js) ==="
+	cd DS && npm test
+	@echo "=== [6/6] flow (Monorepo) ==="
+	cd flow && npm test
+	@echo ""
+	@echo "=== ALL UNIT TESTS PASSED ==="
 
 test-py:
 	@echo "=== Python tests (nebula) ==="
-	cd nebula && python -m pytest tests/ -v --tb=short 2>/dev/null || echo "nebula tests skipped (no pytest.ini)"
+	cd nebula && python -m pytest tests/ -q --tb=short
 	@echo "=== Python tests (alphaid) ==="
-	cd alphaid/projects && python -m pytest tests/ -q --tb=short 2>/dev/null || echo "alphaid tests skipped"
+	cd alphaid/projects && python -m pytest tests/ -q --tb=short
 	@echo "=== Python tests (gateway) ==="
-	cd ghost-main/gateway && python -m pytest tests/ -v --tb=short 2>/dev/null || echo "gateway tests skipped"
+	cd ghost-main/gateway && python -m pytest tests/ -q --tb=short
 	@echo "=== Python tests (orchestrator) ==="
-	cd orchestrator && python -m pytest . -v --tb=short 2>/dev/null || echo "orchestrator tests skipped"
+	cd orchestrator && python -m pytest . -q --tb=short
 
 test-ts:
 	@echo "=== TypeScript tests (DS) ==="
-	cd DS && npm run lint 2>/dev/null || echo "DS lint skipped (no script)"
+	cd DS && npm test
 	@echo "=== TypeScript tests (Flow) ==="
-	cd flow && npm test -w apps/api 2>/dev/null || echo "Flow tests skipped"
+	cd flow && npm test
 
 # ── Linting ──
 

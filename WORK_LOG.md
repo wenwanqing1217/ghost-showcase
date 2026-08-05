@@ -376,3 +376,36 @@
 - **本地冒烟通过** — DS dev server `/api/stats` 200 + `/dashboard` 200；Docker daemon 未运行（沙箱限制），容器级验证仍待用户启动 Docker Desktop
 
 **结果:** ruff 0 errors + alphaid 859 passed + DS tsc/vitest/build 全绿 + 看板非空可演示。PROJECT_STATUS_REPORT.md 已同步。
+
+---
+
+## Session 14 — 2026-08-05（CI 可跑 + 数据流可读 + 仓库专业化）
+
+**背景:** 用户反馈"数据流看不清、没串联、推到 GitHub 不专业、自动化编程不好做"。
+
+**工作内容:**
+
+### 1. CI 修复（GitHub Actions 真能过）
+- `reusable-python-ci.yml`：安装策略按 pyproject/requirements.txt 分流（gateway/orchestrator 无 pyproject，之前必挂）
+- `ci.yml`：e2e job 补 `DB_PASSWORD` env；`docker compose up` 显式列出 10 服务、跳过 MoneyPrinterTurbo（仓库无该目录）；e2e 触发条件扩为 6 个服务
+- `DS/package.json`：health 脚本端口 3004 → 3000
+- `flow/apps/api/package.json`：`@mindflow/shared` 依赖 `workspace:*` → `file:../../packages/shared`（npm 11 不支持 workspace: 协议，本地与 CI 均会安装失败）
+
+### 2. 新增 DATA_FLOW.md
+- 6 条业务闭环（飞书指令→内容 / 看板↔网关↔身份 / OneBound Webhook / A2A 市场+信用 / 工作流执行 / 调度换优）
+- 每条闭环：真实端点 + 涉及文件 + 验证状态；3.3 节诚实未落地清单
+
+### 3. README 重写 + Makefile
+- README：删两套冲突快速启动/旧路径/虚假"11/12 服务运行中"；badges + 架构图 + 单条快速启动 + 实测测试表 + 真实状态；修复 SYSTEM_MAP/PROJECT_MAP 断链
+- Makefile：新增 `make smoke`（6 子项目一键全量单测，无 Docker）；去掉掩盖失败的 `2>/dev/null || echo`
+
+### 4. 本地实测（无 Docker 可跑全部）
+- alphaid 859 ✅ / nebula 153 ✅ / gateway 32 ✅ / orchestrator 7 ✅ / DS 45 ✅ / flow 30 ✅ = **1126 passed**
+
+**结果:** 完成。CI 配置可在 GitHub 上真实运行；数据流与验证状态有据可查；README/Makefile 专业化。
+
+**提交:** 见下方 git commit。
+
+---
+
+## 待办

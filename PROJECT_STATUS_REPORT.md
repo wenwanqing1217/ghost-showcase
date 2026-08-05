@@ -53,6 +53,8 @@
 | DS 本地冒烟（本轮） | `/api/stats` 200 真实种子数据 + `/dashboard` 200 ✅ | SQLite 本地模式播种 5 商品 + 6 订单，看板非空可演示 |
 | Alpha-ID 新模块 | `79 passed` ✅ | agent_graph / alpha_social / diy_cli / tenant_panel / credits_growth / critical_bugfixes 6 个测试文件（2026-08-05 新增补测） |
 | DS | `45 passed (3 test files)` ✅ | 历史报告说"无后端单测"过时；含 eventbus-init 测试 |
+| flow（会话 4 新增） | `30 passed (7 test files)` ✅ | workspace 依赖 `workspace:*` → `file:` 修复后，npm test 全绿 |
+| **全仓合计（会话 4）** | **1126 passed** ✅ | alphaid 859 + nebula 153 + gateway 32 + orchestrator 7 + DS 45 + flow 30；详见 [DATA_FLOW.md](DATA_FLOW.md) |
 
 ## 3. P0 阶段修复（2026-08-05）
 
@@ -150,3 +152,35 @@
 | 成长追踪 | `alpha_id/growth_tracker.py` | ✅ 已测试 | 6 阶段精灵进化；GROWTH_EVENT 累计；内存缓存自持 |
 
 **验证状态**: `79 passed`（6 个测试文件，2026-08-05 亲自执行）。Docker 全栈验证仍待用户启动 Docker Desktop。
+
+---
+
+## 9. Session 14 — 2026-08-05（CI 可跑 + 数据流可读 + 仓库专业化）
+
+### 背景
+用户反馈：平台"数据怎么流看不清、没串联、推到 GitHub 不专业、自动化编程不好做"。本轮解决三件事：**CI 真能跑、数据流讲得清、README 像样**。
+
+### 1. CI 修复（GitHub Actions 真能过）
+| 问题 | 修复 |
+|:-----|:-----|
+| gateway/orchestrator 无 pyproject.toml，`pip install -e ".[dev]"` 必挂 | [reusable-python-ci.yml](.github/workflows/reusable-python-ci.yml)：按文件存在性分流（pyproject → `.[dev]`；requirements.txt → `-r` + pytest/ruff） |
+| e2e 任务缺 `DB_PASSWORD`（compose 强校验），`docker compose up` 必挂 | [ci.yml](.github/workflows/ci.yml)：e2e job 补 env；显式列出 10 个服务，**跳过 MoneyPrinterTurbo**（仓库不含该目录） |
+| e2e 触发条件只认 3 个服务 | 扩为 6 个 Python 服务任一成功即触发 |
+| DS health 脚本端口 3004 错 | 修正为 3000（[DS/package.json](DS/package.json)） |
+| flow `workspace:*` 协议 npm 不支持（本地 + CI 都会挂） | [flow/apps/api/package.json](flow/apps/api/package.json) 改用 npm 原生 `file:../../packages/shared` |
+
+### 2. 新增 DATA_FLOW.md（数据怎么流）
+- 6 条业务闭环（A 飞书指令→内容 / B 看板↔网关↔身份 / C OneBound Webhook / D A2A 市场+信用 / E 工作流执行 / F 调度换优）
+- 每条闭环：真实端点路径 + 涉及文件 + 验证状态（✅ 单测 / ⚠️ 需 Docker e2e / ❌ 未落地）
+- **诚实未落地清单**：飞书真实收发、MoneyPrinterTurbo 视频、闲鱼/小红书自动发布、OPTIMAL_SWAP 运行态
+
+### 3. README 重写 + Makefile smoke
+- README：删两套冲突快速启动、删旧路径 `alpha_id/`、删"11/12 服务运行中"虚假声明；改为 badges + 架构图 + 单条快速启动 + 实测测试表 + 真实状态（含未落地清单）；修复 2 个断链（SYSTEM_MAP/PROJECT_MAP 不存在）
+- Makefile：新增 `make smoke`（6 子项目一键全量单测，无 Docker），`make test` 改指 smoke；去掉 `2>/dev/null || echo` 掩盖失败的问题
+
+### 4. 本地实测（无 Docker 可跑的全部）
+- alphaid 859 ✅ / nebula 153 ✅ / gateway 32 ✅ / orchestrator 7 ✅ / DS 45 ✅ / flow 30 ✅ = **1126 passed**
+- flow 依赖修复后 `npm test` 全绿（此前 `workspace:*` 导致无法安装）
+
+### 待办不变
+- 用户轮换飞书 App Secret；启动 Docker Desktop 跑 `make up` + `node scripts/e2e_test.mjs --wait`

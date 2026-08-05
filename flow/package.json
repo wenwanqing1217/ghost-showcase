@@ -1,0 +1,38 @@
+{
+  "name": "mindflow",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI Agent 工作流编排平台",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev:api",
+    "dev:api": "npm run dev -w apps/api",
+    "build": "npm run build -ws",
+    "start": "npm run start -w apps/api",
+    "clean": "npm run clean -ws",
+    "install:all": "npm install",
+    "test": "npm test -ws --if-present",
+    "test:coverage": "npm run test:coverage -ws --if-present"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@vitejs/plugin-react": "^4.7.0",
+    "@vitest/coverage-v8": "^1.6.1",
+    "@vitest/ui": "^1.6.1",
+    "concurrently": "^8.2.2",
+    "jsdom": "^29.1.1",
+    "thread-stream": "^4.2.0",
+    "typescript": "^5.3.3",
+    "vitest": "^1.6.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "ioredis": "^5.11.1"
+  }
+}

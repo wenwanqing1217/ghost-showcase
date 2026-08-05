@@ -1,0 +1,9 @@
+{
+  "name":"temp-gateway",
+  "private":true,
+  "type":"module",
+  "dependencies":{
+    "express":"^4.21.2",
+    "http-proxy-middleware":"^3.0.3"
+  }
+}
