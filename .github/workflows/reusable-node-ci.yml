@@ -35,7 +35,7 @@ jobs:
       run:
         working-directory: ${{ inputs.project-dir }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -58,7 +58,7 @@ jobs:
         working-directory: ${{ inputs.project-dir }}
     if: ${{ inputs.run-typecheck }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -81,7 +81,7 @@ jobs:
       run:
         working-directory: ${{ inputs.project-dir }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -113,7 +113,7 @@ jobs:
         working-directory: ${{ inputs.project-dir }}
     if: ${{ inputs.build-command != '' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
