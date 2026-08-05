@@ -20,6 +20,18 @@ def _is_sqlite_url(url: str) -> bool:
     return "sqlite" in url.lower()
 
 
+def _ensure_sqlite_parent_dir(database_url: str) -> None:
+    """SQLite 无法自动创建缺失的父目录——连接前先 mkdir（CI/全新环境无 data/ 目录）。"""
+    if not _is_sqlite_url(database_url):
+        return
+    loc = database_url.split("///", 1)[-1]
+    loc = loc.split("?", 1)[0]
+    if not loc or loc == ":memory:":
+        return
+    parent = os.path.dirname(os.path.abspath(loc))
+    os.makedirs(parent, exist_ok=True)
+
+
 def _run_alembic_migrations(database_url: str) -> None:
     """Run Alembic migrations synchronously using subprocess."""
     import subprocess
@@ -54,6 +66,7 @@ class Database:
 
     def __init__(self, database_url: str):
         self.database_url = database_url
+        _ensure_sqlite_parent_dir(database_url)
         self.engine = create_async_engine(
             database_url,
             echo=False,

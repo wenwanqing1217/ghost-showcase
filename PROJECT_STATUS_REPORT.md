@@ -326,10 +326,11 @@ ode scripts/e2e_test.mjs --wait）：quick-register/chat、双链记忆、A2A �
 | 问题 | 根因 | 修复 |
 |:-----|:-----|:-----|
 | run #66 "Event loop is closed" ×4 | 4 个测试文件模块级 `TestClient(app)` 泄漏 portal 线程 + 事件循环（test_events/test_approvals/test_health_and_middleware/test_wechat），pytest-asyncio 严格模式收集器 teardown 时爆炸；Windows 宽松故本地不现 | 7 个 TestClient 使用文件全部补 teardown `client.close()`（模块级 autouse fixture 或 fixture yield+close），本地 162 passed + ruff 0 错误 |
+| run #67 **58 failed**（真正元凶） | `sqlite3.OperationalError: unable to open database file` — 本地 `.env` 覆盖默认 DB 为相对路径可写；CI 无 `.env` → 默认 `data/mindflow_map.db` 的 `data/` 目录（gitignore）不存在，SQLite 不自动建父目录 | [session.py](file:///d:/MW/nebula/src/mindflow_map/models/session.py) `_ensure_sqlite_parent_dir()`：engine 构造时自动 `os.makedirs` 父目录；回归测试 [test_db_session.py](file:///d:/MW/nebula/tests/unit/test_db_session.py) 4 用例。Windows 模拟 CI **169 passed** + Linux Docker **28 passed** 双平台验证 |
 
 ### 死代码盘活（P2，按 AGENTS.md「盘活不删除」）
 - `feishu_commands.py`（运营指令路由：文案/视频/抖音/短剧/帮助）此前仅测试引用 → 新增 `POST /api/v1/webhook/feishu/route` 端点 + [bot.py](file:///d:/MW/ghost-main/feishu-bot/bot.py) `_try_operation_command` 接入真实 WS 消息流 + compose 补 `NEBULA_URL` + 3 个端点测试
 
 ### 待办
-- 推送后 CI run #67 确认 3 Python 版本 Test + Registration + all-pass 全绿
+- 推送后 CI run #68 确认 3 Python 版本 Test + Registration + all-pass 全绿
 - 飞书 bot 真实收发（用户实测命令路由：`文案 商品=…` / `视频 主题=…`）

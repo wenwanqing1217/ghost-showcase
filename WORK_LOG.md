@@ -555,5 +555,8 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
    - docker-compose feishu-bot 补 `NEBULA_URL: http://nebula:2002`
    - 新增 3 个端点测试（非指令 handled:false / 帮助指令 handled:true / 无效 JSON 400）
 7. **提交记录** — `58fcb98`（TestClient close 修复 ×7 文件）+ `5722231`（飞书指令路由接通 ×5 文件）。
+8. **run #67 真相：不是 Event loop，是 SQLite 目录缺失（P0，CI 全绿最后一块拼图）** — 拿到 gh CLI 完整日志后确认 **58 failed**：`sqlalchemy.exc.OperationalError: (sqlite3.OperationalError) unable to open database file`，路径 `models/session.py:94 _ensure_initialized → engine.begin()`。根因链：本地 `.env`（gitignore）用 `DATABASE_URL=sqlite+aiosqlite:///./mindflow_map.db` 覆盖默认值 → 本地/Docker（挂载含 .env）都走相对路径可写；CI 全新 checkout 无 `.env` → 走 config 默认 `sqlite+aiosqlite:///<BASE_DIR>/data/mindflow_map.db` → `data/` 目录（gitignore）不存在 → SQLite 无法自动建父目录 → 所有走中间件 DB 的测试全挂。此前一直误判为 "Event loop is closed"（run #65/66 的 annotation 不全）。
+9. **修复（P0）** — [session.py](file:///d:/MW/nebula/src/mindflow_map/models/session.py) 新增 `_ensure_sqlite_parent_dir()`：engine 构造时对 SQLite URL 提取路径、`os.makedirs(parent, exist_ok=True)` 自动建父目录（处理内存库/相对路径/绝对路径 4 斜杠形态）。新增回归测试 [test_db_session.py](file:///d:/MW/nebula/tests/unit/test_db_session.py)（4 用例：参数化不炸 / mkdir 缺失目录 / Database 构造即建目录+建表）。
+10. **双平台验证** — Windows 模拟 CI（`DATABASE_URL` 指向不存在 data/，无 .env）**169 passed**；Linux Docker 4 斜杠绝对路径 **28 passed**（map_api+wechat+db_session）；ruff 0 错误。
 
-**结果:** nebula 单测全绿（162 passed）+ ruff 0 错误；TestClient 泄漏已修，待推送后 CI run #67 验证 3 Python 版本 Test + Registration + all-pass 全绿。
+**结果:** nebula 单测全绿（169 passed）+ ruff 0 错误；SQLite 父目录自动创建修复已就绪，待推送后 CI run #68 验证 3 Python 版本 Test + Registration + all-pass 全绿。
