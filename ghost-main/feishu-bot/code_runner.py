@@ -75,6 +75,11 @@ BACKENDS = {
         "args": ["{prompt}"],
         "desc": "模拟回复（无需 CLI，用于测试）",
     },
+    "chat": {
+        "cmd": "__gateway_chat__",
+        "args": [],
+        "desc": "AI 聊天（Gateway → Alpha-ID LLM）",
+    },
     "atomcode": {
         "cmd": "atomcode",
         "args": ["-p", "{prompt}", "-y", "--provider", "AtomGit-deepseek-v4-flash"],
@@ -172,6 +177,10 @@ class BackendRunner:
             if cmd == "__echo__":
                 return f"✅ 模拟回复（echo 后端）:\n\n收到你的消息：{prompt[:200]}\n\n当前是模拟模式，未连接实际 AI 后端。\n可用后端: {', '.join(b for b in BACKENDS if b != 'echo')}"
 
+            # AI 聊天后端：走 Gateway /v1/chat → Alpha-ID LLM（容器内无 CLI 时的真实对话）
+            if cmd == "__gateway_chat__":
+                return await self._gateway_chat(prompt)
+
             logger.info("执行: %s %s", cmd, " ".join(a.replace(prompt, "...") for a in args))
 
             cwd = os.environ.get("CODE_RUNNER_DIR", "") or None
@@ -195,6 +204,37 @@ class BackendRunner:
 
             result = stdout.decode("utf-8", errors="replace").strip()
             return result or "执行完毕（无输出）"
+
+    async def _gateway_chat(self, prompt: str) -> str:
+        """调用 Gateway /v1/chat 获取 AI 回复（Alpha-ID LLM 链路）
+
+        - GATEWAY_URL 环境变量指定网关地址（容器内 http://gateway:18080）
+        - 需带 X-Tenant-ID 头（gateway 多租户隔离强制）
+        """
+        import httpx
+
+        gateway_url = os.environ.get("GATEWAY_URL", "http://gateway:18080").rstrip("/")
+        tenant_id = os.environ.get("TENANT_ID", "feishu-bot")
+        try:
+            async with httpx.AsyncClient(timeout=90) as client:
+                resp = await client.post(
+                    f"{gateway_url}/v1/chat",
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Tenant-ID": tenant_id,
+                    },
+                    json={"message": prompt},
+                )
+                data = resp.json()
+            if resp.status_code != 200 or not data.get("success"):
+                msg = data.get("message") or data.get("error") or f"HTTP {resp.status_code}"
+                logger.warning("Gateway chat 失败: %s", msg)
+                return f"❌ AI 聊天失败: {msg}"
+            reply = (data.get("data") or {}).get("reply", "")
+            return reply or "（AI 未返回内容）"
+        except Exception as e:
+            logger.warning("Gateway chat 异常: %s", e)
+            return f"❌ AI 聊天出错: {str(e)[:200]}"
 
 
 # ============================================================
