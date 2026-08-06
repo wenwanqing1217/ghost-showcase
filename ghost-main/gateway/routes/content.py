@@ -161,6 +161,7 @@ async def get_video_status(task_id: str, request: Request):
     ):
         expected_path = f"/api/v1/download/{task_id}/final-1.mp4"
         try:
+            import asyncio
             import httpx
             async with httpx.AsyncClient(timeout=8) as probe_client:
                 probe_resp = await probe_client.get(
@@ -169,12 +170,42 @@ async def get_video_status(task_id: str, request: Request):
                     follow_redirects=True,
                 )
             if probe_resp.status_code == 200:
-                # File is accessible — override to completed
-                mp_task_data["state"] = 1
-                mp_task_data["progress"] = 100
-                mp_public_base = config.MONEYPRINTER_PUBLIC_URL.rstrip("/")
-                mp_task_data["videos"] = [f"{mp_public_base}/tasks/{task_id}/final-1.mp4"]
-                mp_task_data.setdefault("combined_videos", [])
+                # 防误判：moviepy/ffmpeg 编码时 final-1.mp4 是边写边生成的，HTTP 200 不代表写完，
+                # 且编码输出缓冲可能导致文件大小短暂"稳定"。正确判据是 mp4 完整性：
+                # ffmpeg 未收尾时不会写入 moov atom（位于文件末尾）。用 Range 请求尾部 64KB
+                # 检查是否存在 b"moov"，存在才算真正写完。
+                probe_len = int(probe_resp.headers.get("content-length") or 0)
+                if probe_len < 100_000:
+                    logger.info(
+                        "video recovery probe: %s too small (%d bytes, still writing), keep state=4",
+                        expected_path, probe_len,
+                    )
+                else:
+                    try:
+                        async with httpx.AsyncClient(timeout=8) as tail_client:
+                            tail_resp = await tail_client.get(
+                                f"{MP_URL.rstrip('/')}{expected_path}",
+                                headers={**headers, "Range": "bytes=-65536"},
+                                follow_redirects=True,
+                            )
+                        if tail_resp.status_code == 200 or tail_resp.status_code == 206:
+                            has_moov = b"moov" in tail_resp.content
+                        else:
+                            has_moov = False
+                    except Exception:
+                        has_moov = False
+                    if has_moov:
+                        # mp4 moov atom 已写入 → 编码已收尾，视为完成
+                        mp_task_data["state"] = 1
+                        mp_task_data["progress"] = 100
+                        mp_public_base = config.MONEYPRINTER_PUBLIC_URL.rstrip("/")
+                        mp_task_data["videos"] = [f"{mp_public_base}/tasks/{task_id}/final-1.mp4"]
+                        mp_task_data.setdefault("combined_videos", [])
+                    else:
+                        logger.info(
+                            "video recovery probe: %s has no moov atom yet (still encoding), keep state=4",
+                            expected_path,
+                        )
         except Exception:
             pass  # Leave state as-is if probe fails
 

@@ -68,7 +68,7 @@
 ```
 
 - 涉及文件：`nebula/src/mindflow_map/api/feishu_commands.py`、`feishu_webhook.py`、`feishu_sender.py`、`DS/src/app/api/ai/copy/route.ts`、`DS/src/app/api/ai/channel-copy/route.ts`
-- **验证**：⚠️ 单元测试覆盖 `route_command` 参数解析；端到端（飞书真实收发）需 Docker 全栈 + 飞书凭据，由 CI e2e 与人工联调验证
+- **验证**：✅ 单元测试覆盖 `route_command` 参数解析；✅ **2026-08-06 实测**（Docker 全栈，POST /api/v1/webhook/feishu/route 模拟飞书消息）：文案指令真实生成闲鱼+小红书两套文案、视频指令提交 MoneyPrinterTurbo 任务、短剧指令演示预审提交、查询视频返回进度。⚠️ 飞书 App 内真实收发仍待用户实测。**修复记录**：nebula 容器需配置 `DS_URL=http://ghost-ds:3000` + `GATEWAY_URL=http://gateway:18080`（compose environment），否则 settings 回退 localhost 连接失败（见 WORK_LOG 会话 25）
 
 ### 闭环 B：DS 看板 ↔ Gateway ↔ Alpha-ID（聊天 + 记忆闭环）
 

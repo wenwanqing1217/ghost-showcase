@@ -612,3 +612,24 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 5. **全量重跑** — run 31035911250（workflow_dispatch，master=4a3545b，含 MCP 修复）已启动，等 E2E 关键结果。
 
 **结果:** alpha-id `7f8b417` + 主仓库 `4a3545b`（tree 与本地一致）；全量 run 31035911250 验证中。
+
+### 会话 25：飞书指令链路实测跑通 + nebula 容器 URL 配置修复（2026-08-06）
+
+**工作内容:**
+1. **全栈复测** — Docker 17 容器全 healthy；`node scripts/e2e_test.mjs` **10/10 ALL GREEN**（quick-register/双链记忆/A2A 审计·图谱·技能/health/DS API）。
+2. **chat 后端提交（P1）** — [code_runner.py](file:///d:/MW/ghost-main/feishu-bot/code_runner.py) 新增 `__gateway_chat__` 后端（POST Gateway /v1/chat → Alpha-ID LLM，容器内无 CLI 时飞书消息走真实 AI 对话）+ compose `DEFAULT_BACKEND` 默认值 echo→chat。实测 `/v1/chat` 返回真实 AI 回复（success=true, reply 含可用能力提示）。提交 `2ac750f`。
+3. **飞书指令链路实测（P0 修复）** — 调 `POST /api/v1/webhook/feishu/route` 模拟飞书消息：
+   - `文案 商品=…` → **All connection attempts failed**（真实 bug）
+   - **根因**：nebula 容器无 `DS_URL`/`GATEWAY_URL` 环境变量（compose 只给 gateway 配了 DS_URL），`settings.ds_url` 回退 `http://localhost:3000`，容器内 localhost=自身 → 连不上 ghost-ds。
+   - **修复**：docker-compose.yml nebula environment 补 `DS_URL: http://ghost-ds:3000` + `GATEWAY_URL: http://gateway:18080`；重建 nebula 容器后复测：
+     - ✅ 文案指令 → **真实生成闲鱼+小红书两套文案**（标题/正文/卖点/价格/标签）
+     - ✅ 视频指令 → MoneyPrinterTurbo 任务提交成功（task_id 返回）
+     - ✅ 短剧指令 → 演示模式预审提交
+     - ✅ 查询视频 → 进度查询（生成中 50%→合成推进，日志确认 combine_videos 正常）
+   - 提交 `166bcdc`。
+4. **远程推送** — Git Data API 推送（github.com:443 仍被 GFW 封锁）：本地 2 个新 commit（`2ac750f` + `166bcdc`）经 `_git_api_push.py` 快进推送 **master → `1cf0070d`**（diff_base=6881c69，root tree 与本地 HEAD 一致）。
+5. **子模块核对** — alpha-id 远程 `wip/2026-07-27` = `363492a` 与本地 gitlink 一致，无需再推。
+6. **运行态确认** — feishu-bot WS 存活且真实 recv；orchestrator gateway_sync 循环持续 POST memory/store 200（OPTIMAL_SWAP 为每日循环，运行态正常）。
+7. **视频生成 recovery 误判修复（P1）** — 实测视频指令发现 gateway recovery 把"生成中"误判为"完成"：moviepy/ffmpeg 编码时 `final-1.mp4` 边写边生成，旧逻辑只看 HTTP 200，文件刚创建（48 字节）及编码缓冲大小短暂稳定时都误判完成，用户会拿到缺 `moov atom` 的损坏视频（ffprobe 报 Invalid data）。**修复**：[content.py](file:///d:/MW/ghost-main/gateway/routes/content.py) recovery 探测改为 Range 下载文件尾部 64KB 校验 `b"moov"`（ffmpeg 未收尾不写 moov atom，位置在文件末尾）——准确区分"编码中"与"已完成"。实测：编码中保持 state=4，MP 自身收尾 state=1 后 gateway 返回 state=1 + 有效视频 URL；ffprobe 确认 final-1.mp4 79.8s / 3.03MB 有效。
+
+**结果:** 飞书指令中心 5 条指令（文案/视频/查询视频/短剧/帮助）全部实测跑通；chat 后端（AI 闲聊）真实回复；视频生成→查询→下载完整闭环验证（有效 mp4）；gateway 测试 52 passed；远程 master = 1cf0070d + 待推 3 commit。剩余待用户实测：飞书 App 内真实收发消息。
