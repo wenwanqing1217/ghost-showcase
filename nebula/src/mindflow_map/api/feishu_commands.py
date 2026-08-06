@@ -86,7 +86,138 @@ async def route_command(text: str) -> Optional[str]:
                 logger.error("指令 %s 执行失败: %s", prefix, e, exc_info=True)
                 return f"❌ 指令执行失败：{e}\n\n发送「帮助」查看指令列表。"
 
+    # ── 自然语言意图识别（前缀未命中时兜底） ──
+    # 用户用自然语言表达需求（如「帮我写北欧香薰的闲鱼文案」）时，
+    # 按关键词识别运营意图并提取参数，复用上面的指令处理器。
+    intent = _detect_nl_intent(stripped)
+    if intent:
+        intent_name, args = intent
+        handler = _NL_HANDLERS.get(intent_name)
+        if handler:
+            try:
+                return await handler(args)
+            except Exception as e:
+                logger.error("自然语言意图 %s 执行失败: %s", intent_name, e, exc_info=True)
+                return f"❌ 没完全听懂你的需求：{e}\n\n发送「帮助」查看指令格式。"
+
     return None  # 非指令，走闲聊
+
+
+# ════════════════════════════════════════════════════════════════════
+# 自然语言意图识别（前缀未命中时的兜底）
+# ════════════════════════════════════════════════════════════════════
+
+# 语气词 / 命令词，参数提取时剔除
+_NL_STRIP_WORDS = [
+    "帮我", "请你", "麻烦你", "请", "帮我写", "帮我做", "写一条", "做一个",
+    "写", "生成", "做", "来一个", "来条", "来", "一条", "一个", "一下", "下",
+    "我想要", "我想", "想要", "给我", "推荐", "吧", "嘛",
+]
+
+# 意图规则：意图名 → 触发关键词（按优先级排序，copy 最具体优先）
+_NL_INTENT_RULES = [
+    ("copy", ("文案", "种草笔记", "种草", "笔记", "闲鱼", "小红书")),
+    ("video", ("视频", "短视频")),
+    ("shortdrama", ("短剧",)),
+    ("douyin", ("发抖音", "抖音")),
+]
+
+
+def _clean_nl_text(text: str) -> str:
+    """剔除语气词/命令词"""
+    for w in _NL_STRIP_WORDS:
+        text = text.replace(w, "")
+    return text.strip(" ，。！？,.!?：:、\t\n")
+
+
+def _detect_nl_intent(text: str) -> Optional[Tuple[str, Dict[str, str]]]:
+    """识别自然语言的运营意图，返回 (意图名, 参数 dict)
+
+    参数 dict 含：
+      - 显式 key=value（如「商品=XX」）优先
+      - _raw：原始文本（供清洗提取）
+    """
+    kv = _parse_kv_args(text, text)
+
+    def _pack(name: str) -> Tuple[str, Dict[str, str]]:
+        args = dict(kv)
+        args["_raw"] = text
+        return name, args
+
+    # 视频特判：明确含「视频」且不含「文案」→ 视频意图
+    # （避免「种草视频」被 copy 的「种草」关键词先命中）
+    if "视频" in text and "文案" not in text:
+        return _pack("video")
+
+    for intent_name, keywords in _NL_INTENT_RULES:
+        for kw in keywords:
+            if kw in text:
+                return _pack(intent_name)
+    return None
+
+
+def _clean_subject(text: str, extra: Tuple[str, ...] = ()) -> str:
+    """清洗出商品名/视频主题"""
+    cleaned = _clean_nl_text(text)
+    for w in extra:
+        cleaned = cleaned.replace(w, "")
+    return cleaned.strip(" ，。！？,.!?：:、\t\n")
+
+
+async def _nl_copy(args: Dict[str, str]) -> str:
+    """自然语言 → 文案生成（复用 _cmd_copy）"""
+    product = args.get("商品") or args.get("product")
+    if not product:
+        product = _clean_subject(
+            args.get("_raw", ""),
+            ("文案", "种草笔记", "种草", "笔记", "闲鱼", "小红书", "商品的", "一条"),
+        )
+    if not product:
+        return "❌ 没听清要写什么商品的文案\n试试：文案 商品=北欧风香薰 价格=59"
+    return await _cmd_copy(
+        {
+            "商品": product,
+            **{k: args.get(k) for k in ("卖点", "价格", "成色") if args.get(k)},
+        },
+        product,
+    )
+
+
+async def _nl_video(args: Dict[str, str]) -> str:
+    """自然语言 → 视频生成（复用 _cmd_video）"""
+    subject = args.get("主题") or args.get("subject")
+    if not subject:
+        subject = _clean_subject(args.get("_raw", ""), ("视频", "种草视频", "短视频", "生成"))
+    if not subject:
+        return "❌ 没听清要做什么主题的视频\n试试：视频 主题=北欧风香薰蜡烛种草"
+    return await _cmd_video({"主题": subject}, subject)
+
+
+async def _nl_douyin(args: Dict[str, str]) -> str:
+    """自然语言 → 抖音发布（复用 _cmd_douyin）"""
+    raw = _clean_subject(args.get("_raw", ""), ("发抖音", "抖音", "发布", "发"))
+    title = args.get("标题") or args.get("title") or raw
+    content = args.get("内容") or args.get("content") or raw
+    if not title:
+        return "❌ 没听清要发什么到抖音\n试试：抖音 标题=我的商品 内容=介绍文字"
+    return await _cmd_douyin({"标题": title, "内容": content}, title)
+
+
+async def _nl_shortdrama(args: Dict[str, str]) -> str:
+    """自然语言 → 短剧预审（复用 _cmd_shortdrama）"""
+    title = args.get("标题") or args.get("title")
+    content = args.get("内容") or args.get("content") or ""
+    if not title:
+        return "❌ 没听清短剧标题\n试试：短剧 标题=我的短剧 内容=剧情简介"
+    return await _cmd_shortdrama({"标题": title, "内容": content}, title)
+
+
+_NL_HANDLERS = {
+    "copy": _nl_copy,
+    "video": _nl_video,
+    "douyin": _nl_douyin,
+    "shortdrama": _nl_shortdrama,
+}
 
 
 # ════════════════════════════════════════════════════════════════════
@@ -112,28 +243,31 @@ async def _cmd_copy(args: Dict[str, str], after: str) -> str:
     client = FeishuSender._get_shared_client()
     ds_url = settings.ds_url.rstrip("/")
 
-    # 同时请求闲鱼和小红书
+    # 同时请求闲鱼/小红书/抖音三套文案（抖音段放最后，bot 提取为待发布内容）
     import asyncio
     tasks = [
         client.post(
             f"{ds_url}/api/ai/channel-copy",
+            # 注意：空字段不传（Zod 的 z.string().optional() 拒绝 null）
             json={
                 "platform": platform,
                 "product": product,
-                "description": description or None,
-                "price": price or None,
-                "condition": condition or None,
+                **{k: v for k, v in (
+                    ("description", description),
+                    ("price", price),
+                    ("condition", condition),
+                ) if v},
                 "tone": "casual",
             },
         )
-        for platform in ("xianyu", "xiaohongshu")
+        for platform in ("xianyu", "xiaohongshu", "douyin")
     ]
     responses = await asyncio.gather(*tasks, return_exceptions=True)
 
     sections = []
-    platform_names = {"xianyu": "🐟 闲鱼", "xiaohongshu": "📕 小红书"}
+    platform_names = {"xianyu": "🐟 闲鱼", "xiaohongshu": "📕 小红书", "douyin": "🎬 抖音"}
 
-    for platform, resp in zip(("xianyu", "xiaohongshu"), responses):
+    for platform, resp in zip(("xianyu", "xiaohongshu", "douyin"), responses):
         name = platform_names[platform]
         if isinstance(resp, Exception):
             sections.append(f"{name}\n❌ 生成失败：{resp}")
@@ -321,13 +455,22 @@ async def _cmd_douyin(args: Dict[str, str], after: str) -> str:
 
     auto = DouyinAutomation()
     try:
-        # 检查登录态
+        # 检查登录态，未登录时先尝试 cookie 注入
         if auto.state != "LOGGED_IN":
-            return (
-                "❌ 抖音未登录\n"
-                "请先在 nebula 配置 DOUYIN_COOKIE_JSON 环境变量，\n"
-                "或调用 DouyinAutomation.login() 完成登录。"
-            )
+            if not auto._cookie_json:
+                # 无 cookie 直接返回引导（避免 headless 下 5 分钟扫码等待）
+                return (
+                    "❌ 抖音未登录\n"
+                    "请先完成一次性登录：用本地脚本扫描登录后导出 cookie，\n"
+                    "配置 nebula 的 DOUYIN_COOKIE_JSON 环境变量，重启 nebula 后即可自动发布。"
+                )
+            login_result = await auto.login()
+            if not login_result.get("ok"):
+                return (
+                    "❌ 抖音登录失败\n"
+                    "Cookie 注入失败，请重新导出 cookie 并更新 DOUYIN_COOKIE_JSON。\n"
+                    f"详情：{login_result.get('error', '未知错误')}"
+                )
 
         result = await auto.publish(title=title, content=content)
         if result.get("success"):

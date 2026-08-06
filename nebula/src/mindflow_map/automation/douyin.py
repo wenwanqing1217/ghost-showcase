@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import re
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -93,7 +94,8 @@ class DouyinAutomation:
         self.page: Optional[Page] = None
         self.state = "IDLE"
         self._state_lock = asyncio.Lock()
-        self._cookie_json: str = ""
+        # 从环境变量读取登录态（一次性扫码导出的 cookie JSON）
+        self._cookie_json: str = os.environ.get("DOUYIN_COOKIE_JSON", "").strip()
 
     async def _ensure_browser(self) -> Page:
         if not self.browser:

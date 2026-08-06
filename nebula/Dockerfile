@@ -59,11 +59,18 @@ COPY README.md ./
 COPY alembic.ini ./
 COPY alembic/ ./alembic/
 
+# Install playwright chromium (Douyin automation) + system deps
+# 浏览器装到 /ms-playwright（非 root appuser 可读）
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+RUN sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null; sed -i 's|deb.debian.org|mirrors.tuna.tsinghua.edu.cn|g; s|security.debian.org|mirrors.tuna.tsinghua.edu.cn|g' /etc/apt/sources.list 2>/dev/null; apt-get update \
+    && python -m playwright install --with-deps chromium \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create non-root user and data directory
 RUN groupadd -r appuser \
     && useradd -r -g appuser -d /app -s /usr/sbin/nologin appuser \
     && mkdir -p /data \
-    && chown -R appuser:appuser /app /data /opt/venv
+    && chown -R appuser:appuser /app /data /opt/venv /ms-playwright
 
 # Expose ports
 # 2002: HTTP API

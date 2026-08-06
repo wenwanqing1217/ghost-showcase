@@ -99,3 +99,43 @@ class TestRouteEndpoint:
         with TestClient(app) as client:
             resp = client.post("/api/v1/webhook/feishu/route", content=b"not-json")
         assert resp.status_code == 400
+
+
+class TestNaturalLanguageIntent:
+    """自然语言意图识别（前缀未命中时兜底）"""
+
+    def test_detect_copy_intent(self):
+        intent = fc._detect_nl_intent("帮我写北欧风香薰的闲鱼文案")
+        assert intent is not None
+        assert intent[0] == "copy"
+        assert intent[1]["_raw"] == "帮我写北欧风香薰的闲鱼文案"
+
+    def test_detect_video_intent(self):
+        intent = fc._detect_nl_intent("生成一个北欧香薰的种草视频")
+        assert intent[0] == "video"
+
+    def test_detect_douyin_intent(self):
+        intent = fc._detect_nl_intent("把这个发到抖音")
+        assert intent[0] == "douyin"
+
+    def test_detect_shortdrama_intent(self):
+        intent = fc._detect_nl_intent("帮我提交短剧")
+        assert intent[0] == "shortdrama"
+
+    def test_no_intent_returns_none(self):
+        assert fc._detect_nl_intent("今天天气怎么样") is None
+
+    def test_kv_params_kept(self):
+        intent = fc._detect_nl_intent("写个文案 商品=香薰 价格=59")
+        assert intent[0] == "copy"
+        assert intent[1]["商品"] == "香薰"
+
+    @pytest.mark.asyncio
+    async def test_nl_routes_to_handler(self, monkeypatch):
+        # 用桩替换真实 copy handler，避免触发网络调用
+        async def fake(args):
+            return f"copy:{args.get('_raw')}"
+
+        monkeypatch.setitem(fc._NL_HANDLERS, "copy", fake)
+        result = await fc.route_command("帮我写北欧风香薰的闲鱼文案")
+        assert result == "copy:帮我写北欧风香薰的闲鱼文案"

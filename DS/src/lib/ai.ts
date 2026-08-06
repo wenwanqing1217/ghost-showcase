@@ -283,7 +283,7 @@ export async function batchGenerateCopy(
 // 复用 AI_API_KEY：有 Key 走 LLM，无 Key 走本地模板（零成本）
 // ════════════════════════════════════════════════════════════════════
 
-export type ChannelPlatform = 'xianyu' | 'xiaohongshu';
+export type ChannelPlatform = 'xianyu' | 'xiaohongshu' | 'douyin';
 
 export interface ChannelCopyInput {
   platform: ChannelPlatform;
@@ -377,8 +377,42 @@ function demoXiaohongshu(input: ChannelCopyInput): ChannelCopyOutput {
   return { platform: 'xiaohongshu', title, body, tags, checklist, mode: 'demo', usage: { prompt_tokens: 0, completion_tokens: 0 } };
 }
 
+// ── 抖音本地模板（图文/短视频配套文案：短句、有钩子、口语化） ──
+function demoDouyin(input: ChannelCopyInput): ChannelCopyOutput {
+  const { product, description, price, tone = 'fun' } = input;
+  const core = extractCoreWord(product);
+
+  const title = `${core}真实体验一周，值不值得买？`.slice(0, 30);
+
+  const body = [
+    `${core}，用了一周的真实感受👇`,
+    description ? description : '颜值能打、日常刚需、性价比真的高',
+    '',
+    '✅ 优点：',
+    '1️⃣ 上手简单，不用折腾',
+    '2️⃣ 颜值在线，摆家里很出片',
+    '3️⃣ 价格实在，学生党也友好',
+    '',
+    '📌 想看细节的评论区扣1，下期出教程',
+  ].join('\n');
+
+  const tags = [`#${core}`, '#种草', '#好物分享', '#测评', '#生活好物'];
+  const checklist = [
+    '视频/图文前 3 秒给结果或悬念（"值不值得买"钩子）',
+    '文案口语化，短句快节奏，别念稿',
+    '配 3-4 张实拍图或 15-30s 竖版视频',
+    '结尾引导：关注/评论/收藏（提升完播和互动）',
+    '发布时段：午 12-13 点 / 晚 19-22 点（流量高峰）',
+    '置顶一条评论补充价格和购买方式',
+  ];
+
+  return { platform: 'douyin', title, body, tags, checklist, mode: 'demo', usage: { prompt_tokens: 0, completion_tokens: 0 } };
+}
+
 function demoChannel(input: ChannelCopyInput): ChannelCopyOutput {
-  return input.platform === 'xianyu' ? demoXianyu(input) : demoXiaohongshu(input);
+  if (input.platform === 'xianyu') return demoXianyu(input);
+  if (input.platform === 'douyin') return demoDouyin(input);
+  return demoXiaohongshu(input);
 }
 
 // ── LLM 模式 ──
@@ -387,6 +421,8 @@ async function apiChannel(input: ChannelCopyInput): Promise<ChannelCopyOutput> {
 
   const platformBrief = platform === 'xianyu'
     ? `闲鱼二手交易平台。标题≤50字前缀加成色/价格；正文含【出】【卖点】【价格】【交易】【原因】；风格真诚简短；tags 5-6 个含"全新/闲置/包邮"等。`
+    : platform === 'douyin'
+    ? `抖音短视频/图文平台。标题≤30字有钩子（如"值不值得买/真实体验"）引导点击；正文口语化、短句快节奏、开头抓注意力、结尾引导关注评论；tags 3-5 个带 # 话题。`
     : `小红书种草平台。标题≤20字带 emoji 制造好奇；正文 emoji 分段，语气亲切（姐妹们/绝绝子）；结尾引导互动；tags 5-8 个带 # 话题。`;
 
   const systemPrompt = `你是社媒运营专家，为商品生成平台原生文案。

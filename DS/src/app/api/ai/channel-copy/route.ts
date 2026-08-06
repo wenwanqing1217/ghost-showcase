@@ -14,7 +14,7 @@ import { z } from 'zod';
 export const dynamic = 'force-dynamic';
 
 const Schema = z.object({
-  platform: z.enum(['xianyu', 'xiaohongshu']),
+  platform: z.enum(['xianyu', 'xiaohongshu', 'douyin']),
   product: z.string().min(1, '请输入商品名/主题'),
   description: z.string().optional(),
   price: z.string().optional(),

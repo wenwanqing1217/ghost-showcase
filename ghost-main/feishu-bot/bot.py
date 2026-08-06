@@ -57,6 +57,15 @@ TASK_QUEUE_PATH = os.path.join(os.path.dirname(__file__), "tasks.json")
 # 限流配置
 RATE_LIMIT_PER_MINUTE = int(os.getenv("RATE_LIMIT_PER_MINUTE", "20"))
 
+# 待确认发布的确认/取消词（精确匹配，避免误触）
+_PUBLISH_CONFIRM_WORDS = {
+    "发布", "确认", "确认发布", "可以", "可以发布", "发", "发布吧", "发吧",
+    "好", "好的", "对", "是的", "ok", "ok!", "OK", "发送",
+}
+_PUBLISH_CANCEL_WORDS = {
+    "取消", "不要", "算了", "不用", "撤销", "不发了", "别发", "不用了",
+}
+
 # ============================================================
 # 原子文件写入工具
 # ============================================================
@@ -453,6 +462,8 @@ class FeishuBotHandler:
         self.rate_limiter = rate_limiter or RateLimiter()
         # 已处理的消息去重（LRU OrderedDict）
         self._processed: OrderedDict = OrderedDict()
+        # 待确认发布：chat_id → {title, content}（文案生成后等待用户确认）
+        self._pending_publish: Dict[str, dict] = {}
         # 共享 HTTP 客户端（避免每次请求创建新连接）
         self._http_client = httpx.AsyncClient(timeout=10)
         # 反向引用 BotApp（由 BotApp.start() 设置）
@@ -564,9 +575,32 @@ class FeishuBotHandler:
                 await self._reply_text(chat_id, msg_id, reply)
             return
 
+        # ---- 待确认发布：精确匹配确认/取消词 ----
+        if chat_id in self._pending_publish:
+            norm = text.strip().lower()
+            if norm in _PUBLISH_CONFIRM_WORDS:
+                pending = self._pending_publish.pop(chat_id)
+                await self._reply_text(chat_id, msg_id, "📤 正在发布到抖音，请稍候（首次可能需要登录验证）...")
+                result = await self._execute_douyin_publish(
+                    pending.get("title", ""), pending.get("content", "")
+                )
+                await self._reply_text(chat_id, msg_id, result)
+                return
+            if norm in _PUBLISH_CANCEL_WORDS:
+                self._pending_publish.pop(chat_id, None)
+                await self._reply_text(chat_id, msg_id, "已取消发布，内容已丢弃。")
+                return
+
         # ---- 运营指令路由（渠道助手：文案/视频/抖音/短剧，非斜杠指令） ----
-        op_reply = await self._try_operation_command(text)
+        op_reply, op_action = await self._try_operation_command(text)
         if op_reply:
+            if op_action:
+                # 文案生成成功 → 记录待确认发布（取最后一段，即抖音版文案）
+                self._pending_publish[chat_id] = op_action
+                op_reply += (
+                    "\n\n──────────\n"
+                    "💡 确认无误？回复「发布」即把上方 🎬 抖音版文案发到你的抖音；「取消」放弃。"
+                )
             await self._reply_text(chat_id, msg_id, op_reply)
             return
 
@@ -709,11 +743,14 @@ class FeishuBotHandler:
 
         return None
 
-    async def _try_operation_command(self, text: str) -> Optional[str]:
+    async def _try_operation_command(self, text: str) -> tuple:
         """尝试运营指令路由（渠道助手：文案/视频/抖音/短剧）
 
         复用 nebula feishu_commands.py 指令路由器（HTTP 调用），
-        非指令返回 None，由调用方回退到编程后端。
+        非指令返回 (None, None)，由调用方回退到编程后端。
+
+        返回: (reply 文本, action dict 或 None)
+          - action 仅文案生成成功时返回 {"title", "content"}，供确认发布
         """
         nebula_url = os.environ.get("NEBULA_URL", "http://localhost:2002").rstrip("/")
         try:
@@ -723,14 +760,51 @@ class FeishuBotHandler:
                 timeout=90,  # 文案/视频指令涉及下游服务调用，可能较慢
             )
             if resp.status_code != 200:
-                return None
+                return None, None
             data = resp.json()
             if not data.get("handled"):
-                return None
-            return data.get("reply") or ""
+                return None, None
+            reply = data.get("reply") or ""
+            action = None
+            if "【标题】" in reply and "【正文】" in reply:
+                action = self._extract_copy_action(reply)
+            return reply, action
         except Exception as e:
             logger.warning("运营指令路由失败，回退编程后端: %s", e)
-            return None
+            return None, None
+
+    def _extract_copy_action(self, reply: str) -> Optional[dict]:
+        """从文案回复中提取 {title, content}（取最后一段平台文案，即小红书版）"""
+        sections = re.split(r"\n──────────\n", reply)
+        for sec in reversed(sections):
+            if "【标题】" not in sec:
+                continue
+            m_title = re.search(r"【标题】(.+?)\n", sec)
+            m_body = re.search(r"【正文】\n(.+?)(?:\n【标签】|\Z)", sec, re.S)
+            if m_title and m_body:
+                return {
+                    "title": m_title.group(1).strip(),
+                    "content": m_body.group(1).strip(),
+                }
+        return None
+
+    async def _execute_douyin_publish(self, title: str, content: str) -> str:
+        """执行抖音发布：复用 nebula 抖音指令（DouyinAutomation.publish）"""
+        nebula_url = os.environ.get("NEBULA_URL", "http://localhost:2002").rstrip("/")
+        text = f"抖音 标题={title} 内容={content}"
+        try:
+            resp = await self._http_client.post(
+                f"{nebula_url}/api/v1/webhook/feishu/route",
+                json={"text": text},
+                timeout=180,  # Playwright 发布可能较慢
+            )
+            data = resp.json()
+            if not data.get("handled"):
+                return f"❌ 发布失败：未识别为发布指令\n原始返回：{str(data)[:200]}"
+            return data.get("reply") or "发布结果未知"
+        except Exception as e:
+            logger.warning("抖音发布异常: %s", e)
+            return f"❌ 抖音发布出错：{str(e)[:200]}"
 
     async def _handle_video_command(self, text: str, chat_id: str, msg_id: str):
         """Handle /video command — trigger AI video generation via Gateway.
