@@ -648,6 +648,8 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 
 **结果:** 飞书闭环就绪：自然语言"帮我写北欧风香薰的闲鱼文案"→ 真实生成闲鱼+小红书文案 → 回复「发布」→ 抖音发布（需先完成一次性扫码登录配置 DOUYIN_COOKIE_JSON）。待用户操作：跑登录脚本扫码 → 重启 nebula → 飞书实测。备注：DS 未配 AI_API_KEY 走 demo 模板，`extractCoreWord` 会删风格词（如"北欧"），配 key 走 LLM 后商品名完整保留。
 
+**补充（同日）:** 用户反馈"闲鱼和小红书在另一个对话，抖音应该发布适合他的内容"。修复：DS [lib/ai.ts](file:///d:/MW/DS/src/lib/ai.ts) + [route.ts](file:///d:/MW/DS/src/app/api/ai/channel-copy/route.ts) 新增 `douyin` 平台——`demoDouyin` 抖音专属模板（≤30 字钩子标题/口语化短句正文/3-5 个 #话题/发布时段建议）；nebula `_cmd_copy` 三平台并行（闲鱼/小红书/抖音，抖音段放最后）；bot.py 确认提示明确"发布上方 🎬 抖音版文案"。实测：三套文案生成，action 提取抖音段正确。DS 类型检查通过、nebula 19 passed。备注：demo 模板 `extractCoreWord` 仍删"北欧"（配 AI_API_KEY 走 LLM 后保留）。
+
 ### 会话 27：合规发布台（小红书种草 / 闲鱼上架）+ 业务链路实测（2026-08-06）
 
 **工作内容:**
@@ -661,3 +663,17 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 4. **本会话业务链路实测汇总** — E2E 10/10；飞书指令 5 条实测（文案真实生成闲鱼+小红书两套、视频提交→79.8s 有效 mp4、查询/短剧/帮助）；chat 后端真实 AI 回复；nebula 容器 `DS_URL`/`GATEWAY_URL` 补全（[docker-compose.yml](file:///d:/MW/docker-compose.yml)）；视频 recovery moov atom 校验修复（[content.py](file:///d:/MW/ghost-main/gateway/routes/content.py)）。
 
 **结果:** 合规发布闭环上线：生成→选题→配图提示词→人工编辑→一键复制+拉起 APP→手动发布。全部实测通过；3 commit（`2ac750f`/`166bcdc`/`fb331c6`）推送远程 master=`ecd1112f`；本会话新增 publish 页面 + Sidebar 待提交推送。剩余待用户：飞书 App 内实测 + 抖音登录脚本扫码。
+
+---
+
+### 会话 28：远程推送完整性修复（2026-08-06）
+
+**背景:** 会话 27 用 `_git_api_push.py`（Git Data API）推送，远程仅收到 4 个重建提交且**缺 `DS/src/app/publish/page.tsx`**（发布台页面 559 行未上传），远程 master 历史与本地分叉（本地 ahead 6 / behind 4）。
+
+**排查:**
+- `git fetch` 后发现远程 tip `8a33fc0` 的 tree 与本地 `1729c70` 的 tree 仅差 publish/page.tsx 一个文件（`git diff --stat` 确认），其余内容完全一致（含飞书 chat 后端、moov 校验、douyin 闭环）
+- 直接 `git push` 因非快进被拒；HTTPS 智能协议实际可用（凭证已缓存）
+
+**处理:** 经用户确认后 `git push --force origin master`，远程 master `8a33fc0...1729c70 (forced update)`，与本地完全一致。远程那 4 个提交是本地提交的 API 重建副本（无独立工作丢失），强推后用本地完整提交链替换，历史干净。
+
+**结果:** 远程 master = `1729c70`，内容完整（含发布台页面）。推送问题闭环。剩余待用户：飞书 App 内收发实测 + `scripts/douyin_login_export.py` 扫码登录抖音。
