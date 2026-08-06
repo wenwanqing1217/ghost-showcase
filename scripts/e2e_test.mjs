@@ -164,11 +164,18 @@ async function checkDockerRunning() {
   // Attempt docker CLI
   let dockerCliOk = false;
   try {
-    const proc = spawn("C:/Program Files/Docker/Docker/resources/bin/docker.exe", ["info"], { stdio: ["ignore", "pipe", "pipe"] });
+    // Linux/Mac 用 PATH 里的 docker；Windows 用 Docker Desktop 的 docker.exe。
+    // spawn 的 ENOENT 是异步 error 事件，必须监听，否则 node 进程直接崩溃。
+    const dockerCmd =
+      process.platform === "win32"
+        ? "C:/Program Files/Docker/Docker/resources/bin/docker.exe"
+        : "docker";
+    const proc = spawn(dockerCmd, ["info"], { stdio: ["ignore", "pipe", "pipe"] });
     const chunks = [];
     proc.stdout.on("data", (c) => chunks.push(c));
     proc.stderr.on("data", () => {});
     await new Promise((resolve) => {
+      proc.on("error", () => resolve()); // ENOENT / EACCES：静默 fallback 到端口探测
       proc.on("close", (code) => {
         if (code === 0) dockerCliOk = true;
         resolve();
