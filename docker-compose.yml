@@ -50,6 +50,9 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${DB_USER:?DB_USER required}:${DB_PASSWORD:?DB_PASSWORD required}@db:5432/nebula
       CSRF_DISABLED: "true"
+      # 飞书指令路由调用下游服务（DS 文案 / Gateway 视频·发布）需容器内可达地址
+      DS_URL: http://ghost-ds:3000
+      GATEWAY_URL: http://gateway:18080
     env_file:
       - ./nebula/.env
     depends_on:
