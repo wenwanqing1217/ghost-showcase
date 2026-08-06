@@ -595,4 +595,20 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 9. **网络恢复 + master 对齐** — 8b5038f/590fc26/51e1b47 连续 push 成功（网络恢复）；远程 master 现在是 Git Data API 与本地 push 混合历史，fetch 后 `reset --soft origin/master` 对齐（本地独有增量恰好 = flow lint + WORK_LOG）。
 10. **全量重跑** — run 31034476985（workflow_dispatch，master=51e1b47）已启动，3 Python Test + Registration + all-pass + E2E 全量验证中。
 
-**结果:** ci.yml workflow_dispatch 全量 run 31033478781 已启动；待验证全绿。
+### 会话 24：AID Test MCP 导入修复 + 通用 Git Data API 推送工具（GFW 战延续）
+
+**工作内容:**
+1. **全量 run 31034884955（51e1b47）结果** — 除 AID CI / Test 外全绿（Flow lint、AID lint 均已修复验证）：
+   - **AID CI / Test（P0）** — `tests/conftest.py:37` import `entrypoints.aid_mcp_server` → `from mcp.server import FastMCP` **ImportError**。根因：pyproject 约束 `mcp>=1.0` 过松，CI 全新 venv 解析出的 mcp 版本没有 `mcp.server.FastMCP` 顶层导出（该导出 mcp>=1.9 才有）；本地环境 mcp 版本较新所以 867 passed 未暴露。修复：改用 `from mcp.server.fastmcp import FastMCP`（mcp 1.x 全版本可用），本地 867 passed 回归保持。
+2. **提交推送** — alpha-id 子模块 `7f8b417`（MCP import 修复）；主仓库 `51249dd`（gitlink 提升 + 推送工具）。
+3. **通用 Git Data API 推送工具（[scripts/_git_api_push.py](file:///d:/MW/scripts/_git_api_push.py)）** — 支持任意 repo/branch/local_commit（[owner/repo, branch, commit, token, local_dir, diff_base]）：
+   - `git cat-file`/`git ls-tree` 从本地仓库提取原始字节与 tree 结构（**不经 PowerShell 管道，字节无损**）
+   - `git diff --name-status` 只上传变更 blob → 递归重建 tree（base_tree 继承未变部分）
+   - 支持 **gitlink 子模块条目**（type=commit，mode=160000，sha=子模块 commit，无需上传）
+   - 不支持删除文件（Git tree base 继承语义），脚本显式报错
+   - diff_base 参数：Git Data API 创建的远程 commit 不在本地对象库时传本地祖先 commit
+   - 验证方式：重建 root tree sha 必须 == 本地 commit tree sha
+4. **主仓库推送历史** — 远程 master 经 3 次 Git Data API 推送：6b2a036 → 01b6e1d（ci.yml workflow_dispatch）→ 51a5c54（gitlink 7f8b417，旧脚本版）→ 4a3545b（含 diff-base 修复脚本）。本地 51249dd 与远程 4a3545b **tree 完全一致**（commit sha 不同，网络恢复后 fetch + reset 对齐）。
+5. **全量重跑** — run 31035911250（workflow_dispatch，master=4a3545b，含 MCP 修复）已启动，等 E2E 关键结果。
+
+**结果:** alpha-id `7f8b417` + 主仓库 `4a3545b`（tree 与本地一致）；全量 run 31035911250 验证中。
