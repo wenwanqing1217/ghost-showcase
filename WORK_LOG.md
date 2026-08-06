@@ -633,3 +633,31 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 7. **视频生成 recovery 误判修复（P1）** — 实测视频指令发现 gateway recovery 把"生成中"误判为"完成"：moviepy/ffmpeg 编码时 `final-1.mp4` 边写边生成，旧逻辑只看 HTTP 200，文件刚创建（48 字节）及编码缓冲大小短暂稳定时都误判完成，用户会拿到缺 `moov atom` 的损坏视频（ffprobe 报 Invalid data）。**修复**：[content.py](file:///d:/MW/ghost-main/gateway/routes/content.py) recovery 探测改为 Range 下载文件尾部 64KB 校验 `b"moov"`（ffmpeg 未收尾不写 moov atom，位置在文件末尾）——准确区分"编码中"与"已完成"。实测：编码中保持 state=4，MP 自身收尾 state=1 后 gateway 返回 state=1 + 有效视频 URL；ffprobe 确认 final-1.mp4 79.8s / 3.03MB 有效。
 
 **结果:** 飞书指令中心 5 条指令（文案/视频/查询视频/短剧/帮助）全部实测跑通；chat 后端（AI 闲聊）真实回复；视频生成→查询→下载完整闭环验证（有效 mp4）；gateway 测试 52 passed；远程 master = 1cf0070d + 待推 3 commit。剩余待用户实测：飞书 App 内真实收发消息。
+
+### 会话 26：飞书自然语言 → 文案 → 确认发布抖音 闭环（2026-08-06）
+
+**工作内容:**
+1. **飞书 bot 停止运行排查（P0）** — 用户反馈"飞书发了没回"：根因 Docker Desktop 关闭，容器全停（日志停在 02:57:45）。启动后 16 容器自动恢复；顺带修复 feishu-bot 旧容器缺 `NEBULA_URL`（compose 已配但容器未重建）、nebula 镜像过期（容器内 feishu_webhook 无 route 端点，404）→ 重建后指令路由 200 handled=true。
+2. **回复质量修复（P1）** — 普通消息默认走 echo 模拟后端，回复敷衍。根因容器内无 atomcode/zcode/codex CLI，`DEFAULT_BACKEND:-echo` 兜底。修复：[code_runner.py](file:///d:/MW/ghost-main/feishu-bot/code_runner.py) 新增 `chat` 后端（POST Gateway /v1/chat → Alpha-ID LLM，带 X-Tenant-ID）+ compose `DEFAULT_BACKEND:-chat`。实测 `runner.run("你好")` 返回真实 AI 回复。
+3. **自然语言意图识别（P1，核心需求）** — 用户要"自然语言 → 看过确认 → 直接发布"。此前必须严格"文案 商品=XX"格式。修复：[feishu_commands.py](file:///d:/MW/nebula/src/mindflow_map/api/feishu_commands.py) 前缀未命中时按关键词识别运营意图（copy/video/shortdrama/douyin，视频特判避免"种草视频"被 copy 先命中），清洗语气词提取参数，复用现有处理器。新增 7 用例（TestNaturalLanguageIntent），**19 passed**。
+4. **确认后发布闭环（P1）** — [bot.py](file:///d:/MW/ghost-main/feishu-bot/bot.py) 新增 `_pending_publish`：文案生成后提取小红书段 {title, content} 存待发，回复附"回复「发布」发抖音 /「取消」放弃"；确认词精确匹配后组 `抖音 标题=.. 内容=..` 调 nebula route 执行发布。容器内验证：action 提取、确认/取消词、发布路径均正确。
+5. **抖音发布断链修复（P0）** — [douyin.py](file:///d:/MW/nebula/src/mindflow_map/automation/douyin.py) `set_cookies` 无调用方、`DOUYIN_COOKIE_JSON` 从未被读取 → 永远"未登录"。修复：`__init__` 从环境变量读 cookie（+import os）；`_cmd_douyin` 未登录时先尝试 cookie 注入，无 cookie 立即返回登录引导（避免 headless 下 5 分钟扫码等待）。
+6. **附赠 bug 修复** — `_cmd_copy` 空字段传 `null`，DS Zod `z.string().optional()` 拒绝 null → "参数校验失败"。修复：空字段不传。
+7. **抖音一次性登录脚本（[scripts/douyin_login_export.py](file:///d:/MW/scripts/douyin_login_export.py)）** — 本地 headful chromium 扫码登录 → 导出 playwright cookie 数组 → 可选自动写入 nebula/.env 的 `DOUYIN_COOKIE_JSON`。本地已装 playwright + chromium 就绪。
+8. **改动文件** — nebula: feishu_commands.py（意图识别+2 bug 修复）/douyin.py（cookie 读取）/feishu_webhook.py（route 端点）；feishu-bot: bot.py（pending 确认）/code_runner.py（chat 后端）；compose（DEFAULT_BACKEND:-chat）；测试 +1 类；scripts +1。
+
+**结果:** 飞书闭环就绪：自然语言"帮我写北欧风香薰的闲鱼文案"→ 真实生成闲鱼+小红书文案 → 回复「发布」→ 抖音发布（需先完成一次性扫码登录配置 DOUYIN_COOKIE_JSON）。待用户操作：跑登录脚本扫码 → 重启 nebula → 飞书实测。备注：DS 未配 AI_API_KEY 走 demo 模板，`extractCoreWord` 会删风格词（如"北欧"），配 key 走 LLM 后商品名完整保留。
+
+### 会话 27：合规发布台（小红书种草 / 闲鱼上架）+ 业务链路实测（2026-08-06）
+
+**工作内容:**
+1. **noon 入驻门槛核实** — 用户听说"noon 没门槛"。查证（雨果网/知无不言）：**门槛较高**：公司营业执照（个体户不可）、法人 ID、公司银行账户、2 年以上电商运营经验、SKU 5000+（知名品牌除外）、团队 10 人+、3 天内到货深圳仓、客单价 10USD+、销售 1 个月后转 FBN 海外仓、需中东 VAT。与"零成本启动"定位不符，暂不接入。
+2. **新增合规发布台页面（[DS/src/app/publish/page.tsx](file:///d:/MW/DS/src/app/publish/page.tsx)）** — 用户要求"AI 生成选题/文案/配图 → 人工修改审核 → 一键拉起 APP 自动填充 → 手动确认发布（WorkBuddy/iThinkAi 合规模式）"：
+   - 双 tab：📕 小红书种草 / 🐟 闲鱼上架，共用商品表单（商品名/卖点/价格/成色/风格）
+   - **零后端改动**：复用 `/api/ai/channel-copy` 生成正文/标签/清单；选题变体（3 个标题）与配图提示词（3 组，小红书）前端模板生成
+   - **可编辑**：标题点选+可直接改、正文 textarea、标签自由编辑（人工审核把关）
+   - **一键复制并打开 APP**：组装平台格式（标题+正文+#标签）→ 剪贴板 → URL Scheme 唤起（小红书 `xhsdiscover://` / 闲鱼 `fleamarket://`）→ 提示手动粘贴确认发布（合规不代发）；备用：小红书创作中心网页版 / 闲鱼网页版链接
+3. **导航 + 构建** — [Sidebar.tsx](file:///d:/MW/DS/src/components/layout/Sidebar.tsx) 操作区加「发布台」；tsc 0 错误、DS 测试 45 passed、ghost-ds 镜像重建后 `/publish` HTTP 200 生效。
+4. **本会话业务链路实测汇总** — E2E 10/10；飞书指令 5 条实测（文案真实生成闲鱼+小红书两套、视频提交→79.8s 有效 mp4、查询/短剧/帮助）；chat 后端真实 AI 回复；nebula 容器 `DS_URL`/`GATEWAY_URL` 补全（[docker-compose.yml](file:///d:/MW/docker-compose.yml)）；视频 recovery moov atom 校验修复（[content.py](file:///d:/MW/ghost-main/gateway/routes/content.py)）。
+
+**结果:** 合规发布闭环上线：生成→选题→配图提示词→人工编辑→一键复制+拉起 APP→手动发布。全部实测通过；3 commit（`2ac750f`/`166bcdc`/`fb331c6`）推送远程 master=`ecd1112f`；本会话新增 publish 页面 + Sidebar 待提交推送。剩余待用户：飞书 App 内实测 + 抖音登录脚本扫码。

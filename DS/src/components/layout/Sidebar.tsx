@@ -25,6 +25,7 @@ const NAV_GROUPS = [
       { href: '/dashboard', label: '运营看板', icon: 'dashboard' as const },
       { href: '/content', label: '内容库', icon: 'content' as const },
       { href: '/channels', label: '渠道助手', icon: 'channels' as const },
+      { href: '/publish', label: '发布台', icon: 'channels' as const },
       { href: '/growth', label: '成长地图', icon: 'growth' as const },
     ],
   },
