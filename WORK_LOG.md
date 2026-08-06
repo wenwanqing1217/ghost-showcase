@@ -677,3 +677,44 @@ ode scripts/e2e_test.mjs --wait **10/10 ALL GREEN**；14 容器 healthy。
 **处理:** 经用户确认后 `git push --force origin master`，远程 master `8a33fc0...1729c70 (forced update)`，与本地完全一致。远程那 4 个提交是本地提交的 API 重建副本（无独立工作丢失），强推后用本地完整提交链替换，历史干净。
 
 **结果:** 远程 master = `1729c70`，内容完整（含发布台页面）。推送问题闭环。剩余待用户：飞书 App 内收发实测 + `scripts/douyin_login_export.py` 扫码登录抖音。
+
+### 会话 29：飞书无回复修复 + 文案确认卡片 + 抖音视频发布（2026-08-06）
+
+**工作内容:**
+1. **飞书"发了没回"排查修复（P0）** — 日志显示消息已收到（WS recv + handle_event）但处理链路静默无日志、无回复。根因：`_try_operation_command` 命中运营指令后 `_reply_text` 无 try/except（失败被吞）+ route HTTP 调用可能挂起导致事件处理积压。修复 [bot.py](file:///d:/MW/ghost-main/feishu-bot/bot.py)：① 消息入口加"处理消息"摘要日志；② 运营指令路由加 try/except + 回复完成日志；③ route 调用加 `asyncio.wait_for(100s)` 双重超时兜底。实测：用户消息 04:56:53 收到 → 04:56:57 回复完成 ✅。
+2. **文案确认卡片（交互按钮，P1，用户"直接一点"需求）** — 文案生成成功后不再发纯文本+文字确认，改发飞书 **interactive 卡片**：正文为 🎬 抖音版文案，带三按钮 **✅发布到抖音 / 🔄重写 / ❌取消**（按钮 value 携带 title/content/chat_id）。[bot.py](file:///d:/MW/ghost-main/feishu-bot/bot.py) 新增 `_reply_card`（msg_type=interactive）/ `_build_confirm_card` / `_handle_card_action`（处理 `card.action.trigger` WS 回调：publish→`_execute_douyin_publish`，rewrite→提示重述，cancel→丢弃待发）。文本"发布/取消"确认保留为兜底。
+3. **抖音视频发布（P1）** — [douyin.py](file:///d:/MW/nebula/src/mindflow_map/automation/douyin.py) 新增 `publish_video(video_path, title, description)`：Playwright 进入 `creator.douyin.com/creator-micro/content/upload` → `set_input_files` 上传 MP4 → 填标题/描述 → 点发布。[feishu_commands.py](file:///d:/MW/nebula/src/mindflow_map/api/feishu_commands.py) 新增「发布视频到抖音 <task_id> 标题=XX 描述=XX」指令：调 Gateway status 拿视频 URL → 容器内下载（`localhost:8080`→`moneyprinter:8080` 映射）→ `publish_video`。原「发布视频」保留走 Upload-Post 海外平台。
+4. **指令前缀冲突修复（P1）** — `发布视频` 先注册，`发布视频到抖音` 前缀被前者吞掉（实测误路由到 Upload-Post）。修复 [feishu_commands.py](file:///d:/MW/nebula/src/mindflow_map/api/feishu_commands.py) `route_command` 按**前缀长度降序**匹配（更长更具体优先）。19 passed 保持全绿。
+5. **Cookie 有效期确认** — 容器内 `DOUYIN_COOKIE_JSON` 43 个 cookie，`sessionid` 有效期至 2026-10 初，无需重新登录。
+
+**结果:** 飞书 bot 无回复问题闭环（消息处理全链路有日志+超时兜底）；文案确认升级为卡片按钮（✅发布/🔄重写/❌取消）；抖音视频发布链路就绪（生成→下载→上传→发布）。nebula 19 passed；feishu-bot/nebula 容器已重建。待用户实测：飞书发文案 → 点卡片按钮 → 发布；视频生成完成后发「发布视频到抖音 <task_id>」。改动未提交 git。
+
+### 会话 30：feishu-bot 三阶段重构 — 包拆分 + PlatformRouter + ChannelAdapter（2026-08-06）
+
+**工作内容:**
+1. **Phase 1 — 包拆分（P1）** — 单文件 `bot.py` 1585 行 → 19 文件包结构：
+   - `config/` — 集中管理所有 env var
+   - `auth/token_manager.py` — Token 自动刷新
+   - `state/{rate_limiter,memory,task_queue}.py` — 限流/上下文记忆/定时任务
+   - `transport/{protobuf,ws_client,poller}.py` — 帧解析/WS 长连接/轮询兜底
+   - `handler/{event,card,video}_handler.py` — 消息处理/卡片/视频
+   - `bot.py` 精简为 241 行入口（BotApp + FeishuBotHandler 薄壳）
+   - 删除重复 `_reply_card` 定义（原 L703 + L1139 两处）
+   - 修复 `content` 字段应为 JSON 字符串（飞书 API 要求）
+   - 修复 `handler.runner.BACKENDS` 应为模块级 `BACKENDS`
+   - 删除冗余赋值 `_PUBLISH_CONFIRM_WORDS = _PUBLISH_CONFIRM_WORDS`
+2. **Phase 2 — PlatformRouter（P1）** — 新建 `platform_router.py` 统一封装 nebula/gateway 调用：
+   - `route_operation()` / `publish_douyin()` / `generate_video()` / `get_video_status()`
+   - FeishuBotHandler 不再硬编码 NEBULA_URL/GATEWAY_URL，通过注入 PlatformRouter 解耦
+3. **Phase 3 — ChannelAdapter + EventPublisher（P2）** — 对齐项目架构：
+   - `channel_adapter.py` — ChannelAdapter 基类（TERM 对齐 AGENTS.md）
+   - `feishu_channel.py` — FeishuChannelAdapter 实现
+   - `event_publisher.py` — Redis Streams 事件发布器（EVENT_MESSAGE_SENT 等常量对齐 EventBus）
+4. **.gitignore 修复** — 飞书 bot 段从"全目录忽略+白名单"改为"忽略敏感/临时文件"，新包结构不再被排除
+
+**验证:**
+- 语法检查：16 文件全部通过
+- Import 验证：所有模块正常导入
+- 测试：2/2 passed（零回归）
+
+**结果:** 完成。feishu-bot 从 1585 行单文件 → 241 行入口 + 15 个职责清晰的子模块；硬编码 URL 全部收敛到 PlatformRouter；ChannelAdapter 基类就位供未来 OrchestratorEngine 接入。

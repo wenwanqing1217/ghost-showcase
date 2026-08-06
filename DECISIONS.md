@@ -194,6 +194,32 @@
 **后果:** master 历史全部重写（旧 commit ID 失效），远程与本地一致；Push Protection 解除；`.git` 从 600MB+ 降至 35.5MB；子模块 gitlink（37021b6）保留完好。**注意**：App Secret 曾存在于远程历史，仍应去飞书开放平台轮换  
 **教训:** ① 误提交安装包/凭证的根因是 `.gitignore` 覆盖不全——大文件入库前应有 hooks/CI 拦截；② GFW 环境下 `http.postBuffer=65536`（64KB 分块）可规避大块上传被 reset 的问题
 
+### D-20260806-1: feishu-bot 三阶段重构 — 包拆分 + PlatformRouter + ChannelAdapter
+
+**日期:** 2026-08-06  
+**状态:** Accepted  
+**背景:** `bot.py` 单文件 1585 行，8 个类全堆在一起；硬编码 `NEBULA_URL`/`GATEWAY_URL` 散落在 6 个方法里；重复 `_reply_card` 定义两次；违反 AGENTS.md TERM 规则（ChannelAdapter / EventBus 未对齐）
+
+**选项:**
+- A) 大爆炸重写（全部推翻重写，风险高）
+- B) Strangler Fig 绞杀式重构（每次抽一块，跑通再抽下一块）
+- C) 只修 bug 不动结构
+
+**决定:** B — 三阶段绞杀式重构，每阶段独立可验证
+
+**三阶段:**
+1. **Phase 1 — 包拆分** — `bot.py` 1585 行 → 241 行；拆出 `config/` `auth/` `state/` `transport/` `handler/` 五个子包；每个文件单一职责
+2. **Phase 2 — PlatformRouter** — 新建 `platform_router.py` 统一封装 nebula/gateway HTTP 调用；FeishuBotHandler 通过注入 PlatformRouter 解耦，不再硬编码 URL
+3. **Phase 3 — ChannelAdapter + EventPublisher** — `channel_adapter.py` 定义 ChannelAdapter 基类（对齐 AGENTS.md TERM）；`feishu_channel.py` 实现飞书适配器；`event_publisher.py` 提供 Redis Streams 事件发布（对齐 EventBus 常量命名）
+
+**后果:** 
+- feishu-bot 从单文件 → 19 文件包结构；改端点只需改 PlatformRouter 一处
+- ChannelAdapter 基类就位，未来 OrchestratorEngine 可通过统一接口接入飞书
+- 删除重复 `_reply_card`、修复 `content` JSON 字符串格式、修复 `handler.runner.BACKENDS` 引用错误
+- .gitignore 飞书 bot 段从"全目录忽略+白名单"改为"忽略敏感/临时文件"
+
+**验证:** 语法检查 16 文件全通过；import 全通过；测试 2/2 passed（零回归）
+
 ---
 
 ## 待记录决策
