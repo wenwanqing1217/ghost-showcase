@@ -334,6 +334,148 @@ class DouyinAutomation:
             await self._set_state("LOGGED_IN")
             return {"success": False, "error": str(e)}
 
+    async def publish_video(
+        self,
+        video_path: str,
+        title: str,
+        description: str = "",
+    ) -> Dict[str, Any]:
+        """发布视频（MP4）到抖音
+
+        流程：
+            1. 确保已登录
+            2. 进入视频上传页
+            3. 上传视频文件（等待转码）
+            4. 填写标题和描述
+            5. 提交发布
+        """
+        async with self._state_lock:
+            if self.state != "LOGGED_IN":
+                return {
+                    "success": False,
+                    "error": f"未登录，当前状态: {self.state}，请先调用 login()",
+                }
+
+        page = self.page
+        if not page:
+            return {"success": False, "error": "浏览器未初始化"}
+
+        video_file = Path(video_path)
+        if not video_file.is_file():
+            return {"success": False, "error": f"视频文件不存在: {video_path}"}
+
+        await self._set_state("PUBLISH_IN_PROGRESS")
+
+        try:
+            # 进入视频上传页
+            await page.goto(
+                "https://creator.douyin.com/creator-micro/content/upload",
+                timeout=60000,
+                wait_until="domcontentloaded",
+            )
+            await page.wait_for_timeout(3000)
+
+            # 上传视频文件（input[type=file] 拖拽区/按钮通用）
+            file_input = await page.wait_for_selector(
+                "input[type='file']", timeout=15000
+            )
+            if not file_input:
+                return {"success": False, "error": "找不到视频上传入口"}
+            await file_input.set_input_files(str(video_file.resolve()))
+            # 等待上传与转码（大文件耗时较长）
+            await page.wait_for_timeout(10000)
+
+            # 填写标题（抖音上传页标题为 contenteditable 或 textarea）
+            title_input = None
+            for selector in (
+                "textarea[placeholder*='标题']",
+                "input[placeholder*='标题']",
+                "div[contenteditable='true']",
+                "textarea",
+            ):
+                try:
+                    title_input = await page.wait_for_selector(
+                        selector, timeout=3000
+                    )
+                    if title_input:
+                        break
+                except Error:
+                    continue
+            if title_input:
+                await title_input.click()
+                await title_input.fill(title)
+            else:
+                return {"success": False, "error": "找不到标题输入框"}
+
+            # 填写描述
+            if description:
+                desc_input = None
+                for selector in (
+                    "textarea[placeholder*='描述']",
+                    "textarea[placeholder*='简介']",
+                    "div[contenteditable='true']",
+                ):
+                    try:
+                        desc_input = await page.wait_for_selector(
+                            selector, timeout=3000
+                        )
+                        if desc_input:
+                            break
+                    except Error:
+                        continue
+                if desc_input:
+                    await desc_input.click()
+                    await desc_input.fill(description)
+                    await page.wait_for_timeout(1000)
+
+            # 点击发布按钮（可能是"发布"或底部提交）
+            publish_btn_selectors = [
+                "button:has-text('发布')",
+                "button:has-text('提交')",
+                "button[type='submit']",
+                "button:has-text('Publish')",
+            ]
+            clicked = False
+            for selector in publish_btn_selectors:
+                try:
+                    btn = await page.wait_for_selector(selector, timeout=3000)
+                    if btn:
+                        await btn.click()
+                        clicked = True
+                        break
+                except Error:
+                    continue
+
+            if not clicked:
+                return {"success": False, "error": "找不到发布按钮"}
+
+            # 等待发布成功提示
+            try:
+                await page.wait_for_selector(
+                    "text=发布成功, text=success, text=已发布",
+                    timeout=60000,
+                )
+                await self._set_state("PUBLISHED")
+                return {
+                    "success": True,
+                    "title": title,
+                    "platform": "抖音视频",
+                    "url": page.url,
+                }
+            except Error:
+                await self._set_state("LOGGED_IN")
+                return {
+                    "success": True,
+                    "title": title,
+                    "platform": "抖音视频",
+                    "url": page.url,
+                    "note": "已提交发布，请手动确认结果",
+                }
+
+        except Error as e:
+            await self._set_state("LOGGED_IN")
+            return {"success": False, "error": str(e)}
+
     async def get_stats(self) -> Dict[str, Any]:
         """获取数据统计（需要登录态）"""
         async with self._state_lock:

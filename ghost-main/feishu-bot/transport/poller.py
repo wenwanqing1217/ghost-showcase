@@ -14,9 +14,9 @@ logger = logging.getLogger("feishu-bot")
 class MessagePoller:
     """定时轮询飞书消息 API，用于 WS 事件未到达时的后备"""
 
-    def __init__(self, token_mgr: TokenManager, handler):
+    def __init__(self, token_mgr: TokenManager, channel_adapter):
         self.token_mgr = token_mgr
-        self.handler = handler
+        self.channel_adapter = channel_adapter
         self._known_chats: set[str] = set()
         self._last_msg_times: dict[str, int] = {}
         # 从环境变量读取已知 chat_id（逗号分隔）
@@ -112,7 +112,14 @@ class MessagePoller:
                                         sender_id[:12],
                                         msg.get("body", {}).get("content", "")[:50],
                                     )
-                                    await self.handler.handle_event(event)
+                                    await self.channel_adapter.receive(
+                                        sender_id=sender_id,
+                                        text=content.get("text", ""),
+                                        chat_id=chat_id,
+                                        msg_id=msg.get("message_id", ""),
+                                        msg_type=msg_type,
+                                        event=event,
+                                    )
                                 except Exception as e:
                                     logger.error("轮询消息处理异常: %s", e)
                     # 更新最后检查时间为本次轮询开始前的时间戳

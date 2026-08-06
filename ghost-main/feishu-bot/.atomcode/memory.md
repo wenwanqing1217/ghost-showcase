@@ -1,0 +1,5 @@
+- 项目是 feishu-bot：飞书 Bot ↔ AI Codex CLI 桥接，支持多后端（atomcode/zcode/codex）和定时任务
+- bot.py 是主入口：飞书事件监听 + 消息处理 + 定时任务调度，无会话记忆/上下文管理
+- code_runner.py 是后端执行引擎，支持 atomcode/zcode/codex 三个后端，可独立使用
+- codex_api.py 是 HTTP API 封装，供外部通过 POST /ask 调用 Codex CLI
+- 工作目录 D:/MW/ghost-main/feishu-bot，父仓库 ghost-main 下还有 gateway、nebula 等模块

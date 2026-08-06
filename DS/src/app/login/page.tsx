@@ -19,7 +19,12 @@ export default function LoginPage() {
           credentials: 'include',
         });
         if (res.ok) {
-          router.push('/chat');
+          const data = await res.json().catch(() => null);
+          const payload = data?.data || data || {};
+          // 与 AuthGuard 保持一致：必须有有效身份字段才视为已登录
+          if (payload.alpha_id || payload.did || payload.id) {
+            router.push('/chat');
+          }
         }
       } catch {
         // Not authenticated, stay on login page

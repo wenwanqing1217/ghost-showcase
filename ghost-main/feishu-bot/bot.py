@@ -54,9 +54,14 @@ class BotApp:
             platform_router=self.platform_router,
             event_publisher=self.event_publisher,
         )
+        # 构建 ChannelAdapter（统一接口，供 OrchestratorEngine 等外部框架调用）
+        from feishu_channel import FeishuChannelAdapter
+        self.channel_adapter = FeishuChannelAdapter(self.handler, self.event_publisher)
+        # 将 adapter 注入 handler（handler 内部可通过 self._channel_adapter 发送事件）
+        self.handler._channel_adapter = self.channel_adapter
 
         self.task_queue = TaskQueue(TASK_QUEUE_PATH, self)
-        self.watcher = FeishuEventWatcher(self.token_mgr, self.handler)
+        self.watcher = FeishuEventWatcher(self.token_mgr, self.channel_adapter)
         self.platform_router = PlatformRouter()
         self.event_publisher = EventPublisher()
 
@@ -126,7 +131,7 @@ class FeishuBotHandler:
         await handle_event(self, event)
 
     async def _reply_text(self, chat_id: str, reply_msg_id: str, text: str):
-        """回复消息（复用共享 HTTP 客户端）"""
+        """回复消息"""
         token = await self.token_mgr.get_token()
         r = await self._http_client.post(
             "https://open.feishu.cn/open-apis/im/v1/messages",
@@ -144,6 +149,13 @@ class FeishuBotHandler:
         data = r.json()
         if data.get("code") != 0:
             logger.warning("回复失败: %s", data)
+        # 发布事件（不阻塞主流程）
+        if self.event_publisher:
+            import asyncio
+            asyncio.create_task(self.event_publisher.emit(
+                "social.message",
+                {"chat_id": chat_id, "msg_type": "text", "content": text[:500]},
+            ))
 
     async def _reply_card(self, chat_id: str, reply_msg_id: str, card: dict):
         """发送交互卡片消息（msg_type=interactive）"""

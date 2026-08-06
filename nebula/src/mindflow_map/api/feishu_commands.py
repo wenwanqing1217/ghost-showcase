@@ -20,8 +20,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
+
+import httpx
 
 from mindflow_map.api.feishu_sender import FeishuSender
 from mindflow_map.config import settings
@@ -75,8 +79,10 @@ async def route_command(text: str) -> Optional[str]:
     if stripped in ("帮助", "help", "?", "？", "指令"):
         return _help_text()
 
-    # 按前缀匹配
-    for prefix, (_p, fn) in _COMMAND_PREFIXES.items():
+    # 按前缀匹配（前缀长的优先，避免"发布视频"吞掉"发布视频到抖音"等长指令）
+    for prefix, (_p, fn) in sorted(
+        _COMMAND_PREFIXES.items(), key=lambda kv: len(kv[0]), reverse=True
+    ):
         if stripped.startswith(prefix):
             after = stripped[len(prefix):].strip()
             args = _parse_kv_args(stripped, after)
@@ -433,6 +439,107 @@ async def _cmd_publish(args: Dict[str, str], after: str) -> str:
         return f"发布响应：{json.dumps(data, ensure_ascii=False)[:300]}"
     except Exception as e:
         return f"❌ 发布异常：{e}"
+
+
+# MoneyPrinterTurbo 容器内地址（宿主机是 localhost:8080，容器网络内用服务名）
+_MP_INTERNAL_BASE = os.environ.get("MP_INTERNAL_URL", "http://moneyprinter:8080").rstrip("/")
+
+
+@_register("发布视频到抖音")
+async def _cmd_publish_douyin_video(args: Dict[str, str], after: str) -> str:
+    """发布 AI 生成的视频到抖音
+
+    格式：发布视频到抖音 <task_id> 标题=XX 描述=XX
+    流程：查视频任务 → 下载 MP4 → Playwright 上传抖音 → 提交发布
+    """
+    parts = after.strip().split(None, 1)
+    if not parts or not parts[0]:
+        return "❌ 请提供任务 ID\n格式：发布视频到抖音 abc123 标题=我的视频"
+
+    task_id = parts[0]
+    title = args.get("标题") or args.get("title") or "AI 生成视频"
+    description = args.get("描述") or args.get("content") or ""
+
+    client = FeishuSender._get_shared_client()
+    gateway_url = settings.gateway_url.rstrip("/")
+
+    # ── 1. 查询视频任务，获取视频 URL ──
+    try:
+        resp = await client.get(
+            f"{gateway_url}/v1/content/video/status/{task_id}",
+            timeout=15,
+        )
+        data = resp.json()
+        if not resp.is_success:
+            return f"❌ 查询视频任务失败：{data.get('error', f'HTTP {resp.status_code}')}"
+        task = data.get("data", {}) if isinstance(data.get("data"), dict) else data
+        state = task.get("state", 0)
+        if state != 1:
+            return f"❌ 视频尚未生成完成（当前状态: {state}），请先发送「查询视频 {task_id}」确认"
+
+        videos = task.get("combined_videos") or task.get("videos") or []
+        if not videos:
+            return "❌ 视频任务完成但未找到视频文件"
+        video_url = str(videos[0])
+    except Exception as e:
+        return f"❌ 查询视频任务异常：{e}"
+
+    # ── 2. 下载视频到本地临时文件 ──
+    # 兼容三种 URL：绝对 http(s)://、相对路径 /tasks/...、宿主机 localhost:8080
+    if video_url.startswith("http"):
+        dl_url = video_url.replace("http://localhost:8080", _MP_INTERNAL_BASE)
+    else:
+        dl_url = f"{_MP_INTERNAL_BASE}{video_url}"
+    local_path = f"/tmp/douyin_videos/{task_id}.mp4"
+    try:
+        Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+        async with httpx.AsyncClient(timeout=120, follow_redirects=True) as hc:
+            r = await hc.get(dl_url)
+            if r.status_code != 200:
+                return f"❌ 下载视频失败：HTTP {r.status_code}（{dl_url[:100]}）"
+            Path(local_path).write_bytes(r.content)
+        if Path(local_path).stat().st_size < 1000:
+            return "❌ 下载的视频文件过小，可能无效"
+    except Exception as e:
+        return f"❌ 下载视频异常：{e}"
+
+    # ── 3. Playwright 上传抖音并发布 ──
+    try:
+        from mindflow_map.automation.douyin import DouyinAutomation
+
+        auto = DouyinAutomation()
+        try:
+            if auto.state != "LOGGED_IN":
+                if not auto._cookie_json:
+                    return (
+                        "❌ 抖音未登录\n"
+                        "请先完成一次性登录：用本地脚本扫描登录后导出 cookie，\n"
+                        "配置 nebula 的 DOUYIN_COOKIE_JSON 环境变量，重启 nebula 后即可自动发布。"
+                    )
+                login_result = await auto.login()
+                if not login_result.get("ok"):
+                    return (
+                        "❌ 抖音登录失败\n"
+                        "Cookie 注入失败，请重新导出 cookie 并更新 DOUYIN_COOKIE_JSON。\n"
+                        f"详情：{login_result.get('error', '未知错误')}"
+                    )
+            result = await auto.publish_video(
+                video_path=local_path, title=title, description=description
+            )
+            if result.get("success"):
+                return (
+                    f"✅ 抖音视频发布已提交\n"
+                    f"标题：{title}\n"
+                    f"URL：{result.get('url', '')}\n"
+                    f"{result.get('note', '')}"
+                )
+            return f"❌ 抖音视频发布失败：{result.get('error', '未知错误')}"
+        finally:
+            await auto.close()
+    except ImportError:
+        return "❌ 抖音自动化未安装（需要 playwright）\n配置：pip install playwright && playwright install chromium"
+    except Exception as e:
+        return f"❌ 抖音视频发布异常：{e}"
 
 
 @_register("抖音")

@@ -1,0 +1,20 @@
+.env
+__pycache__/
+*.pyc
+
+# 日志文件
+*.log
+
+# 调试输出
+*.out
+dbg_*.txt
+last_out.txt
+loop_out.txt
+final_out.txt
+
+# 临时/无用脚本
+_patch*.py
+fix_doc.py
+
+# 任务队列持久化
+tasks.json

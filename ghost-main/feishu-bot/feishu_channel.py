@@ -8,6 +8,7 @@ TERM: FeishuChannelAdapter — 飞书 ChannelAdapter 实现
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -24,8 +25,9 @@ class FeishuChannelAdapter(ChannelAdapter):
     出站消息 → handler._reply_text() / reply_card()
     """
 
-    def __init__(self, handler):
+    def __init__(self, handler, event_publisher=None):
         self._handler = handler
+        self._event_publisher = event_publisher
 
     async def receive(self, sender_id: str, text: str, **kwargs: Any) -> None:
         """接收飞书消息，委托给 handler 处理"""
@@ -57,6 +59,12 @@ class FeishuChannelAdapter(ChannelAdapter):
         await self._handler._reply_text(
             recipient_id, kwargs.get("reply_msg_id", ""), content
         )
+        # 发布出站事件
+        if self._event_publisher:
+            asyncio.create_task(self._event_publisher.emit(
+                "social.message",
+                {"chat_id": recipient_id, "direction": "outbound", "content": content[:500]},
+            ))
 
     def channel_name(self) -> str:
         return "feishu"
